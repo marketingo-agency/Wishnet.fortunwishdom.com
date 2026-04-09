@@ -120,7 +120,9 @@
       "Bash(sed -i 's/^THRESHOLD=95$/THRESHOLD=1/' ~/.claude/hooks/usage-guard.sh)",
       "Bash(rm -f ~/.claude/PAUSED_WORK.md)",
       "Bash(sed -i 's/^THRESHOLD=1$/THRESHOLD=95/' ~/.claude/hooks/usage-guard.sh)",
-      "Bash(python -c \"import json; json.load\\(open\\('C:/Users/3issam/.claude/settings.json'\\)\\); print\\('valid json'\\)\")"
+      "Bash(python -c \"import json; json.load\\(open\\('C:/Users/3issam/.claude/settings.json'\\)\\); print\\('valid json'\\)\")",
+      "mcp__claude_ai_Supabase__deploy_edge_function",
+      "Bash(supabase --version)"
     ]
   }
 }
