@@ -50,12 +50,20 @@ export function FileCard({
   };
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       draggable={!isBrainDocument}
       onDragStart={handleDragStart}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
-        'group relative flex flex-col bg-card rounded-xl border overflow-hidden text-left transition-all hover:shadow-md',
+        'group relative flex flex-col bg-card rounded-xl border overflow-hidden text-left transition-all hover:shadow-md cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
         isSelected ? 'ring-2 ring-blue-500 border-blue-500' : 'border-border',
         isBrainDocument && 'ring-1 ring-indigo-200'
       )}
@@ -161,6 +169,6 @@ export function FileCard({
           {formatFileSize(file.size)}
         </p>
       </div>
-    </button>
+    </div>
   );
 }
