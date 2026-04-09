@@ -1,0 +1,12 @@
+When building UI components or pages:
+- Always use semantic HTML elements (nav, main, section, article, aside, footer)
+- Add hover states with smooth transitions (150-300ms ease)
+- Ensure cursor-pointer on all clickable elements
+- Use SVG icons from Lucide or Heroicons — never use emojis as functional icons
+- Respect prefers-reduced-motion for all animations
+- Test responsiveness at 375px, 768px, 1024px, 1440px breakpoints
+- Ensure color contrast meets WCAG AA (4.5:1 for text, 3:1 for large text)
+- All interactive elements must have visible focus states for keyboard navigation
+- Include loading states for async operations
+- Include empty states for lists and tables
+- Include error states for failed operations

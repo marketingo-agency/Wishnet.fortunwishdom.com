@@ -1,0 +1,215 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Fortun Design System
+   Primary: Fortun Blue #46B4E8 (197 78% 59%)
+   Secondary Blues: #50CEFF, #80E1FF, #B3F1FF
+   Secondary Reds: #FF5033, #FF7C66, #FFBEB3
+*/
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 210 25% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 25% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 25% 15%;
+
+    /* Fortun Blue Primary */
+    --primary: 197 78% 59%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 197 100% 97%;
+    --secondary-foreground: 197 78% 35%;
+
+    --muted: 210 25% 96%;
+    --muted-foreground: 210 15% 45%;
+
+    --accent: 197 100% 92%;
+    --accent-foreground: 197 78% 30%;
+
+    /* Secondary Red for destructive */
+    --destructive: 9 100% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 25% 92%;
+    --input: 210 25% 92%;
+    --ring: 197 78% 59%;
+
+    --radius: 0.75rem;
+
+    /* Fortun Custom Colors */
+    --fortun-blue: 197 78% 59%;
+    --fortun-blue-light: 195 100% 75%;
+    --fortun-blue-lighter: 195 100% 85%;
+    --fortun-red: 9 100% 60%;
+    --fortun-red-light: 9 100% 70%;
+    --fortun-red-lighter: 9 100% 85%;
+
+    /* Premium Sidebar - Clean white */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 210 25% 25%;
+    --sidebar-primary: 197 78% 59%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 197 100% 97%;
+    --sidebar-accent-foreground: 197 78% 35%;
+    --sidebar-border: 210 25% 94%;
+    --sidebar-ring: 197 78% 59%;
+  }
+
+  .dark {
+    --background: 220 25% 6%;
+    --foreground: 210 20% 95%;
+
+    --card: 220 25% 8%;
+    --card-foreground: 210 20% 95%;
+
+    --popover: 220 25% 8%;
+    --popover-foreground: 210 20% 95%;
+
+    /* Fortun Blue Primary */
+    --primary: 197 78% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 197 40% 15%;
+    --secondary-foreground: 197 78% 80%;
+
+    --muted: 220 25% 12%;
+    --muted-foreground: 210 15% 55%;
+
+    --accent: 197 40% 18%;
+    --accent-foreground: 197 78% 85%;
+
+    /* Secondary Red for destructive */
+    --destructive: 9 100% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 25% 14%;
+    --input: 220 25% 14%;
+    --ring: 197 78% 55%;
+
+    /* Premium Sidebar Dark - Deep slate */
+    --sidebar-background: 220 30% 5%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 197 78% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 197 40% 12%;
+    --sidebar-accent-foreground: 197 78% 80%;
+    --sidebar-border: 220 25% 10%;
+    --sidebar-ring: 197 78% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-inter), 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-poppins), 'Poppins', system-ui, sans-serif;
+  }
+}
+
+/* Safe area utilities for notched devices */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.safe-x {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+.bottom-safe {
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Wishpedia animations */
+@keyframes wp-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes wp-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.wp-animate-in {
+  animation: wp-fade-in 0.35s ease-out both;
+}
+.wp-stagger-1 { animation-delay: 0.04s; }
+.wp-stagger-2 { animation-delay: 0.08s; }
+.wp-stagger-3 { animation-delay: 0.12s; }
+.wp-stagger-4 { animation-delay: 0.16s; }
+.wp-stagger-5 { animation-delay: 0.20s; }
+.wp-stagger-6 { animation-delay: 0.24s; }
+.wp-stagger-7 { animation-delay: 0.28s; }
+.wp-stagger-8 { animation-delay: 0.32s; }
+
+.wp-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 25%,
+    hsl(var(--muted-foreground) / 0.06) 50%,
+    hsl(var(--muted)) 75%
+  );
+  background-size: 200% 100%;
+  animation: wp-shimmer 1.8s ease-in-out infinite;
+}
+
+/* ── Profile Page Premium Styles ── */
+
+.profile-glass-card {
+  background: hsl(var(--card) / 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid hsl(var(--border) / 0.5);
+  box-shadow:
+    0 6px 32px -6px hsl(var(--primary) / 0.10),
+    0 2px 8px hsl(var(--foreground) / 0.05),
+    inset 0 1px 0 hsl(var(--card) / 0.6);
+  transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+}
+.profile-glass-card:hover {
+  box-shadow:
+    0 12px 40px -6px hsl(var(--primary) / 0.14),
+    0 4px 12px hsl(var(--foreground) / 0.06),
+    inset 0 1px 0 hsl(var(--card) / 0.6);
+  border-color: hsl(var(--primary) / 0.15);
+}
+
+.profile-page-bg {
+  background-image: radial-gradient(circle at 1px 1px, hsl(var(--muted-foreground) / 0.04) 1px, transparent 0);
+  background-size: 28px 28px;
+}
+
+/* Profile entrance animation */
+@keyframes profileFadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.profile-fade-in-up {
+  animation: profileFadeInUp 0.5s ease-out both;
+}

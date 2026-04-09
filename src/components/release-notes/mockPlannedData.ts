@@ -1,0 +1,58 @@
+import { PlannedRelease } from './types';
+
+export const mockPlannedReleases: PlannedRelease[] = [
+  {
+    id: 'p1',
+    title: 'Fortun MasterMind & AI Agents Expansion',
+    description: 'Building the strategic intelligence core of Fortun Wishnet. The MasterMind module with its Brain analytics engine and Heart engagement system is taking shape, alongside the activation of Promptor for AI prompt engineering and Osha as your dedicated platform assistant.',
+    targetDate: 'April 2026',
+    quarter: 'Q2 2026',
+    status: 'in-progress',
+    features: ['MasterMind Hub', 'Brain Knowledge base', 'Heart Engagement', 'Promptor Agent', 'Osha Assistant']
+  },
+  {
+    id: 'p2',
+    title: 'Creative & Marketing Powerhouse',
+    description: 'Unleash your marketing potential with the Pixel visual design agent and Pulse social engagement agent. Combined with the full Marketing Plan system, you will have everything needed to craft and execute winning campaigns.',
+    targetDate: 'May 2026',
+    quarter: 'Q2 2026',
+    status: 'coming-soon',
+    features: ['Pixel Design Agent', 'Pulse Social Agent', 'Marketing Plan System']
+  },
+  {
+    id: 'p3',
+    title: 'Team Collaboration Suite',
+    description: 'Streamline your workflow with the Taskforce module, bringing powerful team collaboration and task management to Fortun Wishnet.',
+    targetDate: 'June 2026',
+    quarter: 'Q2 2026',
+    status: 'coming-soon',
+    features: ['Taskforce Collaboration', 'Team Workflows', 'Task Management']
+  },
+  {
+    id: 'p4',
+    title: 'Echo Communication Agent',
+    description: 'Connect and engage like never before. The Echo AI agent brings intelligent communication assistance for customer support via Gmail, tickets, and embeddable chatbot capabilities.',
+    targetDate: 'July 2026',
+    quarter: 'Q3 2026',
+    status: 'planned',
+    features: ['Echo Communication Agent', 'Gmail Integration', 'Embeddable Chatbot']
+  },
+  {
+    id: 'p5',
+    title: 'Fortun Wishdom Product Universe',
+    description: 'Your complete product catalog management system arrives. The Wishdom module brings full inventory control for your entire product lineup, from Plushes and Figurines to Cards collections and comprehensive Stock management tools.',
+    targetDate: 'August 2026',
+    quarter: 'Q3 2026',
+    status: 'planned',
+    features: ['The Wishdom Hub', 'Plushes Catalog', 'Figurines Catalog', 'Cards Collection', 'Stock Inventory']
+  },
+  {
+    id: 'p6',
+    title: 'Continuous Evolution & AI Enhancement',
+    description: 'The journey never stops. Throughout September and beyond, expect continuous system upgrades, enhanced AI agent capabilities, performance optimizations, and new features driven by your feedback. Fortun Wishnet grows with you.',
+    targetDate: 'September 2026',
+    quarter: 'Q3 2026',
+    status: 'planned',
+    features: ['System Upgrades', 'AI Capabilities Boost', 'Performance Optimization', 'Community-Driven Features']
+  },
+];

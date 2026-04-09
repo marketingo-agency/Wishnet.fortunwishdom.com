@@ -1,0 +1,28 @@
+project_id = "zlmideilxfnokemzkavm"
+
+[functions.ai-chat]
+verify_jwt = false
+
+[functions.storage-stats]
+verify_jwt = false
+
+[functions.serve-file]
+verify_jwt = false
+
+[functions.process-embeddings]
+verify_jwt = false
+
+[functions.search-knowledge]
+verify_jwt = false
+
+[functions.process-ocr]
+verify_jwt = false
+
+[functions.promptor]
+verify_jwt = false
+
+[functions.osha-chat]
+verify_jwt = false
+
+[functions.wishpedia-generate]
+verify_jwt = false

@@ -1,0 +1,1 @@
+ALTER TABLE osha_settings ADD COLUMN file_analysis_model text NOT NULL DEFAULT 'gemini-2.0-flash';

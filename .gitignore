@@ -1,0 +1,50 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules
+
+# Next.js build output
+.next
+out
+
+# Production build
+build
+dist
+
+# Environment variables — never commit
+.env
+.env*.local
+.env.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# TypeScript build info
+*.tsbuildinfo
+next-env.d.ts
+
+# Playwright (if re-added later)
+.playwright-mcp
+playwright-report
+test-results
+
+# Backups
+.git.old-backup-before-scrub/
+
+# Misc
+*.local
