@@ -6,6 +6,21 @@ manually if the database is ever rebuilt from migrations alone.
 
 ---
 
+## 2026-04-09 — RAG-001: process-embeddings needs redeploy
+
+The chunker fix in `supabase/functions/process-embeddings/index.ts`
+(line ~104, the main `chunkText` function) was committed to the repo
+but the deployed edge function was NOT updated during the autonomous
+Phase A run because the 790-line file is too large to deploy via the
+MCP inline payload. **Action:** run `supabase functions deploy
+process-embeddings --project-ref zlmideilxfnokemzkavm` once a
+Supabase CLI is available.
+
+(`process-ocr` received the same fix and *was* successfully deployed
+as v99 on 2026-04-09.)
+
+---
+
 ## 2026-04-09 — SUP-001 / SEC-007: lock down `wishpedia-media` bucket
 
 ```sql

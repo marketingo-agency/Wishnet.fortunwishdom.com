@@ -132,9 +132,15 @@ function chunkText(text: string, chunkSize = 1000, overlap = 100): string[] {
 
     const chunk = text.slice(start, end).trim();
     if (chunk.length > 0) chunks.push(chunk);
-    start = end - overlap;
-    
-    if (start >= text.length - overlap) break;
+
+    // RAG-001: exit as soon as we've consumed the full text so we don't
+    // emit duplicate trailing chunks when remaining text <= overlap.
+    if (end >= text.length) break;
+
+    // Move start with overlap, but guarantee forward progress.
+    const nextStart = end - overlap;
+    start = nextStart > start ? nextStart : end;
+    if (start >= text.length) break;
   }
 
   return chunks.filter(chunk => chunk.length > 0);

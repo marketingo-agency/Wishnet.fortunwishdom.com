@@ -125,13 +125,21 @@ function chunkText(text: string, chunkSize = 1000, overlap = 100): ChunkResult[]
       chunks.push({ content: chunk, index });
       index++;
     }
-    
-    // Move start with overlap
-    start = end - overlap;
+
+    // RAG-001: stop once we've consumed the full text. Without this guard,
+    // when the final chunk ended at cleanText.length, `start = end - overlap`
+    // still pointed inside the text, and the next iteration would produce a
+    // duplicate trailing chunk until MAX_CHUNKS was hit.
+    if (end >= cleanText.length) break;
+
+    // Move start with overlap — and guarantee forward progress so we can
+    // never loop on the same window (pathological when chunk == overlap).
+    const nextStart = end - overlap;
+    start = nextStart > start ? nextStart : end;
     if (start < 0) start = 0;
     if (start >= cleanText.length) break;
   }
-  
+
   return chunks;
 }
 
