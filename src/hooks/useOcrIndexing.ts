@@ -12,7 +12,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { EDGE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '@/config/api';
+import { getAuthHeaders, edgeFunctionUrl } from '@/lib/apiHelpers';
 
 // Worker is served as a static asset from /public so this file works in both
 // Vite (vite serves /public) and Next.js (next serves /public). Set the
@@ -136,12 +136,10 @@ async function callOcrEdgeFunction(
   pageImages: PageImage[],
   append: boolean = false
 ): Promise<OcrResult> {
-  const response = await fetch(`${EDGE_FUNCTIONS_URL}/process-ocr`, {
+  const headers = await getAuthHeaders();
+  const response = await fetch(edgeFunctionUrl('process-ocr'), {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-    },
+    headers,
     body: JSON.stringify({
       document_id: documentId,
       page_images: pageImages,
