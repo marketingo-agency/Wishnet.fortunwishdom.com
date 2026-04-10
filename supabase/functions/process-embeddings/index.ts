@@ -37,7 +37,7 @@ interface ChunkResult {
 // Safety limits to prevent memory exhaustion
 const MAX_TEXT_LENGTH = 300000; // ~300k chars max
 const MAX_CHUNKS = 150; // Cap chunks per document
-const BATCH_SIZE = 3; // Small batches to minimize memory spikes
+const BATCH_SIZE = 50; // RAG-007: bumped from 3 → 50 for ~25x faster indexing
 const MAX_REQUEST_BODY_BYTES = 5 * 1024 * 1024; // 5MB max request body
 
 // Paginated delete: removes all matching rows in batches to avoid the 1000-row PostgREST limit
