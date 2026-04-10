@@ -8,7 +8,7 @@ export type { FileType, FileView, FileRecord, Sector, FileTag, FileVersion } fro
 export { getMimeTypeFilter } from './types';
 
 // URL utilities
-export { getFileUrl, getSecureFileUrl, getBrainDocumentUrl } from './fileUrls';
+export { getFileUrl, getSignedFileUrl, getSecureFileUrl, fetchSecureFile, getBrainDocumentUrl } from './fileUrls';
 
 // Core file operations
 export { useFiles, useUploadFile, useUpdateFile, useDeleteFile } from './useFilesCore';

@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.91.0";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, x-request-id",
 };
 
 // MIME type mapping based on file extension
@@ -56,8 +56,13 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const bucket = url.searchParams.get("bucket");
     const path = url.searchParams.get("path");
-    const token = url.searchParams.get("token");
     const filename = url.searchParams.get("filename");
+
+    // SEC-011: Read token from Authorization header first, fall back to query string
+    const authHeader = req.headers.get("Authorization");
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : url.searchParams.get("token");
 
     // Validate required params
     if (!bucket || !path || !token) {

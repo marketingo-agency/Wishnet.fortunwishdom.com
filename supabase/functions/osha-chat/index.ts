@@ -21,6 +21,11 @@ const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 20 });
 // SEC-003: CORS tightened from wildcard to allowed origins list
 let corsHeaders: Record<string, string> = getCorsHeaders(null);
 
+// AGENT-017: Generate a unique request ID for tracing/debugging
+function generateRequestId(): string {
+  return crypto.randomUUID();
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface OshaSettings {
@@ -376,6 +381,22 @@ Always render responses using proper markdown: headings, lists, tables, code blo
 // ─── URL Content Fetcher via Jina Reader ──────────────────────────────────────
 
 async function fetchUrlContent(url: string): Promise<{ url: string; content: string } | null> {
+  // AGENT-018: Validate URL length and format before fetching
+  if (url.length > 2000) {
+    console.warn(`[osha-chat] URL rejected: exceeds 2000 chars (${url.length})`);
+    return null;
+  }
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      console.warn(`[osha-chat] URL rejected: invalid protocol ${parsed.protocol}`);
+      return null;
+    }
+  } catch {
+    console.warn(`[osha-chat] URL rejected: malformed URL`);
+    return null;
+  }
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
@@ -1047,15 +1068,21 @@ function generateSimplePdf(text: string, title: string): Uint8Array {
 Deno.serve(async (req) => {
   corsHeaders = getCorsHeaders(req.headers.get('Origin'));
 
+  // AGENT-017: Request tracing — attach x-request-id to all responses
+  const requestId = generateRequestId();
+  const responseHeaders = { ...corsHeaders, 'x-request-id': requestId, 'Access-Control-Expose-Headers': 'x-request-id' };
+
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: responseHeaders });
   }
+
+  console.log(`[osha-chat] request=${requestId} method=${req.method} url=${req.url}`);
 
   const authHeader = req.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...responseHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -1076,7 +1103,7 @@ Deno.serve(async (req) => {
   if (userError || !user) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...responseHeaders, 'Content-Type': 'application/json' },
     });
   }
   const userId = user.id;
@@ -1085,7 +1112,7 @@ Deno.serve(async (req) => {
   if (rateLimiter.check(userId)) {
     return new Response(
       JSON.stringify({ error: 'Rate limit exceeded. Please wait a moment and try again.' }),
-      { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': '60' } }
+      { status: 429, headers: { ...responseHeaders, 'Content-Type': 'application/json', 'Retry-After': '60' } }
     );
   }
 
@@ -1095,7 +1122,7 @@ Deno.serve(async (req) => {
   } catch {
     return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
       status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...responseHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -1112,12 +1139,12 @@ Deno.serve(async (req) => {
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     return new Response(JSON.stringify({ settings: data }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...responseHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -1127,7 +1154,7 @@ Deno.serve(async (req) => {
     if (!settings) {
       return new Response(JSON.stringify({ error: 'settings required' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -1156,12 +1183,12 @@ Deno.serve(async (req) => {
     if (result.error) {
       return new Response(JSON.stringify({ error: result.error.message }), {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     return new Response(JSON.stringify({ settings: result.data }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...responseHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -1175,12 +1202,12 @@ Deno.serve(async (req) => {
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...responseHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -1189,7 +1216,7 @@ Deno.serve(async (req) => {
     const { message } = body;
     if (!message) {
       return new Response(JSON.stringify({ error: 'message required' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -1197,7 +1224,7 @@ Deno.serve(async (req) => {
     const openaiKey = llmSettings?.openai_api_key || Deno.env.get('OPENAI_API_KEY') || '';
     if (!openaiKey) {
       return new Response(JSON.stringify({ error: 'OpenAI API key required' }), {
-        status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 503, headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -1244,11 +1271,11 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
       await supabase.from('osha_messages').insert({ user_id: userId, role: 'assistant', content: questions, mode: 'deep-research' });
 
       return new Response(JSON.stringify({ questions }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     } catch (e: any) {
       return new Response(JSON.stringify({ error: e.message }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
   }
@@ -1259,7 +1286,7 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
     const clarificationAnswers = body.content || '';
     if (!originalTopic) {
       return new Response(JSON.stringify({ error: 'message (original topic) required' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -1267,7 +1294,7 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
     const openaiKey = llmSettings?.openai_api_key || Deno.env.get('OPENAI_API_KEY') || '';
     if (!openaiKey) {
       return new Response(JSON.stringify({ error: 'OpenAI API key required for deep research' }), {
-        status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 503, headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -1387,12 +1414,12 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
             compliance_status: 'pass', compliance_notes: 'Deep research completed', llm_provider: 'openai', llm_model: selectedModel,
           });
         }
-        return new Response(JSON.stringify({ status: 'completed', content, resolvedTopic }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ status: 'completed', content, resolvedTopic }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
       }
 
-      return new Response(JSON.stringify({ responseId: data.id, status: data.status, resolvedTopic }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ responseId: data.id, status: data.status, resolvedTopic }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
@@ -1401,7 +1428,7 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
     const { message } = body;
     if (!message) {
       return new Response(JSON.stringify({ error: 'message required' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -1409,7 +1436,7 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
     const openaiKey = llmSettings?.openai_api_key || Deno.env.get('OPENAI_API_KEY') || '';
     if (!openaiKey) {
       return new Response(JSON.stringify({ error: 'OpenAI API key required for deep research' }), {
-        status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 503, headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -1494,12 +1521,12 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
             compliance_status: 'pass', compliance_notes: 'Deep research completed', llm_provider: 'openai', llm_model: selectedModel,
           });
         }
-        return new Response(JSON.stringify({ status: 'completed', content, resolvedTopic }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ status: 'completed', content, resolvedTopic }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
       }
 
-      return new Response(JSON.stringify({ responseId: data.id, status: data.status, resolvedTopic }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ responseId: data.id, status: data.status, resolvedTopic }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
@@ -1507,7 +1534,7 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
   if (action === 'poll-research') {
     const { responseId } = body;
     if (!responseId) {
-      return new Response(JSON.stringify({ error: 'responseId required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'responseId required' }), { status: 400, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
 
     const { data: llmSettings } = await supabaseAdmin.from('llm_settings').select('*').limit(1).maybeSingle();
@@ -1524,16 +1551,16 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
       if (data.status === 'completed') {
         const content = data.output_text || data.output?.[0]?.content?.[0]?.text || '';
         await supabase.from('osha_messages').insert({ user_id: userId, role: 'assistant', content, mode: 'deep-research' });
-        return new Response(JSON.stringify({ status: 'completed', content }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ status: 'completed', content }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
       }
 
       if (data.status === 'failed' || data.status === 'cancelled') {
-        return new Response(JSON.stringify({ status: data.status, error: data.error?.message || 'Research failed' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ status: data.status, error: data.error?.message || 'Research failed' }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
       }
 
-      return new Response(JSON.stringify({ status: data.status }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ status: data.status }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
@@ -1541,13 +1568,13 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
   if (action === 'web-search') {
     const { message } = body;
     if (!message) {
-      return new Response(JSON.stringify({ error: 'message required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'message required' }), { status: 400, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
 
     const { data: llmSettings } = await supabaseAdmin.from('llm_settings').select('*').limit(1).maybeSingle();
     const openaiKey = llmSettings?.openai_api_key || Deno.env.get('OPENAI_API_KEY') || '';
     if (!openaiKey) {
-      return new Response(JSON.stringify({ error: 'OpenAI API key required for web search' }), { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'OpenAI API key required for web search' }), { status: 503, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
 
     const heartRules = await fetchHeartRules(supabaseAdmin);
@@ -1586,9 +1613,9 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
         compliance_notes: 'Web search via gpt-4o with web_search_preview', llm_provider: 'openai', llm_model: 'gpt-4o',
       });
 
-      return new Response(JSON.stringify({ content }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ content }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
@@ -1596,14 +1623,14 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
   if (action === 'save-to-brain') {
     const { title, content: docContent, category, destination, description: docDescription } = body as any;
     if (!docContent || !title) {
-      return new Response(JSON.stringify({ error: 'title and content required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'title and content required' }), { status: 400, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Safety: reject anything mentioning Heart rules
     const lowerTitle = title.toLowerCase();
     const lowerContent = docContent.toLowerCase();
     if (lowerTitle.includes('heart rule') || lowerContent.includes('heart rule')) {
-      return new Response(JSON.stringify({ error: 'Osha cannot modify Heart rules. Heart rules are read-only.' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'Osha cannot modify Heart rules. Heart rules are read-only.' }), { status: 403, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
 
     try {
@@ -1711,13 +1738,13 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
       if (dest === 'general') {
         const { data: sections } = await supabaseAdmin.from('brain_sections').select('id').eq('type', 'general').limit(1);
         if (!sections || sections.length === 0) {
-          return new Response(JSON.stringify({ error: 'No General Knowledge section found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          return new Response(JSON.stringify({ error: 'No General Knowledge section found' }), { status: 404, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
         }
         sectionId = sections[0].id;
       } else {
         const { data: sections } = await supabaseAdmin.from('brain_sections').select('id').eq('agent_id', dest).limit(1);
         if (!sections || sections.length === 0) {
-          return new Response(JSON.stringify({ error: `No section found for agent "${dest}"` }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          return new Response(JSON.stringify({ error: `No section found for agent "${dest}"` }), { status: 404, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
         }
         sectionId = sections[0].id;
         restrictedAgents = [dest];
@@ -1767,9 +1794,9 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
         llm_provider: 'openai', llm_model: 'gpt-4o-mini',
       });
 
-      return new Response(JSON.stringify({ success: true, documentId: doc?.id, fileName: suggestedFilename || title }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ success: true, documentId: doc?.id, fileName: suggestedFilename || title }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
@@ -1777,7 +1804,7 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
   if (action !== 'chat') {
     return new Response(JSON.stringify({ error: 'Unknown action' }), {
       status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...responseHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -1785,7 +1812,7 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
   if (!message) {
     return new Response(JSON.stringify({ error: 'message required' }), {
       status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...responseHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -1846,7 +1873,7 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
   if (!openaiKey && !geminiKey) {
     return new Response(JSON.stringify({ error: 'No AI provider configured. Ask an admin to configure LLM settings.' }), {
       status: 503,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...responseHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -2017,7 +2044,7 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
       return new Response(JSON.stringify({
         content: refusalMsg,
         audit: { heartCount: heartRules.length, brainCount: brainContext.length, complianceStatus: 'refused' },
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Resolve image provider + model from per-Osha settings (with global fallbacks)
@@ -2098,8 +2125,9 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
           .upload(imagePath, imageBlob, { contentType: 'image/png', upsert: false });
 
         if (!uploadErr) {
-          const { data: publicData } = supabaseServiceClient.storage.from('files').getPublicUrl(imagePath);
-          permanentImageUrl = publicData.publicUrl;
+          // SEC-019: files bucket is private — use signed URL (7-day expiry)
+          const { data: signedData } = await supabaseServiceClient.storage.from('files').createSignedUrl(imagePath, 60 * 60 * 24 * 7);
+          permanentImageUrl = signedData?.signedUrl || '';
 
           // Save to files table for Files Manager
           const { data: sectors } = await supabase.from('sectors').select('id, name').eq('user_id', userId);
@@ -2149,12 +2177,12 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
         isImage: true,
         imageUrl: permanentImageUrl,
         audit: { heartCount: heartRules.length, brainCount: brainContext.length, complianceStatus: 'pass' },
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
 
     } catch (e: any) {
       const errMsg = `I encountered an error generating the image: ${e.message}. Please try again or describe what you'd like in text instead.`;
       return new Response(JSON.stringify({ content: errMsg, audit: { heartCount: heartRules.length, brainCount: brainContext.length, complianceStatus: 'pass' } }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
   }
@@ -2318,5 +2346,5 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
       brainCount: brainContext.length,
       complianceStatus,
     },
-  }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
 });
