@@ -102,7 +102,7 @@ function FilesManagerContent() {
         setSelectedFile(null);
       }
     }
-  }, [files]);
+  }, [files, selectedFile]);
 
   const isLoading = isLoadingFiles || isLoadingBrain;
 

@@ -6,6 +6,7 @@ import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Settings2, Sparkles, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { agents } from './AgentConfigGrid';
+import { AGENT_GRADIENTS, AGENT_GRADIENT_FALLBACK } from './agentGradients';
 import {
   type LLMSettings,
   OPENAI_TEXT_MODELS,
@@ -17,15 +18,6 @@ import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { AgentModelConfig } from './AgentModelConfig';
 import { AgentSystemPrompt } from './AgentSystemPrompt';
-
-const PANEL_GRADIENTS: Record<string, string> = {
-  nexus:    'linear-gradient(135deg, #84cc16, #16a34a)',
-  promptor: 'linear-gradient(135deg, #8b5cf6, #9333ea)',
-  osha:     'linear-gradient(135deg, #0ea5e9, #06b6d4)',
-  echo:     'linear-gradient(135deg, #3b82f6, #4f46e5)',
-  pulse:    'linear-gradient(135deg, #ec4899, #d946ef)',
-  pixel:    'linear-gradient(135deg, #ec4899, #f43f5e)',
-};
 
 const defaultSystemPrompts: Record<string, string> = {
   nexus:    'You are Nexus, the central control hub for AI operations. You help users test and configure AI capabilities with precision and clarity.',
@@ -177,7 +169,7 @@ export function AgentConfigPanel({ agentId, settings }: AgentConfigPanelProps) {
           <div className="flex items-start gap-3">
             <div
               className="h-12 w-12 rounded-xl flex items-center justify-center shrink-0"
-              style={{ background: PANEL_GRADIENTS[agent.id] ?? 'linear-gradient(135deg, #6b7280, #4b5563)' }}
+              style={{ background: AGENT_GRADIENTS[agent.id] ?? AGENT_GRADIENT_FALLBACK }}
             >
               <Icon className="h-6 w-6 text-white" />
             </div>

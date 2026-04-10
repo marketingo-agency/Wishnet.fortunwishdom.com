@@ -66,12 +66,12 @@ export function PixelHeader({ mode, isConnected, complianceStatus, brainCount, h
 
       {/* Right: Status badges + Actions */}
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline" className="gap-1.5 text-xs px-2.5 py-1 border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400">
+        <Badge variant="outline" className="gap-1.5 text-xs px-2.5 py-1 border-emerald-500/50 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400">
           <span className="relative flex h-1.5 w-1.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
           </span>
-          Connected to MasterMind
+          Connected&nbsp;to MasterMind
         </Badge>
 
         {brainCount !== undefined && brainCount > 0 && (

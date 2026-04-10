@@ -19,7 +19,18 @@ import { BrandingProvider } from "@/components/BrandingProvider";
 export function Providers({ children }: { children: React.ReactNode }) {
   // `useState` ensures the QueryClient is created once per browser session
   // (not recreated on every re-render, which would drop the cache).
-  const [queryClient] = useState(() => new QueryClient());
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 30_000,          // 30s — avoid refetching on every mount
+        retry: 1,                    // retry once, not 3 times
+        refetchOnWindowFocus: false, // admin app, no need
+      },
+      mutations: {
+        retry: 0, // never retry mutations
+      },
+    },
+  }));
 
   return (
     <ErrorBoundary>

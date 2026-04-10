@@ -73,14 +73,14 @@ export function PromptorHeader({ lastHeartChunks, lastBrainChunks, isConnected =
           <Badge
             variant="outline"
             className={`text-xs sm:text-sm ${isConnected
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-400'
               : 'bg-muted text-muted-foreground'
             }`}
           >
             <span className={`h-1.5 w-1.5 rounded-full mr-1 sm:mr-1.5 ${
               isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground'
             }`} />
-            Connected<span className="hidden sm:inline"> to MasterMind</span>
+            Connected<span className="hidden sm:inline">&nbsp;to MasterMind</span>
           </Badge>
 
           {/* Promptor Brain button */}

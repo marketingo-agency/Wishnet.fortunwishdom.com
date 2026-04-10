@@ -5,16 +5,7 @@ import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AI_AGENTS, type AgentMetadata } from '@/data/agents';
 import { useAllAgentSettings } from '@/hooks/useAgentSettings';
-
-const AGENT_GRADIENTS: Record<string, string> = {
-  nexus:    'linear-gradient(135deg, #84cc16, #16a34a)',
-  promptor: 'linear-gradient(135deg, #8b5cf6, #9333ea)',
-  osha:     'linear-gradient(135deg, #0ea5e9, #06b6d4)',
-  echo:     'linear-gradient(135deg, #3b82f6, #4f46e5)',
-  pulse:    'linear-gradient(135deg, #ec4899, #d946ef)',
-  
-  pixel:    'linear-gradient(135deg, #ec4899, #f43f5e)',
-};
+import { AGENT_GRADIENTS, AGENT_GRADIENT_FALLBACK } from './agentGradients';
 
 interface AgentConfigGridProps {
   selectedAgentId: string | null;
@@ -92,7 +83,7 @@ export function AgentConfigGrid({ selectedAgentId, onSelectAgent }: AgentConfigG
                       'h-10 w-10 rounded-xl flex items-center justify-center shrink-0',
                       isComingSoon && 'grayscale opacity-50',
                     )}
-                    style={{ background: AGENT_GRADIENTS[agent.id] ?? 'linear-gradient(135deg, #6b7280, #4b5563)' }}
+                    style={{ background: AGENT_GRADIENTS[agent.id] ?? AGENT_GRADIENT_FALLBACK }}
                   >
                     <Icon className="h-5 w-5 text-white" />
                   </div>
