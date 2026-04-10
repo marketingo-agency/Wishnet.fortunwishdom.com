@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { sanitizeForPrompt } from '../_shared/sanitize.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
+import { checkQuota, logUsage } from '../_shared/usage-quota.ts';
 
 // SEC-004: 30 requests per minute per user
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 30 });
@@ -193,6 +194,24 @@ Deno.serve(async (req) => {
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+    }
+
+    // AGENT-012/014: per-user daily quota check for LLM actions
+    const LLM_ACTIONS = ['chat', 'generate-image', 'generate-video', 'start-research'];
+    if (LLM_ACTIONS.includes(action)) {
+      const quota = await checkQuota(supabaseAdmin, userId, action);
+      if (!quota.allowed) {
+        return new Response(
+          JSON.stringify({
+            error: `Daily usage limit reached for ${action} (${quota.limit}/day). Resets at midnight UTC.`,
+            remaining: quota.remaining,
+            limit: quota.limit,
+          }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      // Log usage attempt (logged before LLM call — the API call is billed regardless of success)
+      await logUsage(supabaseAdmin, userId, action, provider || 'openai', model);
     }
 
     console.log(`AI Chat request: action=${action}, provider=${provider}, requestedModel=${model}`);
