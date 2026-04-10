@@ -6,7 +6,7 @@
  * All runs are persisted to promptor_runs.
  */
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 import { sanitizeForPrompt } from '../_shared/sanitize.ts';
 
 import { getCorsHeaders } from '../_shared/cors.ts';
@@ -625,6 +625,24 @@ Respond ONLY with the JSON object.`;
 
     if (insertError) {
       console.error('Failed to insert run:', insertError);
+    }
+
+    // AGENT-009: Write to the shared osha_audit_logs table for unified audit trail.
+    // The table name is a legacy artefact from when Osha was the only agent.
+    try {
+      await supabaseAdmin.from('osha_audit_logs').insert({
+        user_id: userId,
+        message_id: null,
+        heart_rules_used: heartResult.results,
+        brain_chunks_used: brainResult.count,
+        compliance_status: (llmResponse.compliance_status as string) || 'pass',
+        compliance_notes: `Promptor ${action}: ${output_type}/${blueprintKey}` +
+          ((llmResponse.compliance_notes as string) ? ` — ${llmResponse.compliance_notes}` : ''),
+        llm_provider: provider,
+        llm_model: model,
+      });
+    } catch (auditErr) {
+      console.error('Promptor audit log insert failed (non-fatal):', auditErr);
     }
 
     return new Response(

@@ -8,7 +8,7 @@
  * `wishpedia_entry_images` and the settings table reference was dropped in
  * favour of `llm_settings` + inline defaults.
  */
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

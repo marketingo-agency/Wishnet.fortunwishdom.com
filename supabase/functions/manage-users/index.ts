@@ -107,6 +107,17 @@ Deno.serve(async (req) => {
         console.error('Failed to create permissions:', permissionsError)
       }
 
+      // SEC-010: Audit log for admin user creation
+      await supabaseAdmin.from('osha_audit_logs').insert({
+        user_id: callerId,
+        heart_rules_used: [],
+        brain_chunks_used: 0,
+        compliance_status: 'pass',
+        compliance_notes: `Admin action: create user ${newUser.user.email} (${newUser.user.id}), role=${role || 'agent'}`,
+        llm_provider: null,
+        llm_model: null,
+      }).then(({ error: auditErr }) => { if (auditErr) console.error('Audit log failed:', auditErr); });
+
       return new Response(
         JSON.stringify({ success: true, user: newUser.user }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -155,6 +166,17 @@ Deno.serve(async (req) => {
         }
       }
 
+      // SEC-010: Audit log for admin role update
+      await supabaseAdmin.from('osha_audit_logs').insert({
+        user_id: callerId,
+        heart_rules_used: [],
+        brain_chunks_used: 0,
+        compliance_status: 'pass',
+        compliance_notes: `Admin action: updateRole for user ${userId} to ${role}`,
+        llm_provider: null,
+        llm_model: null,
+      }).then(({ error: auditErr }) => { if (auditErr) console.error('Audit log failed:', auditErr); });
+
       return new Response(
         JSON.stringify({ success: true }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -186,6 +208,17 @@ Deno.serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
+
+      // SEC-010: Audit log for admin user deletion
+      await supabaseAdmin.from('osha_audit_logs').insert({
+        user_id: callerId,
+        heart_rules_used: [],
+        brain_chunks_used: 0,
+        compliance_status: 'pass',
+        compliance_notes: `Admin action: delete user ${userId}`,
+        llm_provider: null,
+        llm_model: null,
+      }).then(({ error: auditErr }) => { if (auditErr) console.error('Audit log failed:', auditErr); });
 
       return new Response(
         JSON.stringify({ success: true }),

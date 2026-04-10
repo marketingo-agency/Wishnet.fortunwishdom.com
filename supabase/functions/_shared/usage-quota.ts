@@ -6,7 +6,7 @@
  * checkQuota() before making the LLM call, and logUsage() after.
  */
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 
 /** Daily usage limits per action type */
 const DAILY_LIMITS: Record<string, number> = {
