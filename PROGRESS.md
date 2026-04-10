@@ -1,37 +1,51 @@
-# Phase A — Day 1: Unblock Production — Progress Log
+# Phase A + B — Production Unblock + Instrumentation — Progress Log
 
-**Started:** 2026-04-09 (autonomous overnight run)
-**Completed:** 2026-04-10
+**Phase A started:** 2026-04-09 (autonomous overnight run)
+**Phase B started:** 2026-04-10
 **Baseline commit:** `92062a5 chore: pre-phase-A checkpoint`
 
-## Fix Checklist
+---
 
-| # | ID | Status | Verification | Commit |
+## Phase A — Day 1: Unblock Production (10/10 complete)
+
+| # | ID | Status | Commit |
+|---|---|---|---|
+| 1 | CODE-001/RAG-002 | ✅ | `8c90c54` |
+| 2 | UI-001 | ✅ | `ed6c288` |
+| 3 | SEC-002 | ✅ | `d5e2721` |
+| 4 | SUP-001/SEC-007 | ✅ | `d4ded1d` |
+| 5 | AGENT-001 | ✅ | `3bdcb19` |
+| 6 | RAG-001 | ✅ | `217276a` |
+| 7 | CODE-004 | ✅ | `0cb1eaf` |
+| 8 | PROD-001 | ✅ | `2295eee` |
+| 9 | CODE-002/AGENT-004/BUG-001 | ✅ | `c7f0bb2` |
+| 10 | CODE-003 | ✅ | `2e1d9b9` |
+
+---
+
+## Phase B — Day 2: Production Instrumentation
+
+| # | ID | Status | Details | Commit |
 |---|---|---|---|---|
-| 1 | CODE-001/RAG-002 | ✅ DONE | tsc clean | `8c90c54` |
-| 2 | UI-001 | ✅ DONE | tsc clean, no button-in-button | `ed6c288` |
-| 3 | SEC-002 | ✅ DONE | 6 headers in next.config.ts | `d5e2721` |
-| 4 | SUP-001/SEC-007 | ✅ DONE | SQL verified via MCP: 10MB limit, image-only MIME, admin INSERT | `d4ded1d` |
-| 5 | AGENT-001 | ✅ DONE | Deployed v29 via MCP, table refs fixed | `3bdcb19` |
-| 6 | RAG-001 | ✅ DONE | Deployed v30/v8 via MCP, chunker exit condition fixed | `217276a` |
-| 7 | CODE-004 | ✅ DONE | tsc clean, useMutation → useQuery | `0cb1eaf` |
-| 8 | PROD-001 | ✅ DONE | CI YAML created, lint+typecheck+build | `2295eee` |
-| 9 | CODE-002/AGENT-004/BUG-001 | ✅ DONE | tsc clean, 0 getSession/getClaims refs remain | `c7f0bb2` |
-| 10 | CODE-003 | ✅ DONE | tsc clean, querySelector removed | `2e1d9b9` |
+| 0 | Edge fn deploy (11 fns) | ✅ | All 11 edge functions redeployed with getUser() | via MCP |
+| 1 | PROD-002 | ✅ | Sentry 10.48.0 wired (client/server/edge) | `a571d88` |
+| 2 | PROD-003 | ✅ | @vercel/analytics 2.0.1 + @vercel/speed-insights 2.0.0 | `a571d88` |
+| 3 | PROD-005 | ✅ | PDF worker immutable cache header | `a571d88` |
+| 4 | PROD-006 | ✅ | caniuse-lite updated | `a571d88` |
+| 5 | PROD-007 | ✅ | npm audit → 0 vulnerabilities | `a571d88` |
+| 6 | SEC-008 | ✅ documented | Requires manual toggle in Supabase Dashboard | `8671854` |
+| 7 | SUP-004 | ✅ | 6 FK indexes created via MCP SQL | `8671854` |
+| 8 | RAG-007 | ✅ | BATCH_SIZE 3→50, deployed v110 | `9c68597` |
+| 9 | SEC-001 | ✅ | Dropped API key columns, updated admin UI | `04427cf` |
+| 10 | RAG-003 | ⚠️ manual | 16 entries need reindex via admin UI (requires active session) | — |
 
-## Summary
+---
 
-All 10 P0 fixes completed successfully. 10 commits (plus baseline checkpoint), 12 total on main.
+## Manual Actions Required
 
-**Parked for Day 2 (as planned):**
-- SEC-001 — Supabase Vault migration for plaintext LLM keys (4 hrs)
-- UI-002/BUG-005 — Turbopack Windows dev-mode crash on dynamic routes (1-2 hrs investigation)
+1. **SEC-008:** Toggle "Leaked password protection" ON in Supabase Dashboard → Auth → Settings
+2. **RAG-003:** Open admin UI → Brain → Vector Store → reindex all 16 wishpedia entries
+3. **NEXT_PUBLIC_SENTRY_DSN:** Add your Sentry DSN to `.env.local` and Vercel env vars
+4. **Push commits:** All commits are local — `git push` when ready
 
-**Edge functions redeployed via MCP:**
-- `wishpedia-generate` v29 (AGENT-001 table ref fix)
-- `process-embeddings` v30 + `process-ocr` v8 (RAG-001 chunker fix)
-- 11 edge functions need redeployment for CODE-002 (getClaims → getUser)
-
-**Important:** 11 edge functions were updated locally for CODE-002 but NOT redeployed. They need `supabase functions deploy` or MCP deploy before the getUser fix is live server-side.
-
-**All commits are LOCAL — not pushed to remote. Awaiting user approval.**
+## All commits are LOCAL — not pushed to remote.

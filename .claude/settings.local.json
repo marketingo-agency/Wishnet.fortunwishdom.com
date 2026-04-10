@@ -125,7 +125,23 @@
       "Bash(supabase --version)",
       "mcp__claude_ai_Asana__get_me",
       "mcp__claude_ai_Supabase__list_organizations",
-      "mcp__fal-ai__search_models"
+      "mcp__fal-ai__search_models",
+      "Bash(node -e \"const fs=require\\('fs'\\);const c=fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/process-ocr/index.ts','utf8'\\);const j=JSON.stringify\\(c\\);fs.writeFileSync\\('/tmp/process-ocr-content.json',j\\)\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);process.stdout.write\\(fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/process-ocr/index.ts','utf8'\\)\\)\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const c=fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/process-ocr/index.ts','utf8'\\);fs.writeFileSync\\('/tmp/fn-content.txt',c\\);console.log\\('OK '+c.length\\)\")",
+      "Bash(ls /tmp/fn-*)",
+      "Bash(npx supabase:*)",
+      "Bash(node -e \"const fs=require\\('fs'\\); const c=fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/process-ocr/index.ts','utf8'\\); fs.writeFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/.tmp-deploy/poc.json', JSON.stringify\\([{name:'index.ts',content:c}]\\)\\)\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);process.stdout.write\\(fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/process-ocr/index.ts','utf8'\\).replace\\(/\\\\r\\\\n/g,'\\\\n'\\)\\)\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);process.stdout.write\\(fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/process-embeddings/index.ts','utf8'\\).replace\\(/\\\\r\\\\n/g,'\\\\n'\\)\\)\")",
+      "Bash(node -e \" const fs = require\\('fs'\\); const content = fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/process-ocr/index.ts', 'utf8'\\).replace\\(/\\\\r\\\\n/g, '\\\\n'\\); // Output the JSON-escaped content string between markers console.log\\('===CONTENT_START==='\\); console.log\\(content\\); console.log\\('===CONTENT_END==='\\); console.log\\('LENGTH: ' + content.length\\); \")",
+      "Bash(node -e \"const fs=require\\('fs'\\);const c=fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/promptor/index.ts','utf8'\\).replace\\(/\\\\r\\\\n/g,'\\\\n'\\);console.log\\(JSON.stringify\\(c\\)\\)\")",
+      "Bash(node -e \" const fs = require\\('fs'\\); const content = fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/promptor/index.ts', 'utf8'\\).replace\\(/\\\\r\\\\n/g, '\\\\n'\\); // Write as a single JSON string to be consumed process.stdout.write\\(content\\); \")",
+      "Bash(node -e \" const fs = require\\('fs'\\); const content = fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/promptor/index.ts', 'utf8'\\).replace\\(/\\\\r\\\\n/g, '\\\\n'\\); // Output JSON-escaped content process.stdout.write\\(JSON.stringify\\(content\\)\\); \")",
+      "Bash(node -e \" const fs = require\\('fs'\\); const content = fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/pixel-chat/index.ts', 'utf8'\\).replace\\(/\\\\r\\\\n/g, '\\\\n'\\); // Output the full content process.stdout.write\\(content\\); \")",
+      "Bash(node -e \" const fs = require\\('fs'\\); const c = fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/osha-chat/index.ts', 'utf8'\\).replace\\(/\\\\r\\\\n/g, '\\\\n'\\); // Output as JSON string process.stdout.write\\(JSON.stringify\\([{name:'index.ts', content:c}]\\)\\); \")",
+      "Bash(npm view:*)",
+      "Bash(npx update-browserslist-db@latest --update-db)"
     ]
   }
 }
