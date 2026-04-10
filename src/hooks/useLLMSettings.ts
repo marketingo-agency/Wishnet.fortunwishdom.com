@@ -163,6 +163,95 @@ export function useAIChat() {
   });
 }
 
+/**
+ * AGENT-005: Streaming chat via SSE. Returns a callback that streams
+ * text chunks via onChunk and calls onDone when finished.
+ * Only works for text chat with OpenAI provider.
+ */
+export function useStreamingChat() {
+  return {
+    streamChat: async ({
+      message,
+      provider,
+      model,
+      temperature,
+      systemPrompt,
+      conversationHistory,
+      onChunk,
+      onDone,
+      onError,
+    }: ChatRequest & {
+      onChunk: (text: string) => void;
+      onDone: (fullText: string) => void;
+      onError: (error: Error) => void;
+    }) => {
+      try {
+        const headers = await getAuthHeaders();
+        const response = await fetch(AI_CHAT_ENDPOINT, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            action: 'chat',
+            provider,
+            model,
+            message,
+            temperature,
+            systemPrompt,
+            conversationHistory,
+            stream: true,
+          }),
+        });
+
+        if (!response.ok) {
+          let errorMessage = `Request failed (${response.status})`;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch { /* not JSON */ }
+          throw new Error(errorMessage);
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('No response body');
+
+        const decoder = new TextDecoder();
+        let fullText = '';
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data: ')) continue;
+            const payload = trimmed.slice(6);
+            if (payload === '[DONE]') continue;
+            try {
+              const parsed = JSON.parse(payload);
+              if (parsed.content) {
+                fullText += parsed.content;
+                onChunk(parsed.content);
+              }
+              if (parsed.error) throw new Error(parsed.error);
+            } catch (e) {
+              if (e instanceof Error && e.message !== 'Unexpected end of JSON input') throw e;
+            }
+          }
+        }
+
+        onDone(fullText);
+      } catch (error) {
+        onError(error instanceof Error ? error : new Error(String(error)));
+      }
+    },
+  };
+}
+
 // Deep Research with polling support for long-running requests
 export function useDeepResearch() {
   return useMutation({

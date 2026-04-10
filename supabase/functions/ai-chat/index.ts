@@ -21,6 +21,7 @@ interface RequestBody {
   isDeepResearch?: boolean;
   responseId?: string; // For polling deep research status
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  stream?: boolean; // AGENT-005: enable SSE streaming for chat action
 }
 
 // OpenAI capability mappings - specific models requested by user
@@ -585,6 +586,9 @@ Deno.serve(async (req) => {
           { role: 'user', content: message },
         ];
 
+        // AGENT-005: SSE streaming support for text chat
+        const wantStream = body.stream === true;
+
         const response = await fetchWithRetry('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -596,29 +600,83 @@ Deno.serve(async (req) => {
             messages,
             temperature,
             ...tokenParam,
+            ...(wantStream ? { stream: true } : {}),
           }),
         });
 
         if (!response.ok) {
           const errorData = await response.json();
           console.error('OpenAI chat error:', errorData);
-          
+
           const msg = errorData.error?.message || 'OpenAI API request failed';
-          
-          // Check for model not found errors
+
           if (msg.includes('does not exist') || msg.includes('not found')) {
             return new Response(
-              JSON.stringify({ 
+              JSON.stringify({
                 error: `Model "${selectedModel}" not found`,
                 hint: 'Try gpt-4o-mini or gpt-4o. Run Test Connection to see available models.'
               }),
               { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
           }
-          
+
           throw new Error(msg);
         }
 
+        if (wantStream && response.body) {
+          // Stream SSE chunks from OpenAI to the client
+          const reader = response.body.getReader();
+          const encoder = new TextEncoder();
+          const decoder = new TextDecoder();
+
+          const stream = new ReadableStream({
+            async start(controller) {
+              try {
+                let buffer = '';
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+
+                  buffer += decoder.decode(value, { stream: true });
+                  const lines = buffer.split('\n');
+                  buffer = lines.pop() || '';
+
+                  for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed || !trimmed.startsWith('data: ')) continue;
+                    const payload = trimmed.slice(6);
+                    if (payload === '[DONE]') {
+                      controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                      continue;
+                    }
+                    try {
+                      const parsed = JSON.parse(payload);
+                      const delta = parsed.choices?.[0]?.delta?.content;
+                      if (delta) {
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: delta })}\n\n`));
+                      }
+                    } catch { /* skip malformed chunks */ }
+                  }
+                }
+              } catch (err) {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: String(err) })}\n\n`));
+              } finally {
+                controller.close();
+              }
+            },
+          });
+
+          return new Response(stream, {
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              'Connection': 'keep-alive',
+            },
+          });
+        }
+
+        // Non-streaming response (default)
         const data = await response.json();
         return new Response(
           JSON.stringify({ content: data.choices[0].message.content }),

@@ -13,6 +13,7 @@ import {
   GEMINI_IMAGE_MODELS,
   useAIChat,
   useDeepResearch,
+  useStreamingChat,
 } from '@/hooks/useLLMSettings';
 import { useProviderKeyStatus } from '@/hooks/useProviderKeyStatus';
 import { useConsoleMessages, useSaveMessage, useClearMessages, useDeleteSelectedMessages, ConsoleMessage } from '@/hooks/useConsoleMessages';
@@ -57,6 +58,8 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
   // ── Mutations ──────────────────────────────────────────────────────────
   const { mutate: sendMessage, isPending } = useAIChat();
   const { mutate: startDeepResearch, isPending: isResearching } = useDeepResearch();
+  const { streamChat } = useStreamingChat();
+  const [isStreaming, setIsStreaming] = useState(false);
   const uploadFile = useUploadFile();
   const { data: sectors = [] } = useSectors();
   const createSector = useCreateSector();
@@ -137,7 +140,7 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
   // ── Handlers ───────────────────────────────────────────────────────────
 
   const handleSend = useCallback(() => {
-    if (!input.trim() || isPending || isResearching || availableProviders.length === 0) return;
+    if (!input.trim() || isPending || isResearching || isStreaming || availableProviders.length === 0) return;
 
     const userMessage: ConsoleMessage = {
       id: Date.now().toString(), role: 'user', content: input,
@@ -180,6 +183,43 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
           .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
       : undefined;
 
+    // AGENT-005: use SSE streaming for text chat with OpenAI
+    if (mode === 'text' && provider === 'openai') {
+      const streamMsgId = (Date.now() + 1).toString();
+      // Add empty assistant message that will be filled progressively
+      const streamMsg: ConsoleMessage = {
+        id: streamMsgId, role: 'assistant', content: '',
+        timestamp: new Date(), provider, model, mode,
+      };
+      setMessages(prev => [...prev, streamMsg]);
+      setIsStreaming(true);
+
+      streamChat({
+        message: currentInput, provider, model, mode,
+        temperature: temperature[0],
+        systemPrompt,
+        conversationHistory,
+        onChunk: (chunk) => {
+          setMessages(prev => prev.map(m =>
+            m.id === streamMsgId ? { ...m, content: m.content + chunk } : m
+          ));
+        },
+        onDone: (fullText) => {
+          setIsStreaming(false);
+          saveMessage({ role: 'assistant', content: fullText, provider, model, mode });
+        },
+        onError: (error) => {
+          setIsStreaming(false);
+          setMessages(prev => prev.map(m =>
+            m.id === streamMsgId ? { ...m, content: `Error: ${error.message}` } : m
+          ));
+          saveMessage({ role: 'assistant', content: `Error: ${error.message}`, provider, model, mode });
+        },
+      });
+      return;
+    }
+
+    // Non-streaming path (image, video, Gemini text)
     sendMessage(
       {
         message: currentInput, provider, model, mode: mode as 'text' | 'image',
@@ -229,7 +269,7 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
         },
       }
     );
-  }, [input, isPending, isResearching, availableProviders, provider, model, mode, messages, sendMessage, saveMessage, startDeepResearch, temperature, systemPrompt, sectors, createSector, uploadFile]);
+  }, [input, isPending, isResearching, isStreaming, availableProviders, provider, model, mode, messages, sendMessage, saveMessage, startDeepResearch, streamChat, temperature, systemPrompt, sectors, createSector, uploadFile]);
 
   const handleCopy = useCallback(async (content: string, id: string) => {
     await navigator.clipboard.writeText(content);
@@ -325,7 +365,7 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
     copiedId, showAdvanced, setShowAdvanced, temperature, setTemperature,
     systemPrompt, setSystemPrompt, researchProgress,
     savingImageId, selectionMode, setSelectionMode, selectedIds,
-    isPending, isResearching, messagesLoading, isDisabled,
+    isPending, isResearching, isStreaming, messagesLoading, isDisabled,
     availableProviders, currentModels,
 
     // Refs

@@ -185,7 +185,7 @@ export function NexusConsole({ settings, initialPrompt, initialMode }: NexusCons
                             {ctrl.savingImageId === message.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
                             Delete from Files
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5" onClick={() => ctrl.handleRegenerate(message)} disabled={ctrl.isPending || ctrl.isResearching}>
+                          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5" onClick={() => ctrl.handleRegenerate(message)} disabled={ctrl.isPending || ctrl.isResearching || ctrl.isStreaming}>
                             <RefreshCw className="h-3 w-3" />Regenerate
                           </Button>
                         </div>
@@ -249,15 +249,15 @@ export function NexusConsole({ settings, initialPrompt, initialMode }: NexusCons
               onChange={(e) => ctrl.setInput(e.target.value)}
               placeholder={ctrl.mode === 'text' ? "Type a message..." : ctrl.mode === 'research' ? "Enter a research topic..." : "Describe the image..."}
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && ctrl.handleSend()}
-              disabled={ctrl.isDisabled || ctrl.isPending || ctrl.isResearching}
+              disabled={ctrl.isDisabled || ctrl.isPending || ctrl.isResearching || ctrl.isStreaming}
               className="flex-1"
             />
             <Button
               onClick={ctrl.handleSend}
-              disabled={!ctrl.input.trim() || ctrl.isPending || ctrl.isResearching || ctrl.isDisabled}
+              disabled={!ctrl.input.trim() || ctrl.isPending || ctrl.isResearching || ctrl.isStreaming || ctrl.isDisabled}
               className="bg-gradient-to-r from-lime-500 to-emerald-500 hover:from-lime-600 hover:to-emerald-600"
             >
-              {ctrl.isPending || ctrl.isResearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {ctrl.isPending || ctrl.isResearching || ctrl.isStreaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
           <div className="flex items-center gap-2 mt-2">
