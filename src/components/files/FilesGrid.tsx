@@ -43,9 +43,9 @@ export function FilesGrid({ files, selectedFileId, onFileSelect, isLoading, curr
 
   if (files.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full py-16">
-        <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
-          <FolderOpen className="h-8 w-8 text-muted-foreground/70" />
+      <div className="flex flex-col items-center justify-center h-full py-16 mx-3 sm:mx-4 border-2 border-dashed border-border rounded-xl">
+        <div className="h-14 w-14 rounded-2xl bg-muted flex items-center justify-center mb-4">
+          <FolderOpen className="h-7 w-7 text-muted-foreground/70" />
         </div>
         <h3 className="text-lg font-medium text-foreground mb-1">No files found</h3>
         <p className="text-sm text-muted-foreground">Upload some files to get started</p>

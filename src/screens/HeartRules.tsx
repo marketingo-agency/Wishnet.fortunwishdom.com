@@ -30,6 +30,8 @@ import {
   Database,
   Calendar,
   Clock,
+  AlertTriangle,
+  RefreshCw,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -127,7 +129,7 @@ export default function HeartRules() {
   const [editIsGlobal, setEditIsGlobal] = useState(true);
   const [editSelectedAgents, setEditSelectedAgents] = useState<string[]>([]);
 
-  const { data: rules, isLoading } = useHeartRules();
+  const { data: rules, isLoading, error: rulesError, refetch: refetchRules } = useHeartRules();
   const { data: heartCategories } = useHeartCategories();
   const createMutation = useCreateHeartRule();
   const toggleMutation = useToggleHeartRule();
@@ -443,7 +445,21 @@ export default function HeartRules() {
         {/* Rules Card Grid */}
         <ScrollArea className="flex-1">
           <div className="p-4 sm:p-6">
-            {isLoading ? (
+            {rulesError ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center mb-4">
+                  <AlertTriangle className="w-7 h-7 text-destructive" />
+                </div>
+                <h3 className="text-lg font-medium text-foreground mb-1">Failed to load rules</h3>
+                <p className="text-sm text-muted-foreground max-w-md mb-4">
+                  {(rulesError as Error).message || 'An unexpected error occurred.'}
+                </p>
+                <Button variant="outline" size="sm" onClick={() => refetchRules()} className="gap-2">
+                  <RefreshCw className="w-4 h-4" />
+                  Try again
+                </Button>
+              </div>
+            ) : isLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <div key={i} className="h-40 bg-muted rounded-xl animate-pulse" />

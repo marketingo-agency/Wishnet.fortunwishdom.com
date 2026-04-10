@@ -1,13 +1,15 @@
 "use client";
 
 import { useRouter } from 'next/navigation';
-import { 
-  BrainCircuit, 
+import {
+  BrainCircuit,
   ChevronLeft,
   FileText,
   Bot,
   Settings,
   Database,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -27,7 +29,7 @@ import { AI_AGENTS } from '@/data/agents';
 
 export default function BrainKnowledge() {
   const router = useRouter();
-  const { data: sections, isLoading: sectionsLoading } = useBrainSections();
+  const { data: sections, isLoading: sectionsLoading, error: sectionsError, refetch: refetchSections } = useBrainSections();
   const { data: totalDocs } = useTotalDocumentCount();
   const { data: brainCategories } = useBrainCategories();
 
@@ -112,12 +114,45 @@ export default function BrainKnowledge() {
         {/* Content */}
         <ScrollArea className="flex-1">
           <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
+            {/* Error State */}
+            {sectionsError && (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center mb-4">
+                  <AlertTriangle className="w-7 h-7 text-destructive" />
+                </div>
+                <h3 className="text-lg font-medium text-foreground mb-1">Failed to load knowledge base</h3>
+                <p className="text-sm text-muted-foreground max-w-md mb-4">
+                  {(sectionsError as Error).message || 'An unexpected error occurred.'}
+                </p>
+                <Button variant="outline" size="sm" onClick={() => refetchSections()} className="gap-2">
+                  <RefreshCw className="w-4 h-4" />
+                  Try again
+                </Button>
+              </div>
+            )}
+
+            {/* Empty State */}
+            {!sectionsError && !sectionsLoading && totalDocs === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed border-border rounded-xl">
+                <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-4">
+                  <FileText className="w-7 h-7 text-muted-foreground/70" />
+                </div>
+                <h3 className="text-lg font-medium text-foreground mb-1">No documents yet</h3>
+                <p className="text-sm text-muted-foreground max-w-md">
+                  Upload documents to the general knowledge section or to specific agents to build your AI knowledge base.
+                </p>
+              </div>
+            )}
+
             {/* General Knowledge Section */}
+            {!sectionsError && (totalDocs !== 0 || sectionsLoading) && (
             <section>
               <GeneralKnowledgeCard />
             </section>
+            )}
 
             {/* Agent-Specific Knowledge */}
+            {!sectionsError && (
             <section>
               <div className="flex items-center gap-2 mb-3 sm:mb-4">
                 <h2 className="text-base sm:text-lg font-semibold text-foreground">Agent-Specific Knowledge</h2>
@@ -135,6 +170,7 @@ export default function BrainKnowledge() {
                 ))}
               </div>
             </section>
+            )}
           </div>
         </ScrollArea>
       </div>
