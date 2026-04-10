@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -14,7 +13,7 @@ import {
 } from '@/components/ui/select';
 import {
   CheckCircle2, XCircle, Loader2, Play,
-  X, PlayCircle, AlertCircle, Circle, Eye, EyeOff, Save,
+  X, PlayCircle, AlertCircle, Circle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAIChat } from '@/hooks/useLLMSettings';
@@ -31,8 +30,6 @@ interface ProviderCardProps {
   title: string;
   icon: React.ReactNode;
   isConnected: boolean;
-  apiKey?: string | null;
-  onApiKeyChange?: (key: string) => void;
   textModel: string;
   imageModel: string;
   textModels: ModelOption[];
@@ -73,8 +70,6 @@ export function ProviderCard({
   title,
   icon,
   isConnected,
-  apiKey,
-  onApiKeyChange,
   textModel,
   imageModel,
   textModels,
@@ -93,8 +88,6 @@ export function ProviderCard({
   videoModels,
   onVideoModelChange,
 }: ProviderCardProps) {
-  const [localApiKey, setLocalApiKey] = useState(apiKey || '');
-  const [showApiKey, setShowApiKey] = useState(false);
   const [testingModel, setTestingModel] = useState<string | null>(null);
   const [modelTestStatus, setModelTestStatus] = useState<Record<string, 'success' | 'error' | null>>({});
   const [hoveringModel, setHoveringModel] = useState<string | null>(null);
@@ -411,52 +404,26 @@ export function ProviderCard({
           </div>
         )}
 
-        {/* API Key Input */}
+        {/* API Key Status — SEC-001: keys managed via environment variables only */}
         <div className="space-y-2">
           <Label className="text-sm font-medium">API Key</Label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Input
-                type={showApiKey ? 'text' : 'password'}
-                value={localApiKey}
-                onChange={(e) => setLocalApiKey(e.target.value)}
-                placeholder={`Enter ${provider === 'openai' ? 'OpenAI' : 'Gemini'} API key...`}
-                className="pr-10"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                onClick={() => setShowApiKey(!showApiKey)}
-                tabIndex={-1}
-              >
-                {showApiKey ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
-              </Button>
-            </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => onApiKeyChange?.(localApiKey)}
-              disabled={!localApiKey || localApiKey === (apiKey || '')}
-              title="Save API key"
-            >
-              <Save className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onTestConnection(localApiKey || apiKey || '')}
-              disabled={isTestingConnection || (!localApiKey && !apiKey && !isConnected)}
-            >
-              {isTestingConnection ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Test'}
-            </Button>
+          <div className="flex items-center gap-2">
+            {isConnected ? (
+              <Badge variant="outline" className="text-emerald-500 border-emerald-500/30">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Configured via environment secret
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-amber-500 border-amber-500/30">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                Not configured
+              </Badge>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
             {isConnected
-              ? apiKey
-                ? 'API key configured in settings.'
-                : 'API key configured via environment secrets.'
-              : `No API key found. Enter your ${provider === 'openai' ? 'OpenAI' : 'Gemini'} API key above or add it to Supabase Edge Function secrets.`}
+              ? `${provider === 'openai' ? 'OPENAI_API_KEY' : 'GEMINI_API_KEY'} is set in Supabase Edge Function secrets.`
+              : `Add ${provider === 'openai' ? 'OPENAI_API_KEY' : 'GEMINI_API_KEY'} to Supabase Edge Function secrets in the dashboard.`}
           </p>
         </div>
 

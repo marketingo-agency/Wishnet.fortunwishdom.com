@@ -116,15 +116,10 @@ export function LLMProvidersSettings() {
     }
   };
 
-  const handleApiKeyChange = async (provider: 'openai' | 'gemini', key: string) => {
-    const field = provider === 'openai' ? 'openai_api_key' : 'gemini_api_key';
-    try {
-      await updateSettings.mutateAsync({ [field]: key || null });
-      toast.success(`${provider === 'openai' ? 'OpenAI' : 'Gemini'} API key saved`);
-    } catch {
-      toast.error('Failed to save API key');
-    }
-  };
+  // SEC-001: API keys are now managed exclusively via Supabase edge function
+  // environment variables (OPENAI_API_KEY, GEMINI_API_KEY). The plaintext
+  // columns have been dropped from llm_settings. Key presence is checked
+  // via the 'check-keys' action in the ai-chat edge function.
 
   const updateStep = (index: number, update: Partial<typeof verificationSteps[0]>) => {
     setVerificationSteps(prev => prev.map((s, i) => i === index ? { ...s, ...update } : s));
@@ -303,8 +298,6 @@ export function LLMProvidersSettings() {
           title="OpenAI"
           icon={<OpenAIIcon />}
           isConnected={!!keyStatus?.openai}
-          apiKey={settings?.openai_api_key}
-          onApiKeyChange={(key) => handleApiKeyChange('openai', key)}
           textModel={settings?.openai_text_model || 'gpt-4o'}
           imageModel={settings?.openai_image_model || 'gpt-image-1'}
           textModels={OPENAI_TEXT_MODELS}
@@ -330,8 +323,6 @@ export function LLMProvidersSettings() {
           title="Google Gemini"
           icon={<GeminiIcon />}
           isConnected={!!keyStatus?.gemini}
-          apiKey={settings?.gemini_api_key}
-          onApiKeyChange={(key) => handleApiKeyChange('gemini', key)}
           textModel={settings?.gemini_text_model || 'gemini-2.5-pro'}
           imageModel={settings?.gemini_image_model || 'gemini-2.5-flash-image'}
           textModels={GEMINI_TEXT_MODELS}

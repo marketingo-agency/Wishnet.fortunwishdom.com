@@ -581,13 +581,13 @@ export type Database = {
           active_text_provider: string | null
           active_video_provider: string | null
           created_at: string | null
-          gemini_api_key: string | null
+
           gemini_enabled: boolean | null
           gemini_image_model: string | null
           gemini_text_model: string | null
           gemini_video_model: string | null
           id: string
-          openai_api_key: string | null
+
           openai_deep_research_model: string | null
           openai_enabled: boolean | null
           openai_image_model: string | null
@@ -601,13 +601,13 @@ export type Database = {
           active_text_provider?: string | null
           active_video_provider?: string | null
           created_at?: string | null
-          gemini_api_key?: string | null
+
           gemini_enabled?: boolean | null
           gemini_image_model?: string | null
           gemini_text_model?: string | null
           gemini_video_model?: string | null
           id?: string
-          openai_api_key?: string | null
+
           openai_deep_research_model?: string | null
           openai_enabled?: boolean | null
           openai_image_model?: string | null
@@ -621,13 +621,13 @@ export type Database = {
           active_text_provider?: string | null
           active_video_provider?: string | null
           created_at?: string | null
-          gemini_api_key?: string | null
+
           gemini_enabled?: boolean | null
           gemini_image_model?: string | null
           gemini_text_model?: string | null
           gemini_video_model?: string | null
           id?: string
-          openai_api_key?: string | null
+
           openai_deep_research_model?: string | null
           openai_enabled?: boolean | null
           openai_image_model?: string | null

@@ -8,8 +8,7 @@ export type ChatMode = 'text' | 'image' | 'video' | 'research';
 
 export interface LLMSettings {
   id: string;
-  openai_api_key?: string | null;
-  gemini_api_key?: string | null;
+  // SEC-001: API keys removed from DB. Managed via Supabase env secrets.
   openai_text_model: string;
   openai_image_model: string;
   openai_deep_research_model: string;
