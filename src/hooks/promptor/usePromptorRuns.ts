@@ -12,6 +12,7 @@ export function usePromptorRuns() {
         .order('created_at', { ascending: false })
         .limit(100);
       if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase row type includes JSON columns that need runtime normalization
       return (data || []).map((r: any) => ({
         ...r,
         variants: Array.isArray(r.variants) ? r.variants : [],

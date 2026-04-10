@@ -1,4 +1,5 @@
 import { withSentryConfig } from '@sentry/nextjs';
+import withBundleAnalyzer from '@next/bundle-analyzer';
 import type { NextConfig } from 'next';
 
 const SUPABASE_HOSTNAME = 'zlmideilxfnokemzkavm.supabase.co';
@@ -84,7 +85,9 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
+const analyzedConfig = withBundleAnalyzer({ enabled: process.env.ANALYZE === 'true' })(nextConfig);
+
+export default withSentryConfig(analyzedConfig, {
   // Suppress source map upload warnings when SENTRY_AUTH_TOKEN is not set
   silent: !process.env.SENTRY_AUTH_TOKEN,
 

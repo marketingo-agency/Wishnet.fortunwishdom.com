@@ -156,6 +156,7 @@ export function useOshaChatController({
             : a
           )
         );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- file extraction errors have no stable type
       } catch (e: any) {
         setPendingAttachments(prev =>
           prev.map(a => a.id === att.id ? { ...a, status: 'error', errorMessage: e.message } : a)
@@ -241,6 +242,7 @@ export function useOshaChatController({
             content: result.content, mode, created_at: new Date().toISOString(),
           }]);
           setTimeout(() => { dbSyncCooldownRef.current = false; onMessagesChange?.(); }, 8000);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- edge function errors may include AbortError name check
         } catch (err: any) {
           setResearchProgressText('');
           const content = err?.name === 'AbortError'

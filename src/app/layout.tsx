@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- Next.js layout files must co-export route config (dynamic, metadata) alongside the component */
 /**
  * Root layout for the Next.js App Router.
  * Loads global CSS, fonts (Inter + Poppins via next/font), exports metadata,

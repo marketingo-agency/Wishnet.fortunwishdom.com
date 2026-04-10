@@ -129,6 +129,7 @@ export function PromptorSettings() {
     try {
       await upsert.mutateAsync(s);
       toast({ title: 'Settings saved', description: 'Your Promptor settings have been saved.' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mutation errors have no stable type
     } catch (err: any) {
       toast({ title: 'Error saving settings', description: err.message, variant: 'destructive' });
     }

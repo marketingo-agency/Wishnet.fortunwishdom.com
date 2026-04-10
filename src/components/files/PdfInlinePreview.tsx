@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- legacy build path has no type declarations
 // @ts-ignore - using legacy build for better SSR/CSP compatibility
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { Download, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';

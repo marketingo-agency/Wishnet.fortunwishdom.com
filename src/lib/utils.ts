@@ -17,7 +17,7 @@ export function sanitizeFileName(fileName: string): string {
   const sanitized = nameWithoutExt
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9_\-]/g, '_')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_|_$/g, '');
   

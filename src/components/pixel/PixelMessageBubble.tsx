@@ -58,6 +58,7 @@ function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
 
         containerRef.current.innerHTML = svg;
         setStatus('rendered');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mermaid render errors have no stable type
       } catch (e: any) {
         if (!cancelled) {
           setStatus('error');
@@ -102,6 +103,7 @@ function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
 function createMarkdownComponents(messageId: string) {
   let mermaidIndex = 0;
   return {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- react-markdown component props are loosely typed
     code({ node, className, children, ...props }: any) {
       const language = /language-(\w+)/.exec(className || '')?.[1];
       const isBlock = !props.inline;

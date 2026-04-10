@@ -8,6 +8,7 @@
 
 import { useState, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- legacy build path has no type declarations
 // @ts-ignore - using legacy build for better SSR/CSP compatibility
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { toast } from 'sonner';

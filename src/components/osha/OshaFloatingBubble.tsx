@@ -124,7 +124,7 @@ export function OshaFloatingBubble() {
           osc.start();
           gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
           osc.stop(ctx.currentTime + 0.15);
-        } catch {}
+        } catch { /* AudioContext may fail in restricted environments — non-critical */ }
       }
     }
     prevMsgCount.current = messages.length;

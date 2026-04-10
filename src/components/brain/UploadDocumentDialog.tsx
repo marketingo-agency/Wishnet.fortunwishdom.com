@@ -166,6 +166,7 @@ export function UploadDocumentDialog({
       const brainDoc = await uploadMutation.mutateAsync({
         file,
         sectionId: targetSectionId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- category value comes from a dynamic select; Supabase enum type is not exported
         category: category as any,
         name: name || file.name,
         description: description || undefined,

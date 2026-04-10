@@ -302,6 +302,7 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
         setSelectionMode(false);
         toast.success(`${idsArray.length} message(s) deleted`);
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mutation error type is not narrowable
       onError: (err: any) => { toast.error('Failed to delete messages: ' + err.message); },
     });
   }, [selectedIds, deleteSelectedMessages]);
@@ -321,6 +322,7 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
         m.id === message.id ? { ...m, isImage: false, imageUrl: undefined, content: 'Image deleted from Files Manager.' } : m
       ));
       toast.success('Image deleted from Files Manager');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase storage errors have no stable type
     } catch (error: any) {
       toast.error('Failed to delete image: ' + error.message);
     } finally { setSavingImageId(null); }

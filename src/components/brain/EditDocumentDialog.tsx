@@ -66,6 +66,7 @@ export function EditDocumentDialog({
       updates: {
         name: name.trim(),
         description: description.trim() || null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- category value comes from a dynamic select; Supabase enum type is not exported
         category: category as any,
         restricted_agents: !allowAllAgents && selectedAgents.length > 0 ? selectedAgents : null,
       },

@@ -39,6 +39,7 @@ export function PixelSettings({ settings }: PixelSettingsProps) {
     ? (llmSettings?.gemini_text_model || 'gemini-2.5-flash')
     : (llmSettings?.openai_text_model || 'gpt-4o');
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic setter for heterogeneous settings object
   const update = (key: keyof PixelSettingsType, value: any) => {
     setForm(f => ({ ...f, [key]: value }));
   };

@@ -74,6 +74,7 @@ export default function PixelAgent() {
       for (const att of newAttachments) {
         extractTextFromFile(att.file).then(result => {
           setGlobalReferences(curr => curr.map(a => a.id === att.id ? { ...a, status: 'ready' as const, extractedContent: result.text, isImage: result.isImage, base64: result.base64 } : a));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- file extraction errors have no stable type
         }).catch((e: any) => {
           setGlobalReferences(curr => curr.map(a => a.id === att.id ? { ...a, status: 'error' as const, errorMessage: e.message } : a));
         });

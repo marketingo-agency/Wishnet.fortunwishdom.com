@@ -126,7 +126,10 @@ function SectionCard({ id, title, icon: SectionIcon, defaultUrl, items, isComing
   const subItems = items.filter((_, i) => i > 0).slice(0, 5);
 
   return (
-    <Card className="group relative overflow-hidden border-border/40 bg-card hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+    <Card
+      className="group relative overflow-hidden border-border/40 bg-card hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+      {...(isComingSoon ? { 'aria-disabled': true, tabIndex: -1 } : {})}
+    >
       {/* Glow background */}
       <div className={`absolute inset-0 ${style.glowBg} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
 
@@ -283,6 +286,7 @@ export default function Dashboard() {
                         : 'bg-card hover:shadow-xl hover:-translate-y-1 cursor-pointer'
                     }`}
                     onClick={() => !isComingSoon && router.push(agent.path)}
+                    {...(isComingSoon ? { 'aria-disabled': true, tabIndex: -1 } : {})}
                   >
                     <div className={`absolute inset-0 bg-gradient-to-br ${agent.gradient} opacity-0 ${!isComingSoon ? 'group-hover:opacity-100' : ''} transition-opacity duration-300`} />
                     <CardContent className="relative z-10 flex flex-col items-center text-center gap-2 p-4">

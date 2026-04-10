@@ -11,7 +11,7 @@ import { useFiles, useUploadFile, getFileUrl } from '@/hooks/useFiles';
 import { 
   LogIn, Layout, Globe, Type, Upload, Image, RotateCcw, Loader2, Palette, PanelLeftClose,
   // Shapes & Symbols
-  Infinity, Circle, Square, Star, Heart, Shield, Zap, Diamond, Hexagon, Triangle, Pentagon, Octagon,
+  Infinity as InfinityIcon, Circle, Square, Star, Heart, Shield, Zap, Diamond, Hexagon, Triangle, Pentagon, Octagon,
   // Business & Work
   Home, Building2, Briefcase, Store, Wallet, CreditCard, PiggyBank, Coins, ShoppingCart, ShoppingBag,
   // Tech & Digital
@@ -38,7 +38,7 @@ import { cn } from '@/lib/utils';
 
 const faviconOptions = [
   // Shapes & Symbols
-  { name: 'infinity', component: Infinity, isDefault: true },
+  { name: 'infinity', component: InfinityIcon, isDefault: true },
   { name: 'circle', component: Circle },
   { name: 'square', component: Square },
   { name: 'star', component: Star },

@@ -149,6 +149,7 @@ export function PromptorOptimize({ settings, session, onUpdate, onOutputChange }
       onUpdate({ output: result });
       onOutputChange?.(result);
       setStep('done');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- edge function errors have no stable type
     } catch (err: any) {
       clearTimeout(heartTimer);
       clearTimeout(brainTimer);

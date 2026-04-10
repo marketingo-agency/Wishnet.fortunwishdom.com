@@ -54,6 +54,7 @@ export function useUpdateFileSettings() {
       queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
       toast.success('File settings synced with Supabase Storage');
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- edge function error shape includes custom fields (error, instructions)
     onError: (error: any) => {
       // Check if it's a global limit error from the edge function
       if (error?.error === 'global_limit_exceeded') {
