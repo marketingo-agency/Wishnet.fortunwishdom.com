@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import Image from 'next/image';
 import { Send, Loader2, Palette, Paperclip, Smile, Clock, X, FileText } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Progress } from '@/components/ui/progress';
@@ -380,8 +381,8 @@ export function PixelStudio({
                 {attachmentPreviews.map(att => (
                   <div key={att.id} className="relative shrink-0 group">
                     {att.type.startsWith('image/') && att.previewUrl ? (
-                      <div className="h-12 w-12 rounded-lg overflow-hidden border border-border bg-muted">
-                        <img src={att.previewUrl} alt={att.name} className="h-full w-full object-cover" />
+                      <div className="relative h-12 w-12 rounded-lg overflow-hidden border border-border bg-muted">
+                        <Image src={att.previewUrl} alt={att.name} fill className="object-cover" unoptimized />
                         {att.status === 'processing' && (
                           <div className="absolute inset-0 bg-background/60 flex items-center justify-center rounded-lg">
                             <Loader2 className="h-3 w-3 animate-spin text-pink-400" />

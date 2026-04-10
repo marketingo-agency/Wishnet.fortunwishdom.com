@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useRouter, useParams } from 'next/navigation';
 import { 
   BrainCircuit, 
@@ -121,10 +122,13 @@ function renderPreviewContent(
 
   if (mimeType.startsWith('image/')) {
     return (
-      <img 
-        src={secureUrl || publicUrl} 
-        alt={doc.name} 
+      <Image
+        src={secureUrl || publicUrl}
+        alt={doc.name}
+        width={800}
+        height={600}
         className="max-w-full max-h-full object-contain"
+        unoptimized
       />
     );
   }

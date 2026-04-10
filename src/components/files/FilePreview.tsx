@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -26,7 +27,7 @@ export function FilePreview({
       onClick={onPreviewClick}
     >
       {isImage ? (
-        <img src={fileUrl} alt={fileName} className="w-full h-full object-cover bg-card" />
+        <Image src={fileUrl} alt={fileName} fill className="object-cover bg-card" unoptimized />
       ) : (
         <div className={cn('w-full h-full flex items-center justify-center', iconBg)}>
           <Icon className={cn('h-16 w-16', iconColor)} strokeWidth={1.5} />

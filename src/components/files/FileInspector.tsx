@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { X, Download, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -209,7 +210,7 @@ export function FileInspector({ file, onClose, isReadOnly = false }: FileInspect
                 <DialogTitle className="text-center">{file.name}</DialogTitle>
               </DialogHeader>
               <div className="flex items-center justify-center p-4 flex-1 overflow-auto">
-                {isImage && <img src={fileUrl} alt={file.name} className="max-w-full max-h-full object-contain" />}
+                {isImage && <Image src={fileUrl} alt={file.name} width={800} height={600} className="max-w-full max-h-full object-contain" unoptimized />}
                 {isVideo && <video src={fileUrl} controls className="max-w-full max-h-full" />}
                 {isAudio && <audio src={fileUrl} controls className="w-full max-w-md" />}
               </div>

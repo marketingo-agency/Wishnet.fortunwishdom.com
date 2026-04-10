@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 import { useBranding } from '@/hooks/useBranding';
 
 interface FortunLogoProps {
@@ -27,15 +28,14 @@ export function FortunLogo({ variant = 'full', className = '' }: FortunLogoProps
   // If custom logo exists, render an image
   if (customUrl) {
     return (
-      <img 
-        src={customUrl} 
-        alt="Logo" 
+      <Image
+        src={customUrl}
+        alt="Logo"
+        width={width}
+        height={height}
         className={className}
-        style={{ 
-          width: width, 
-          height: height,
-          objectFit: 'contain'
-        }}
+        style={{ objectFit: 'contain' }}
+        unoptimized
       />
     );
   }

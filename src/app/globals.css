@@ -19,8 +19,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 210 25% 15%;
 
-    /* Fortun Blue Primary */
-    --primary: 197 78% 59%;
+    /* Fortun Blue Primary — darkened from 59% to 45% for WCAG AA contrast (UI-021) */
+    --primary: 197 78% 45%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 197 100% 97%;
@@ -38,12 +38,12 @@
 
     --border: 210 25% 92%;
     --input: 210 25% 92%;
-    --ring: 197 78% 59%;
+    --ring: 197 78% 45%;
 
     --radius: 0.75rem;
 
     /* Fortun Custom Colors */
-    --fortun-blue: 197 78% 59%;
+    --fortun-blue: 197 78% 45%;
     --fortun-blue-light: 195 100% 75%;
     --fortun-blue-lighter: 195 100% 85%;
     --fortun-red: 9 100% 60%;
@@ -53,12 +53,12 @@
     /* Premium Sidebar - Clean white */
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 210 25% 25%;
-    --sidebar-primary: 197 78% 59%;
+    --sidebar-primary: 197 78% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 197 100% 97%;
     --sidebar-accent-foreground: 197 78% 35%;
     --sidebar-border: 210 25% 94%;
-    --sidebar-ring: 197 78% 59%;
+    --sidebar-ring: 197 78% 45%;
   }
 
   .dark {

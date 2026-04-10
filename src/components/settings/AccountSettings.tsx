@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useFiles, getFileUrl, useUploadFile } from '@/hooks/useFiles';
@@ -391,10 +392,12 @@ export function AccountSettings() {
                           }`}
                           disabled={isLoading}
                         >
-                          <img 
-                            src={url} 
+                          <Image
+                            src={url}
                             alt={file.name}
-                            className="w-full h-full object-cover"
+                            fill
+                            className="object-cover"
+                            unoptimized
                           />
                           {isSelected && (
                             <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">

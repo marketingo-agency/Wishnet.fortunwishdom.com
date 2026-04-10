@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -179,7 +180,7 @@ export function NexusConsole({ settings, initialPrompt, initialMode }: NexusCons
                   <div className={cn("max-w-[90%] sm:max-w-[80%] rounded-2xl px-4 py-2.5 relative group", message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
                     {message.isImage && message.imageUrl ? (
                       <div>
-                        <img src={message.imageUrl} alt="Generated" className="rounded-lg max-w-full h-auto" />
+                        <Image src={message.imageUrl} alt="Generated" width={512} height={512} className="rounded-lg max-w-full h-auto" unoptimized />
                         <div className="flex items-center gap-2 mt-2">
                           <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5 text-destructive hover:text-destructive" onClick={() => ctrl.handleDeleteImage(message)} disabled={ctrl.savingImageId === message.id}>
                             {ctrl.savingImageId === message.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}

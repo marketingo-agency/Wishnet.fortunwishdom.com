@@ -18,6 +18,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
   const { signIn, user, isLoading: authLoading } = useAuth();
@@ -37,14 +38,15 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoginError(null);
     setIsLoading(true);
 
     const { error } = await signIn(email, password);
 
     if (error) {
-      toast.error('Login failed', {
-        description: error.message || 'Invalid email or password',
-      });
+      const msg = error.message || 'Invalid email or password';
+      setLoginError(msg);
+      toast.error('Login failed', { description: msg });
       setIsLoading(false);
       return;
     }
@@ -144,6 +146,11 @@ export default function Login() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {loginError && (
+              <div id="login-error" role="alert" className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+                {loginError}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -151,10 +158,12 @@ export default function Login() {
                 type="email"
                 placeholder="you@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setLoginError(null); }}
                 required
                 autoComplete="email"
                 className="h-11"
+                aria-invalid={!!loginError}
+                aria-describedby={loginError ? 'login-error' : undefined}
               />
             </div>
             <div className="space-y-2">
@@ -165,10 +174,12 @@ export default function Login() {
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); setLoginError(null); }}
                   required
                   autoComplete="current-password"
                   className="h-11 pr-10"
+                  aria-invalid={!!loginError}
+                  aria-describedby={loginError ? 'login-error' : undefined}
                 />
                 <Button
                   type="button"
