@@ -32,7 +32,14 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
     }
   }, [isLoading, user, isAdmin, requireAdmin, router, pathname]);
 
-  if (isLoading || !user || (requireAdmin && !isAdmin)) {
+  // Render nothing while auth state is resolving to avoid a spinner flash
+  // before the redirect fires. Only show the spinner when auth has resolved
+  // but we're waiting on a redirect (e.g. requireAdmin check).
+  if (isLoading) {
+    return null;
+  }
+
+  if (!user || (requireAdmin && !isAdmin)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

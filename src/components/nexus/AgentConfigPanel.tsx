@@ -50,6 +50,14 @@ export function AgentConfigPanel({ agentId, settings }: AgentConfigPanelProps) {
   const [buttonState, setButtonState]   = useState<ButtonState>('idle');
 
   const isInitialLoad = useRef(true);
+  const initTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup all timers on unmount
+  useEffect(() => () => {
+    if (initTimerRef.current) clearTimeout(initTimerRef.current);
+    if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+  }, []);
 
   useEffect(() => {
     if (!agentId) return;
@@ -70,7 +78,8 @@ export function AgentConfigPanel({ agentId, settings }: AgentConfigPanelProps) {
       setSystemPrompt(defaultSystemPrompts[agentId] ?? '');
     }
     setButtonState('idle');
-    setTimeout(() => { isInitialLoad.current = false; }, 0);
+    if (initTimerRef.current) clearTimeout(initTimerRef.current);
+    initTimerRef.current = setTimeout(() => { isInitialLoad.current = false; }, 0);
   }, [agentId, savedSettings, agent?.model]);
 
   useEffect(() => {
@@ -144,7 +153,8 @@ export function AgentConfigPanel({ agentId, settings }: AgentConfigPanelProps) {
       });
     }
 
-    setTimeout(() => setButtonState('idle'), 3000);
+    if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    resetTimerRef.current = setTimeout(() => setButtonState('idle'), 3000);
   };
 
   const getButtonContent = () => {

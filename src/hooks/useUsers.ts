@@ -93,11 +93,14 @@ export function useCreateUser() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: userKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      queryClient.invalidateQueries({ queryKey: ['user-roles'] });
+      queryClient.invalidateQueries({ queryKey: ['user-permissions'] });
       toast.success('User created successfully');
     },
     onError: (error) => {
-      toast.error('Failed to create user', { 
-        description: error instanceof Error ? error.message : 'Unknown error' 
+      toast.error('Failed to create user', {
+        description: error instanceof Error ? error.message : 'Unknown error'
       });
     },
   });
@@ -130,6 +133,9 @@ export function useDeleteUser() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: userKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      queryClient.invalidateQueries({ queryKey: ['user-roles'] });
+      queryClient.invalidateQueries({ queryKey: ['user-permissions'] });
       toast.success('User deleted successfully');
     },
     onError: (error) => {

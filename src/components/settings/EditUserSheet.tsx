@@ -13,6 +13,7 @@ import { PermissionLevelSelector } from './PermissionLevelSelector';
 import { useUserPermissions, useUpdateUserPermissions } from '@/hooks/useUserPermissions';
 import type { PermissionLevel, UserPermissions } from '@/types/user';
 import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { 
   User, 
@@ -130,13 +131,14 @@ const toolConfigs = [
 ];
 
 export function EditUserSheet({ open, onOpenChange, user, onSave }: EditUserSheetProps) {
+  const queryClient = useQueryClient();
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<'admin' | 'agent'>('agent');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { data: userPermissions, isLoading: isLoadingPermissions } = useUserPermissions(user?.id);
@@ -294,6 +296,11 @@ export function EditUserSheet({ open, onOpenChange, user, onSave }: EditUserShee
         });
       }
 
+      // Invalidate all user-touching queries after role/profile update
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      queryClient.invalidateQueries({ queryKey: ['user-roles'] });
+      queryClient.invalidateQueries({ queryKey: ['user-permissions'] });
       toast.success('User updated successfully');
       onSave();
       onOpenChange(false);

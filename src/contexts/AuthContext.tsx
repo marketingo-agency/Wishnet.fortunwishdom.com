@@ -75,16 +75,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          // Use setTimeout to avoid Supabase deadlock
-          setTimeout(() => {
-            fetchProfileAndRole(session.user.id);
+          // Use setTimeout to avoid Supabase deadlock, but keep isLoading
+          // true until the profile fetch completes (UI-027)
+          setTimeout(async () => {
+            await fetchProfileAndRole(session.user.id);
+            setIsLoading(false);
           }, 0);
         } else {
           setProfile(null);
           setRole(null);
+          setIsLoading(false);
         }
-
-        setIsLoading(false);
       }
     );
 

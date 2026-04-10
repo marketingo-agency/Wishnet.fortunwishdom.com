@@ -147,11 +147,12 @@ async function callOcrEdgeFunction(
     }),
   });
 
-  const data = await response.json();
-
   if (!response.ok) {
-    throw new Error(data.error || 'OCR processing failed');
+    const errBody = await response.json().catch(() => ({}));
+    throw new Error(errBody.error || `OCR processing failed (${response.status})`);
   }
+
+  const data = await response.json();
 
   return data;
 }

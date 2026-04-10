@@ -111,13 +111,14 @@ export async function searchKnowledge(params: SearchKnowledgeParams): Promise<{ 
       headers: authHeaders,
       body: JSON.stringify(params),
     });
-    
-    const data = await response.json();
-    
+
     if (!response.ok) {
-      throw new Error(data.error || 'Failed to search knowledge');
+      const errBody = await response.json().catch(() => ({}));
+      throw new Error(errBody.error || `Failed to search knowledge (${response.status})`);
     }
-    
+
+    const data = await response.json();
+
     return { results: data.results || [] };
   } catch (error) {
     console.error('Error searching knowledge:', error);

@@ -11,8 +11,11 @@ async function callPromptor(payload: Record<string, unknown>): Promise<PromptorO
     headers,
     body: JSON.stringify(payload),
   });
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}));
+    throw new Error(errBody.error || `Promptor request failed (${res.status})`);
+  }
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Promptor request failed');
   return data as PromptorOutput;
 }
 
