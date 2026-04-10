@@ -20,7 +20,9 @@ const RequestBodySchema = z.object({
   source_types: z.array(z.enum(['brain_document', 'heart_rule', 'wishpedia_entry'])).optional(),
   agent_id: z.string().regex(UUID_RE, 'Invalid agent_id').optional().or(z.literal('')),
   limit: z.number().int().min(1).max(50).optional().default(10),
-  threshold: z.number().min(0).max(1).optional().default(0.7),
+  // RAG-011: lowered from 0.7 to 0.5 — text-embedding-3-small cosine
+  // similarities are generally lower than ada-002, so 0.7 was too aggressive
+  threshold: z.number().min(0).max(1).optional().default(0.5),
 });
 
 interface SearchResult {
@@ -130,99 +132,97 @@ Deno.serve(async (req) => {
     const searchResults: SearchResult[] = results || [];
     console.log(`Found ${searchResults.length} matching chunks`);
     
-    // Enrich results with source details
-    const enrichedResults = await Promise.all(
-      searchResults.map(async (result) => {
-        let sourceDetails: Record<string, unknown> = {};
-        
-        if (result.source_type === 'brain_document') {
-          const { data: doc } = await supabaseAdmin
-            .from('brain_documents')
-            .select('name, category, description')
-            .eq('id', result.source_id)
-            .single();
-          
-          if (doc) {
-            sourceDetails = {
-              name: doc.name,
-              category: doc.category,
-              description: doc.description,
-              type: 'document',
-            };
-          }
-        } else if (result.source_type === 'heart_rule') {
-          const { data: rule } = await supabaseAdmin
-            .from('heart_rules')
-            .select('name, category, description, is_active')
-            .eq('id', result.source_id)
-            .single();
-          
-          if (rule) {
-            sourceDetails = {
-              name: rule.name,
-              category: rule.category,
-              description: rule.description,
-              is_active: rule.is_active,
-              type: 'rule',
-            };
-          }
-        } else if (result.source_type === 'wishpedia_entry') {
-          const { data: entry } = await supabaseAdmin
-            .from('wishpedia_entries')
-            .select('name, description, category_id')
-            .eq('id', result.source_id)
-            .single();
-          
-          if (entry) {
-            // Fetch category name
-            let categoryName = '';
-            if (entry.category_id) {
-              const { data: cat } = await supabaseAdmin
-                .from('wishpedia_categories')
-                .select('name')
-                .eq('id', entry.category_id)
-                .single();
-              categoryName = cat?.name || '';
-            }
-            
-            // Fetch associated images
-            const { data: images } = await supabaseAdmin
-              .from('wishpedia_entry_images')
-              .select('angle, original_name')
-              .eq('entry_id', result.source_id)
-              .order('sort_order');
-            
-            // Build public URLs for images
-            const imageUrls = (images || []).map(img => {
-              const storagePath = `${result.source_id}/${img.original_name}`;
-              return {
-                angle: img.angle,
-                url: `${supabaseUrl}/storage/v1/object/public/wishpedia-media/${storagePath}`,
-              };
-            });
-            
-            sourceDetails = {
-              name: entry.name,
-              category: categoryName,
-              description: entry.description,
-              type: 'entry',
-              image_urls: imageUrls,
-            };
-          }
+    // RAG-008: batch enrichment queries by source_type instead of N+1 per result
+    const docIds = [...new Set(searchResults.filter(r => r.source_type === 'brain_document').map(r => r.source_id))];
+    const ruleIds = [...new Set(searchResults.filter(r => r.source_type === 'heart_rule').map(r => r.source_id))];
+    const entryIds = [...new Set(searchResults.filter(r => r.source_type === 'wishpedia_entry').map(r => r.source_id))];
+
+    // 3 batched queries instead of up to 30 individual ones
+    const [docsResult, rulesResult, entriesResult] = await Promise.all([
+      docIds.length > 0
+        ? supabaseAdmin.from('brain_documents').select('id, name, category, description').in('id', docIds)
+        : Promise.resolve({ data: [] }),
+      ruleIds.length > 0
+        ? supabaseAdmin.from('heart_rules').select('id, name, category, description, is_active').in('id', ruleIds)
+        : Promise.resolve({ data: [] }),
+      entryIds.length > 0
+        ? supabaseAdmin.from('wishpedia_entries').select('id, name, description, category_id').in('id', entryIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    // Build lookup maps
+    const docMap = new Map((docsResult.data || []).map((d: any) => [d.id, d]));
+    const ruleMap = new Map((rulesResult.data || []).map((r: any) => [r.id, r]));
+    const entryMap = new Map((entriesResult.data || []).map((e: any) => [e.id, e]));
+
+    // Batch-fetch wishpedia categories + images if needed
+    const categoryIds = [...new Set((entriesResult.data || []).map((e: any) => e.category_id).filter(Boolean))];
+    const [categoriesResult, imagesResult] = await Promise.all([
+      categoryIds.length > 0
+        ? supabaseAdmin.from('wishpedia_categories').select('id, name').in('id', categoryIds)
+        : Promise.resolve({ data: [] }),
+      entryIds.length > 0
+        ? supabaseAdmin.from('wishpedia_entry_images').select('entry_id, angle, original_name').in('entry_id', entryIds).order('sort_order')
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const categoryMap = new Map((categoriesResult.data || []).map((c: any) => [c.id, c.name]));
+    const imagesByEntry = new Map<string, any[]>();
+    for (const img of (imagesResult.data || [])) {
+      const list = imagesByEntry.get(img.entry_id) || [];
+      list.push(img);
+      imagesByEntry.set(img.entry_id, list);
+    }
+
+    // Enrich results using lookup maps (zero additional queries)
+    const enrichedResults = searchResults.map((result) => {
+      let source: Record<string, unknown> = {};
+
+      if (result.source_type === 'brain_document') {
+        const doc = docMap.get(result.source_id);
+        if (doc) source = { name: doc.name, category: doc.category, description: doc.description, type: 'document' };
+      } else if (result.source_type === 'heart_rule') {
+        const rule = ruleMap.get(result.source_id);
+        if (rule) source = { name: rule.name, category: rule.category, description: rule.description, is_active: rule.is_active, type: 'rule' };
+      } else if (result.source_type === 'wishpedia_entry') {
+        const entry = entryMap.get(result.source_id);
+        if (entry) {
+          const images = imagesByEntry.get(result.source_id) || [];
+          source = {
+            name: entry.name,
+            category: categoryMap.get(entry.category_id) || '',
+            description: entry.description,
+            type: 'entry',
+            image_urls: images.map((img: any) => ({
+              angle: img.angle,
+              url: `${supabaseUrl}/storage/v1/object/public/wishpedia-media/${result.source_id}/${img.original_name}`,
+            })),
+          };
         }
-        
-        return {
-          ...result,
-          source: sourceDetails,
-        };
-      })
-    );
-    
+      }
+
+      return { ...result, source };
+    });
+
+    // RAG-012: apply source-type weighting — heart_rules are authoritative
+    // brand guidelines and should rank above documents at equal similarity
+    const SOURCE_WEIGHT: Record<string, number> = {
+      heart_rule: 1.15,       // +15% boost for rules (brand authority)
+      brain_document: 1.0,    // baseline
+      wishpedia_entry: 1.05,  // slight boost for product knowledge
+    };
+    const weightedResults = enrichedResults
+      .map(r => ({
+        ...r,
+        weighted_similarity: r.similarity * (SOURCE_WEIGHT[r.source_type] || 1.0),
+      }))
+      .sort((a, b) => b.weighted_similarity - a.weighted_similarity);
+
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
-        results: enrichedResults,
-        count: enrichedResults.length,
+        results: weightedResults,
+        count: weightedResults.length,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

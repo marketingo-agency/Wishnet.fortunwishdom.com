@@ -15,6 +15,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { z } from 'https://esm.sh/zod@3.23.8';
+import { chunkText, type ChunkResult } from '../_shared/chunker.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,11 +29,6 @@ const RequestBodySchema = z.object({
   source_type: z.enum(['brain_document', 'heart_rule', 'wishpedia_entry']),
   source_id: z.string().regex(UUID_RE, 'Invalid UUID format').optional(),
 });
-
-interface ChunkResult {
-  content: string;
-  index: number;
-}
 
 // Safety limits to prevent memory exhaustion
 const MAX_TEXT_LENGTH = 300000; // ~300k chars max
@@ -80,68 +76,7 @@ async function deleteAllEmbeddings(supabase: any, sourceId: string): Promise<num
   return totalDeleted;
 }
 
-// Chunk text into overlapping segments
-function chunkText(text: string, chunkSize = 1000, overlap = 100): ChunkResult[] {
-  const chunks: ChunkResult[] = [];
-  
-  if (!text || text.trim().length === 0) {
-    return chunks;
-  }
-  
-  // Clean and normalize text
-  const cleanText = text
-    .replace(/\r\n/g, '\n')
-    .replace(/\s+/g, ' ')
-    .trim();
-  
-  if (cleanText.length <= chunkSize) {
-    return [{ content: cleanText, index: 0 }];
-  }
-  
-  let start = 0;
-  let index = 0;
-  
-  while (start < cleanText.length && index < MAX_CHUNKS) {
-    let end = start + chunkSize;
-    
-    // Try to break at sentence boundary
-    if (end < cleanText.length) {
-      const lastPeriod = cleanText.lastIndexOf('.', end);
-      const lastQuestion = cleanText.lastIndexOf('?', end);
-      const lastExclaim = cleanText.lastIndexOf('!', end);
-      const lastNewline = cleanText.lastIndexOf('\n', end);
-      
-      const breakPoint = Math.max(lastPeriod, lastQuestion, lastExclaim, lastNewline);
-      
-      if (breakPoint > start + chunkSize / 2) {
-        end = breakPoint + 1;
-      }
-    } else {
-      end = cleanText.length;
-    }
-    
-    const chunk = cleanText.slice(start, end).trim();
-    if (chunk.length > 0) {
-      chunks.push({ content: chunk, index });
-      index++;
-    }
-
-    // RAG-001: stop once we've consumed the full text. Without this guard,
-    // when the final chunk ended at cleanText.length, `start = end - overlap`
-    // still pointed inside the text, and the next iteration would produce a
-    // duplicate trailing chunk until MAX_CHUNKS was hit.
-    if (end >= cleanText.length) break;
-
-    // Move start with overlap — and guarantee forward progress so we can
-    // never loop on the same window (pathological when chunk == overlap).
-    const nextStart = end - overlap;
-    start = nextStart > start ? nextStart : end;
-    if (start < 0) start = 0;
-    if (start >= cleanText.length) break;
-  }
-
-  return chunks;
-}
+// RAG-005: chunkText imported from _shared/chunker.ts
 
 // Efficiently serialize embedding vector to string
 function serializeVector(embedding: number[]): string {

@@ -11,6 +11,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 import { z } from 'https://esm.sh/zod@3.23.8';
+import { chunkText } from '../_shared/chunker.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -95,56 +96,7 @@ async function extractTextFromImage(
   }
 }
 
-// Chunk text using recursive character splitting
-function chunkText(text: string, chunkSize = 1000, overlap = 100): string[] {
-  if (text.length <= chunkSize) {
-    return text.trim().length > 0 ? [text.trim()] : [];
-  }
-
-  const chunks: string[] = [];
-  let start = 0;
-
-  while (start < text.length) {
-    let end = start + chunkSize;
-    
-    if (end < text.length) {
-      const slice = text.slice(start, end);
-      
-      const paragraphBreak = slice.lastIndexOf('\n\n');
-      if (paragraphBreak > chunkSize * 0.5) {
-        end = start + paragraphBreak + 2;
-      } else {
-        const sentenceBreak = Math.max(
-          slice.lastIndexOf('. '),
-          slice.lastIndexOf('! '),
-          slice.lastIndexOf('? ')
-        );
-        if (sentenceBreak > chunkSize * 0.5) {
-          end = start + sentenceBreak + 2;
-        } else {
-          const wordBreak = slice.lastIndexOf(' ');
-          if (wordBreak > chunkSize * 0.5) {
-            end = start + wordBreak + 1;
-          }
-        }
-      }
-    }
-
-    const chunk = text.slice(start, end).trim();
-    if (chunk.length > 0) chunks.push(chunk);
-
-    // RAG-001: exit as soon as we've consumed the full text so we don't
-    // emit duplicate trailing chunks when remaining text <= overlap.
-    if (end >= text.length) break;
-
-    // Move start with overlap, but guarantee forward progress.
-    const nextStart = end - overlap;
-    start = nextStart > start ? nextStart : end;
-    if (start >= text.length) break;
-  }
-
-  return chunks.filter(chunk => chunk.length > 0);
-}
+// RAG-005: chunkText imported from _shared/chunker.ts
 
 // Generate embeddings using OpenAI — batched to avoid timeouts
 async function generateEmbeddingsBatched(
@@ -330,10 +282,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    const chunks = chunkText(fullText);
-    console.log(`Created ${chunks.length} chunks from this batch`);
+    const chunkResults = chunkText(fullText);
+    // Extract content strings for the embedding API
+    const chunkTexts = chunkResults.map(c => c.content);
+    console.log(`Created ${chunkResults.length} chunks from this batch`);
 
-    if (chunks.length === 0) {
+    if (chunkResults.length === 0) {
       return new Response(
         JSON.stringify({
           success: true,
@@ -347,7 +301,7 @@ Deno.serve(async (req) => {
     }
 
     // Generate embeddings in batches of 50 to stay within limits
-    const embeddings = await generateEmbeddingsBatched(chunks, openaiKey, 50);
+    const embeddings = await generateEmbeddingsBatched(chunkTexts, openaiKey, 50);
     console.log(`Generated ${embeddings.length} embeddings`);
 
     const metadata = {
@@ -359,11 +313,11 @@ Deno.serve(async (req) => {
       page_count: page_images.length,
     };
 
-    const embeddingRecords = chunks.map((content, index) => ({
+    const embeddingRecords = chunkResults.map((chunk, index) => ({
       source_type: 'brain_document' as const,
       source_id: document_id,
-      chunk_index: chunkIndexOffset + index,
-      content,
+      chunk_index: chunkIndexOffset + chunk.index,
+      content: chunk.content,
       embedding: JSON.stringify(embeddings[index]),
       metadata,
     }));
