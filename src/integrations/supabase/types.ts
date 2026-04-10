@@ -1444,6 +1444,42 @@ export type Database = {
         }
         Relationships: []
       }
+      system_prompts: {
+        Row: {
+          id: string
+          agent_id: string
+          prompt_key: string
+          content: string
+          version: number
+          is_active: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          agent_id: string
+          prompt_key: string
+          content: string
+          version?: number
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          agent_id?: string
+          prompt_key?: string
+          content?: string
+          version?: number
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sectors: {
         Row: {
           color: string | null

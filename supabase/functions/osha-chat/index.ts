@@ -13,6 +13,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 import { sanitizeForPrompt } from '../_shared/sanitize.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
+import { getAgentPrompts } from '../_shared/system-prompts.ts';
 
 // SEC-004: 20 requests per minute per user (governed chatbot, heavier per-request)
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 20 });
@@ -161,8 +162,10 @@ function buildSystemPrompt(
     pixel?: Record<string, unknown> | null;
     osha?: Record<string, unknown> | null;
   },
+  // AGENT-007: DB-sourced mode instructions override these defaults
+  dbModeInstructions?: Record<string, string>,
 ): string {
-  const modeInstructions: Record<string, string> = {
+  const defaultModeInstructions: Record<string, string> = {
     // Assistant modes
     guide: 'You explain clearly with step-by-step structure, examples, and onboarding-friendly language. Use headings, numbered steps, and practical examples.',
     operator: 'You are concise, action-oriented. Respond with tasks, checklists, and direct answers. Avoid preamble. Lead with the action.',
@@ -175,6 +178,9 @@ function buildSystemPrompt(
     filter: 'You are in Filter mode — a structured idea evaluator. Score and rank ideas using these criteria: Originality (1-10), Feasibility (1-10), Brand Fit (1-10), Cost Efficiency (1-10), Time to Market (1-10), Emotional Impact (1-10), Clarity (1-10). Output a scoring table, shortlist top 3-5, and explain your reasoning.',
     workshop: 'You are in Workshop mode — a brainstorming facilitator. Guide the user through a structured creative session: 1) Ask opening questions to understand goals, 2) Generate ideas based on answers, 3) Help refine and shortlist, 4) Produce a Workshop Summary with key decisions and next actions.',
   };
+
+  // AGENT-007: merge DB overrides over defaults
+  const modeInstructions = { ...defaultModeInstructions, ...dbModeInstructions };
 
   const verbosityInstructions: Record<string, string> = {
     short: 'Keep responses brief and to the point — 1-3 short paragraphs maximum.',
@@ -1894,7 +1900,9 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
   }
 
   // ── Step 3: Build system prompt ─────────────────────────────────────────────
-  const systemPrompt = buildSystemPrompt(heartRules, brainContext, mode, settings, agentStatuses, agentConfigs);
+  // AGENT-007: fetch mode instructions from DB (falls back to hardcoded defaults)
+  const dbModePrompts = await getAgentPrompts(supabaseAdmin, 'osha', {});
+  const systemPrompt = buildSystemPrompt(heartRules, brainContext, mode, settings, agentStatuses, agentConfigs, dbModePrompts);
 
   // ── Step 4: Build messages array — AGENT-006: cap at last 50 messages ───────
   // At gpt-4o pricing (~$2.50/1M input), 10,000 uncapped messages would cost

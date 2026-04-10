@@ -9,8 +9,9 @@ import { UsersManagement } from '@/components/settings/UsersManagement';
 import { LLMProvidersSettings } from '@/components/settings/LLMProvidersSettings';
 import { MasterMindSettings } from '@/components/settings/MasterMindSettings';
 import { FilesManagerSettings } from '@/components/settings/FilesManagerSettings';
+import { SystemPromptsPanel } from '@/components/settings/SystemPromptsPanel';
 import { useAuth } from '@/contexts/AuthContext';
-import { Settings as SettingsIcon, Palette, Users, Sparkles, BrainCircuit, FolderOpen } from 'lucide-react';
+import { Settings as SettingsIcon, Palette, Users, Sparkles, BrainCircuit, FolderOpen, MessageSquare } from 'lucide-react';
 
 export default function Settings() {
   const router = useRouter();
@@ -66,6 +67,10 @@ export default function Settings() {
                       <FolderOpen className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-cyan-500" />
                       <span>Files</span>
                     </TabsTrigger>
+                    <TabsTrigger value="prompts" className="data-[state=active]:bg-background text-xs sm:text-sm shrink-0">
+                      <MessageSquare className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500" />
+                      <span>Prompts</span>
+                    </TabsTrigger>
                   </>
                 )}
               </TabsList>
@@ -95,6 +100,9 @@ export default function Settings() {
                   </TabsContent>
                   <TabsContent value="files" className="mt-0">
                     <FilesManagerSettings />
+                  </TabsContent>
+                  <TabsContent value="prompts" className="mt-0">
+                    <SystemPromptsPanel />
                   </TabsContent>
                 </>
               )}
