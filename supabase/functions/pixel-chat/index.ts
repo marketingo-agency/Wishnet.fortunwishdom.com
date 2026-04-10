@@ -545,15 +545,15 @@ Deno.serve(async (req) => {
   });
   const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
-  const token = authHeader.replace('Bearer ', '');
-  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-  if (claimsError || !claimsData?.claims) {
+  // Verify auth via getUser (server round-trip, validates token properly)
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-  const userId = claimsData.claims.sub;
+  const userId = user.id;
 
   let body: RequestBody;
   try {

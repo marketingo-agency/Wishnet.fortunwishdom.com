@@ -6,6 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { AI_CHAT_ENDPOINT } from '@/config/api';
+import { getAuthHeaders } from '@/lib/apiHelpers';
 import type { LLMSettings, ChatRequest, DeepResearchRequest } from '@/types/llm';
 
 // Re-export model definitions from config for backwards compatibility
@@ -62,12 +63,10 @@ export function useTestConnection() {
   return useMutation({
     onError: () => {}, // suppress React Query's internal console.error
     mutationFn: async ({ provider, apiKey }: { provider: 'openai' | 'gemini'; apiKey: string }) => {
+      const headers = await getAuthHeaders();
       const response = await fetch(AI_CHAT_ENDPOINT, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        },
+        headers,
         body: JSON.stringify({
           action: 'test-connection',
           provider,
@@ -116,12 +115,10 @@ export function useAIChat() {
         action = 'chat';
       }
 
+      const headers = await getAuthHeaders();
       const response = await fetch(AI_CHAT_ENDPOINT, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        },
+        headers,
         body: JSON.stringify({
           action,
           provider,
@@ -174,12 +171,8 @@ export function useDeepResearch() {
       model,
       onProgress,
     }: DeepResearchRequest) => {
-      const getAuthToken = async () => {
-        const session = await supabase.auth.getSession();
-        return session.data.session?.access_token;
-      };
-
-      const token = await getAuthToken();
+      const headers = await getAuthHeaders();
+      const token = headers.Authorization?.replace('Bearer ', '');
 
       // Step 1: Start the research
       onProgress?.('Starting deep research...');

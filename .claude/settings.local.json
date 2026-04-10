@@ -122,7 +122,10 @@
       "Bash(sed -i 's/^THRESHOLD=1$/THRESHOLD=95/' ~/.claude/hooks/usage-guard.sh)",
       "Bash(python -c \"import json; json.load\\(open\\('C:/Users/3issam/.claude/settings.json'\\)\\); print\\('valid json'\\)\")",
       "mcp__claude_ai_Supabase__deploy_edge_function",
-      "Bash(supabase --version)"
+      "Bash(supabase --version)",
+      "mcp__claude_ai_Asana__get_me",
+      "mcp__claude_ai_Supabase__list_organizations",
+      "mcp__fal-ai__search_models"
     ]
   }
 }

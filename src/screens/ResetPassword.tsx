@@ -30,9 +30,9 @@ export default function ResetPassword() {
       setIsChecking(false);
     });
 
-    // Also check if there's already a session (user clicked link and was auto-logged in)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
+    // CODE-002: validate with getUser() instead of getSession()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
         setIsValidSession(true);
       }
       setIsChecking(false);

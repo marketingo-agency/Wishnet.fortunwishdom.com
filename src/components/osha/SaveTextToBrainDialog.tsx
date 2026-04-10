@@ -14,8 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { BrainCircuit, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { supabase } from '@/integrations/supabase/client';
-import { edgeFunctionUrl } from '@/lib/apiHelpers';
+import { edgeFunctionUrl, getAuthHeaders } from '@/lib/apiHelpers';
 import { useQueryClient } from '@tanstack/react-query';
 import { useBrainCategories } from '@/hooks/useBrainCategories';
 import { AI_AGENTS } from '@/data/agents';
@@ -58,17 +57,13 @@ export function SaveTextToBrainDialog({ open, onOpenChange, content, messageId }
     setSaving(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      const headers = await getAuthHeaders();
 
       const res = await fetch(
         edgeFunctionUrl('osha-chat'),
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
-          },
+          headers,
           body: JSON.stringify({
             action: 'save-to-brain',
             title: name.trim(),

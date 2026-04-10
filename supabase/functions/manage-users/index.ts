@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     
-    // Verify the caller via getClaims (lightweight JWT check)
+    // Verify the caller via getUser (server round-trip, validates token properly)
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       return new Response(
@@ -24,20 +24,19 @@ Deno.serve(async (req) => {
       )
     }
 
-    const token = authHeader.replace('Bearer ', '')
     const supabaseAuth = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
       global: { headers: { Authorization: authHeader } },
     })
-    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token)
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser()
 
-    if (claimsError || !claimsData?.claims) {
+    if (userError || !user) {
       return new Response(
         JSON.stringify({ error: 'Invalid token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const callerId = claimsData.claims.sub as string
+    const callerId = user.id
 
     // Create admin client with service role key
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {

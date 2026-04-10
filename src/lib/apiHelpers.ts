@@ -12,8 +12,16 @@ import { EDGE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '@/config/api';
  * Throws if not authenticated.
  */
 export async function getAuthHeaders(): Promise<Record<string, string>> {
+  // CODE-002: validate with getUser() (server round-trip) instead of
+  // getSession() which only reads cached storage and can't detect
+  // deleted users or revoked tokens.
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error || !user) throw new Error('Not authenticated');
+
+  // Token retrieval still comes from the session — getUser() validated
+  // it, so the cached session is trustworthy for the access_token.
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Not authenticated');
+  if (!session) throw new Error('No active session');
 
   return {
     'Content-Type': 'application/json',

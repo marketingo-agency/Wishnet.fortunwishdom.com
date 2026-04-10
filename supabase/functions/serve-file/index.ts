@@ -78,18 +78,18 @@ Deno.serve(async (req) => {
       return errorResponse(500, "Server configuration error");
     }
 
-    // Validate token via getClaims (lightweight)
+    // Verify auth via getUser (server round-trip, validates token properly)
     const supabaseAuth = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
-    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token);
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
 
-    if (claimsError || !claimsData?.claims) {
-      console.error("Auth error:", claimsError);
+    if (userError || !user) {
+      console.error("Auth error:", userError);
       return errorResponse(401, "Unauthorized - invalid or expired token");
     }
 
-    const userId = claimsData.claims.sub as string;
+    const userId = user.id;
 
     // Service-role client for privileged storage/db access
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {

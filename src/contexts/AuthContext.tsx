@@ -88,16 +88,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      if (session?.user) {
-        fetchProfileAndRole(session.user.id);
+    // CODE-002: validate with getUser() (server round-trip) instead of
+    // getSession() which reads from cache and can't detect deleted users.
+    supabase.auth.getUser().then(({ data: { user }, error }) => {
+      if (error || !user) {
+        setUser(null);
+        setSession(null);
+        setIsLoading(false);
+        return;
       }
 
-      setIsLoading(false);
+      // User is validated — get session for the token/session object
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setSession(session);
+        setUser(user);
+
+        if (user) {
+          fetchProfileAndRole(user.id);
+        }
+
+        setIsLoading(false);
+      });
     });
 
     return () => subscription.unsubscribe();

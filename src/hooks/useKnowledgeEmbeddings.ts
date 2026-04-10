@@ -8,6 +8,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { EDGE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '@/config/api';
+import { getAuthHeaders } from '@/lib/apiHelpers';
 import { toast } from 'sonner';
 import { useCallback } from 'react';
 
@@ -53,16 +54,11 @@ interface SearchResult {
  */
 export async function processEmbedding(params: ProcessEmbeddingParams): Promise<{ success: boolean; chunks?: number; truncated?: boolean; error?: string }> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return { success: false, error: 'Not authenticated' };
+    const headers = await getAuthHeaders();
 
     const response = await fetch(`${EDGE_FUNCTIONS_URL}/process-embeddings`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`,
-        apikey: SUPABASE_ANON_KEY,
-      },
+      headers,
       body: JSON.stringify(params),
     });
     
@@ -97,13 +93,17 @@ export async function processEmbedding(params: ProcessEmbeddingParams): Promise<
  */
 export async function searchKnowledge(params: SearchKnowledgeParams): Promise<{ results: SearchResult[]; error?: string }> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const authHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-      apikey: SUPABASE_ANON_KEY,
-    };
-    if (session) {
-      authHeaders.Authorization = `Bearer ${session.access_token}`;
+    // CODE-002: use getUser() for validation. Search still works without
+    // auth (anon key), so we don't throw on failure — just omit the
+    // Authorization header.
+    let authHeaders: Record<string, string>;
+    try {
+      authHeaders = await getAuthHeaders();
+    } catch {
+      authHeaders = {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+      };
     }
 
     const response = await fetch(`${EDGE_FUNCTIONS_URL}/search-knowledge`, {

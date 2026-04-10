@@ -5,8 +5,8 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { AI_CHAT_ENDPOINT } from '@/config/api';
+import { getAuthHeaders } from '@/lib/apiHelpers';
 
 export interface ProviderKeyStatus {
   openai: boolean;
@@ -17,15 +17,11 @@ export function useProviderKeyStatus() {
   return useQuery({
     queryKey: ['provider-key-status'],
     queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      const headers = await getAuthHeaders();
 
       const response = await fetch(AI_CHAT_ENDPOINT, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
+        headers,
         body: JSON.stringify({ action: 'check-keys' }),
       });
 
