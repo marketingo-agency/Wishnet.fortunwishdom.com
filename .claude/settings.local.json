@@ -142,7 +142,21 @@
       "Bash(node -e \" const fs = require\\('fs'\\); const c = fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/osha-chat/index.ts', 'utf8'\\).replace\\(/\\\\r\\\\n/g, '\\\\n'\\); // Output as JSON string process.stdout.write\\(JSON.stringify\\([{name:'index.ts', content:c}]\\)\\); \")",
       "Bash(npm view:*)",
       "Bash(npx update-browserslist-db@latest --update-db)",
-      "mcp__claude_ai_Supabase__get_project"
+      "mcp__claude_ai_Supabase__get_project",
+      "mcp__claude_ai_Supabase__get_project_url",
+      "Bash(node -e \" const fs = require\\('fs'\\); const c = fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/ai-chat/index.ts', 'utf8'\\); // Output as a single escaped JSON string we can copy process.stdout.write\\(c\\); \")",
+      "Read(//c/Users/3issam/AppData/Roaming/**)",
+      "Read(//c/Users/3issam/.config/**)",
+      "Bash(node -e \" const fs = require\\('fs'\\); const data = fs.readFileSync\\('/dev/stdin', 'utf8'\\); try { const config = JSON.parse\\(data\\); // Look for supabase related config const str = JSON.stringify\\(config\\); if \\(str.includes\\('supabase'\\)\\) { console.log\\('Found supabase references in config'\\); } else { console.log\\('No supabase references'\\); } } catch\\(e\\) { console.log\\('Could not parse config'\\); } \")",
+      "Bash(node -e \" const fs = require\\('fs'\\); const c = fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/ai-chat/index.ts', 'utf8'\\); // Write just the index.ts content as-is process.stdout.write\\(c\\); \")",
+      "Bash(node -e \"const f=require\\('fs'\\).readFileSync\\('/tmp/mcp-ai-chat-files.json','utf8'\\); process.stdout.write\\(f\\);\")",
+      "Bash(ls ~/.claude/settings*)",
+      "Bash(node)",
+      "Bash(node -e \"const fs=require\\('fs'\\); process.stdout.write\\(fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/ai-chat/index.ts','utf8'\\)\\);\")",
+      "Bash(env)",
+      "Bash(node -e \" const fs = require\\('fs'\\); const content = fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/ai-chat/index.ts', 'utf8'\\); // Write to clipboard-friendly format process.stdout.write\\(content\\); \")",
+      "Bash(node -e \" const fs = require\\('fs'\\); // Output the ai-chat index.ts content as a JSON string value const c = fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/ai-chat/index.ts', 'utf8'\\); process.stdout.write\\(c\\); \")",
+      "Bash(echo \"EXIT CODE: $?\")"
     ]
   }
 }
