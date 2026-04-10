@@ -115,22 +115,36 @@ Deno.serve(async (req) => {
     // Convert to string format for the RPC call
     const embeddingString = `[${queryEmbedding.join(',')}]`;
     
-    // Call the match_knowledge function
+    // RAG-004: hybrid search — combine vector similarity + BM25 full-text
     const { data: results, error: searchError } = await supabaseAdmin
-      .rpc('match_knowledge', {
+      .rpc('match_knowledge_hybrid', {
         query_embedding: embeddingString,
+        query_text: query,
         match_threshold: threshold,
         match_count: limit,
         filter_source_types: source_types || null,
         filter_agent_id: agent_id || null,
+        vector_weight: 0.7,
+        text_weight: 0.3,
       });
-    
+
     if (searchError) {
-      throw new Error(`Search failed: ${searchError.message}`);
+      // Fallback to original vector-only search if hybrid fails
+      console.warn('Hybrid search failed, falling back to vector-only:', searchError.message);
+      const { data: fallbackResults, error: fallbackError } = await supabaseAdmin
+        .rpc('match_knowledge', {
+          query_embedding: embeddingString,
+          match_threshold: threshold,
+          match_count: limit,
+          filter_source_types: source_types || null,
+          filter_agent_id: agent_id || null,
+        });
+      if (fallbackError) throw new Error(`Search failed: ${fallbackError.message}`);
+      var searchResults: SearchResult[] = fallbackResults || [];
+    } else {
+      var searchResults: SearchResult[] = results || [];
     }
-    
-    const searchResults: SearchResult[] = results || [];
-    console.log(`Found ${searchResults.length} matching chunks`);
+    console.log(`Found ${searchResults.length} matching chunks (hybrid)`);
     
     // RAG-008: batch enrichment queries by source_type instead of N+1 per result
     const docIds = [...new Set(searchResults.filter(r => r.source_type === 'brain_document').map(r => r.source_id))];
