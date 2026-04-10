@@ -97,7 +97,7 @@ function StatCard({ config, value, isLoading }: { config: StatConfig; value: num
           ) : (
             <>
               <p className="text-2xl font-bold tracking-tight text-foreground leading-none mb-0.5">{value}</p>
-              <p className="text-xs text-muted-foreground truncate">{config.label}</p>
+              <p className="text-xs text-muted-foreground leading-tight">{config.label}</p>
             </>
           )}
         </div>
@@ -245,7 +245,7 @@ export default function Dashboard() {
 
         {/* ── Quick Stats Row ── */}
         {visibleStats.length > 0 && (
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 wp-animate-in" style={{ animationDelay: '0.05s', gridTemplateColumns: `repeat(${Math.min(visibleStats.length, 4)}, minmax(0, 1fr))` }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 wp-animate-in" style={{ animationDelay: '0.05s' }}>
             {visibleStats.map(({ cfg, value, loading }) => (
               <StatCard key={cfg.label} config={cfg} value={value} isLoading={loading} />
             ))}

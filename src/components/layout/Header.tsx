@@ -1,8 +1,9 @@
 "use client";
 
 import React from 'react';
-import { LogOut, Settings, User, Home } from 'lucide-react';
+import { LogOut, Settings, User, Home, Moon, Sun } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
+import { useTheme } from 'next-themes';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -91,6 +92,7 @@ function getBreadcrumbs(pathname: string) {
 export function Header() {
   const { profile, signOut } = useAuth();
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
   const pathname = usePathname() ?? '/';
   const breadcrumbs = getBreadcrumbs(pathname);
 
@@ -176,6 +178,10 @@ export function Header() {
             <DropdownMenuItem onClick={() => router.push('/settings?tab=account')} className="cursor-pointer rounded-lg mx-1 my-0.5">
               <Settings className="mr-2 h-4 w-4 text-muted-foreground" />
               <span>Settings</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="cursor-pointer rounded-lg mx-1 my-0.5">
+              {theme === 'dark' ? <Sun className="mr-2 h-4 w-4 text-amber-500" /> : <Moon className="mr-2 h-4 w-4 text-indigo-500" />}
+              <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="cursor-pointer rounded-lg mx-1 my-0.5 text-destructive focus:text-destructive focus:bg-destructive/10">
