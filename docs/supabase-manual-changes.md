@@ -61,6 +61,31 @@ on JOIN/WHERE clauses involving these columns.
 
 ---
 
+## 2026-04-10 — SUP-003: Consolidate multiple_permissive policies (20 warnings → 0)
+
+All tables with `FOR ALL` admin policies overlapping `FOR SELECT` user
+policies were split into per-action (INSERT/UPDATE/DELETE) admin policies
+so only one SELECT policy exists per table×role. For tables with
+user+admin dual SELECT (profiles, osha_audit_logs, user_permissions,
+user_roles), merged into a single SELECT with `OR is_admin(...)`.
+
+Applied in 4 batches via MCP SQL. Supabase advisor now shows 0
+`multiple_permissive_policies` warnings.
+
+---
+
+## 2026-04-10 — SUP-002: RLS auth_rls_initplan optimization (75 policies)
+
+All 75 RLS policies in the `public` schema that referenced `auth.uid()`
+were recreated with `(SELECT auth.uid())` wrapping. This makes PostgreSQL
+evaluate the auth function once as an init plan rather than per-row,
+eliminating the `auth_rls_initplan` advisor warning.
+
+Applied in 5 batches via MCP SQL. All policy names, roles, and
+permissions are preserved — only the internal expression changed.
+
+---
+
 ## 2026-04-10 — SEC-008: Leaked password protection
 
 **Action required (manual):** Toggle "Leaked password protection" ON in
