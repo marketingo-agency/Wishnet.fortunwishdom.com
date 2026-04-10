@@ -10,11 +10,15 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { sanitizeForPrompt } from '../_shared/sanitize.ts';
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { createRateLimiter } from '../_shared/rate-limit.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// SEC-004: 20 requests per minute per user (governed chatbot, heavier per-request)
+const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 20 });
+
+// SEC-003: CORS tightened from wildcard to allowed origins list
+let corsHeaders: Record<string, string> = getCorsHeaders(null);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -96,9 +100,10 @@ async function fetchHeartRules(supabaseAdmin: ReturnType<typeof createClient>): 
     return [];
   }
 
+  // AGENT-003: sanitize rule content before prompt interpolation
   return (data || []).map((r: any) => ({
-    name: r.name,
-    content: r.rule_content,
+    name: sanitizeForPrompt(r.name),
+    content: sanitizeForPrompt(r.rule_content),
     priority: r.priority,
   }));
 }
@@ -1034,6 +1039,8 @@ function generateSimplePdf(text: string, title: string): Uint8Array {
 
 
 Deno.serve(async (req) => {
+  corsHeaders = getCorsHeaders(req.headers.get('Origin'));
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -1067,6 +1074,14 @@ Deno.serve(async (req) => {
     });
   }
   const userId = user.id;
+
+  // SEC-004: rate limit check
+  if (rateLimiter.check(userId)) {
+    return new Response(
+      JSON.stringify({ error: 'Rate limit exceeded. Please wait a moment and try again.' }),
+      { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': '60' } }
+    );
+  }
 
   let body: RequestBody;
   try {
@@ -1881,8 +1896,14 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
   // ── Step 3: Build system prompt ─────────────────────────────────────────────
   const systemPrompt = buildSystemPrompt(heartRules, brainContext, mode, settings, agentStatuses, agentConfigs);
 
-  // ── Step 4: Build messages array — full history, no slice ───────────────────
-  const contextHistory = conversationHistory; // unlimited memory
+  // ── Step 4: Build messages array — AGENT-006: cap at last 50 messages ───────
+  // At gpt-4o pricing (~$2.50/1M input), 10,000 uncapped messages would cost
+  // ~$1.25 per turn. 50 messages preserves good conversational context while
+  // keeping cost under ~$0.06/turn.
+  const MAX_HISTORY = 50;
+  const contextHistory = conversationHistory.length > MAX_HISTORY
+    ? conversationHistory.slice(-MAX_HISTORY)
+    : conversationHistory;
 
   // Build user content — include attachments context if any
   let userContent: string | object[] = message;

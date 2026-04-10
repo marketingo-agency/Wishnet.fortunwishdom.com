@@ -3,17 +3,22 @@
  *
  * Visual Creator AI for Fortun Wishnet.
  * Operating Law: Heart (mandatory, always wins) → Brain → Generate
+ *
  * Media-first: always generates images unless user explicitly asks for text-only help.
  * Uses global Active Provider Selection from llm_settings for image generation.
  * Full unrestricted access to the entire vector store (no agent filtering, no depth limits).
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { sanitizeForPrompt } from '../_shared/sanitize.ts';
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { createRateLimiter } from '../_shared/rate-limit.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// SEC-004: 10 requests per minute per user (image generation, expensive)
+const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 10 });
+
+// SEC-003: CORS tightened from wildcard to allowed origins list
+let corsHeaders: Record<string, string> = getCorsHeaders(null);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -90,9 +95,10 @@ async function fetchHeartRules(supabaseAdmin: ReturnType<typeof createClient>): 
     return [];
   }
 
+  // AGENT-003: sanitize rule content before prompt interpolation
   return (data || []).map((r: any) => ({
-    name: r.name,
-    content: r.rule_content,
+    name: sanitizeForPrompt(r.name),
+    content: sanitizeForPrompt(r.rule_content),
     priority: r.priority,
   }));
 }
@@ -524,6 +530,8 @@ function mapRatioToVeo(selectedSize?: { width: number; height: number; ratio: st
 // ─── Main Handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
+  corsHeaders = getCorsHeaders(req.headers.get('Origin'));
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -554,6 +562,14 @@ Deno.serve(async (req) => {
     });
   }
   const userId = user.id;
+
+  // SEC-004: rate limit check
+  if (rateLimiter.check(userId)) {
+    return new Response(
+      JSON.stringify({ error: 'Rate limit exceeded. Please wait a moment and try again.' }),
+      { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': '60' } }
+    );
+  }
 
   let body: RequestBody;
   try {

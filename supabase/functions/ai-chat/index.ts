@@ -1,9 +1,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { sanitizeForPrompt } from '../_shared/sanitize.ts';
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { createRateLimiter } from '../_shared/rate-limit.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+// SEC-004: 30 requests per minute per user
+const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 30 });
+
+// SEC-003: CORS tightened from wildcard to allowed origins list
+// corsHeaders is set per-request in Deno.serve based on the Origin header
+let corsHeaders: Record<string, string> = getCorsHeaders(null);
 
 interface RequestBody {
   action: 'chat' | 'test-connection' | 'generate-image' | 'generate-video' | 'start-research' | 'poll-research' | 'check-keys';
@@ -72,7 +77,13 @@ async function fetchNexusHeartRules(supabaseAdmin: ReturnType<typeof createClien
     .select('name, category, rule_content, priority')
     .eq('is_active', true)
     .or('is_global.eq.true,assigned_agents.cs.{"nexus"}');
-  return (data || []) as { name: string; category: string; rule_content: string; priority: string }[];
+  // AGENT-003: sanitize rule content before prompt interpolation
+  return (data || []).map((r: any) => ({
+    name: sanitizeForPrompt(r.name),
+    category: r.category,
+    rule_content: sanitizeForPrompt(r.rule_content),
+    priority: r.priority,
+  }));
 }
 
 async function generateEmbeddingForNexus(text: string, openaiKey: string): Promise<number[]> {
@@ -113,6 +124,9 @@ async function searchBrainForNexus(
 // ─────────────────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
+  // SEC-003: set CORS headers based on request origin
+  corsHeaders = getCorsHeaders(req.headers.get('Origin'));
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -143,6 +157,14 @@ Deno.serve(async (req) => {
     }
     const userId = user.id;
 
+    // SEC-004: rate limit check
+    if (rateLimiter.check(userId)) {
+      return new Response(
+        JSON.stringify({ error: 'Rate limit exceeded. Please wait a moment and try again.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': '60' } }
+      );
+    }
+
     // Create Supabase client with service role for admin operations
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -150,23 +172,27 @@ Deno.serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    // Check if user is admin
-    const { data: roleData, error: roleError } = await supabaseAdmin
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .single();
-
-    if (roleError || roleData?.role !== 'admin') {
-      return new Response(
-        JSON.stringify({ error: 'Admin access required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Parse request body
+    // Parse request body first so we can gate by action
     const body: RequestBody = await req.json();
     const { action, provider, model, message, apiKey: providedApiKey, responseId } = body;
+
+    // AGENT-002: only require admin for settings actions (test-connection, check-keys).
+    // Chat, image gen, video gen, and research are open to all authenticated users.
+    const ADMIN_ONLY_ACTIONS = ['test-connection', 'check-keys'];
+    if (ADMIN_ONLY_ACTIONS.includes(action)) {
+      const { data: roleData, error: roleError } = await supabaseAdmin
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .single();
+
+      if (roleError || roleData?.role !== 'admin') {
+        return new Response(
+          JSON.stringify({ error: 'Admin access required' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     console.log(`AI Chat request: action=${action}, provider=${provider}, requestedModel=${model}`);
 

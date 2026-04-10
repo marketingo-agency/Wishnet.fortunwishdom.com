@@ -7,11 +7,16 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { sanitizeForPrompt } from '../_shared/sanitize.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { createRateLimiter } from '../_shared/rate-limit.ts';
+
+// SEC-004: 15 requests per minute per user
+const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 15 });
+
+// SEC-003: CORS tightened from wildcard to allowed origins list
+let corsHeaders: Record<string, string> = getCorsHeaders(null);
 
 // ─── Blueprint Registry ───────────────────────────────────────────────────────
 
@@ -317,6 +322,8 @@ Action mode: ${action}`;
 // ─── Main Handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
+  corsHeaders = getCorsHeaders(req.headers.get('Origin'));
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -347,6 +354,14 @@ Deno.serve(async (req) => {
       });
     }
     const userId = user.id;
+
+    // SEC-004: rate limit check
+    if (rateLimiter.check(userId)) {
+      return new Response(
+        JSON.stringify({ error: 'Rate limit exceeded. Please wait a moment and try again.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': '60' } }
+      );
+    }
 
     const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
@@ -463,9 +478,10 @@ Deno.serve(async (req) => {
       queryKnowledge(supabaseUrl, serviceKey, contextQuery, ['brain_document', 'wishpedia_entry'], depthLimit),
     ]);
 
+    // AGENT-003: sanitize rule content before prompt interpolation
     const heartRules = (heartRulesData.data || []).map((r: any) => ({
-      content: r.rule_content,
-      source: { name: r.name, category: r.category, priority: r.priority },
+      content: sanitizeForPrompt(r.rule_content),
+      source: { name: sanitizeForPrompt(r.name), category: r.category, priority: r.priority },
     }));
     const heartResult = { results: heartRules, count: heartRules.length };
 
