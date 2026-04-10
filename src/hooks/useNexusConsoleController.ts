@@ -286,6 +286,19 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
     } finally { setSavingImageId(null); }
   }, [deleteFile]);
 
+  // CODE-003: handleRegenerate used document.querySelector('[data-nexus-send]')
+  // to imperatively click a button — a fragile anti-pattern that fails silently
+  // if the button isn't in the DOM. Instead, set state and let a useEffect
+  // trigger the send on the next render cycle.
+  const [pendingRegenerate, setPendingRegenerate] = useState(false);
+
+  useEffect(() => {
+    if (pendingRegenerate && input.trim()) {
+      setPendingRegenerate(false);
+      handleSend();
+    }
+  }, [pendingRegenerate, input, handleSend]);
+
   const handleRegenerate = useCallback((message: ConsoleMessage) => {
     const msgIndex = messages.findIndex(m => m.id === message.id);
     if (msgIndex > 0) {
@@ -293,10 +306,7 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
       if (prevUserMsg.role === 'user') {
         setInput(prevUserMsg.content);
         setMode('image');
-        setTimeout(() => {
-          const sendBtn = document.querySelector('[data-nexus-send]') as HTMLButtonElement;
-          sendBtn?.click();
-        }, 100);
+        setPendingRegenerate(true);
       }
     }
   }, [messages]);

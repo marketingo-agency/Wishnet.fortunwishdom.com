@@ -255,7 +255,6 @@ export function NexusConsole({ settings, initialPrompt, initialMode }: NexusCons
             <Button
               onClick={ctrl.handleSend}
               disabled={!ctrl.input.trim() || ctrl.isPending || ctrl.isResearching || ctrl.isDisabled}
-              data-nexus-send
               className="bg-gradient-to-r from-lime-500 to-emerald-500 hover:from-lime-600 hover:to-emerald-600"
             >
               {ctrl.isPending || ctrl.isResearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
