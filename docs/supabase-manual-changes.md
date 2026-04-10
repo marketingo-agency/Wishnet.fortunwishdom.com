@@ -42,3 +42,35 @@ CREATE POLICY "Admins can upload wishpedia media"
 **Why:** bucket was anon-readable (expected) but allowed *any* authed
 user to upload any file type at any size to any path. Admin-only INSERT
 plus a 10 MB / image-only allowlist closes the hole.
+
+---
+
+## 2026-04-10 — SUP-004: Add 6 missing FK indexes
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_brain_documents_uploaded_by ON brain_documents(uploaded_by);
+CREATE INDEX IF NOT EXISTS idx_file_versions_file_id ON file_versions(file_id);
+CREATE INDEX IF NOT EXISTS idx_files_sector_id ON files(sector_id);
+CREATE INDEX IF NOT EXISTS idx_heart_rules_created_by ON heart_rules(created_by);
+CREATE INDEX IF NOT EXISTS idx_wishpedia_entries_category_id ON wishpedia_entries(category_id);
+CREATE INDEX IF NOT EXISTS idx_wishpedia_entry_images_entry_id ON wishpedia_entry_images(entry_id);
+```
+
+**Why:** 6 foreign keys had no covering index, causing full table scans
+on JOIN/WHERE clauses involving these columns.
+
+---
+
+## 2026-04-10 — SEC-008: Leaked password protection
+
+**Action required (manual):** Toggle "Leaked password protection" ON in
+Supabase Dashboard → Authentication → Settings → Password Protection.
+This cannot be set via SQL — it's a dashboard-only setting.
+
+---
+
+## 2026-04-10 — RAG-001 / process-embeddings deployed
+
+The process-embeddings chunker fix from Phase A has now been deployed
+as v110 via MCP (previously noted as pending CLI deploy). The note
+above about needing a manual CLI deploy is now resolved.
