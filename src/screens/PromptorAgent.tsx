@@ -41,6 +41,7 @@ export default function PromptorAgent() {
     if (settings && session.create.brief === '' && !session.create.output && settings.default_output_type !== session.create.outputType) {
       updateCreate({ outputType: settings.default_output_type as OutputType });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only run when settings first loads; session fields are checked but not deps
   }, [settings]);
 
   // Determine if Promptor is inactive based on DB settings

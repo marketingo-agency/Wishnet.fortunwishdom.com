@@ -116,6 +116,7 @@ export function PromptorSettings() {
     if (savedSettings && !settings) {
       setSettings(savedSettings);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- settings is intentionally excluded to only seed state on initial load
   }, [savedSettings]);
 
   const s = settings || savedSettings || DEFAULT_SETTINGS;

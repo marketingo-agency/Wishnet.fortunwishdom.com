@@ -20,6 +20,7 @@ export interface PostType {
   sizes: PostSize[];
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- config data co-located with panel component
 export const PLATFORM_POST_TYPES: Record<PixelMode, PostType[]> = {
   facebook: [
     { id: 'image_post', label: 'Image Post', icon: <ImageIcon className="h-3.5 w-3.5" />, sizes: [

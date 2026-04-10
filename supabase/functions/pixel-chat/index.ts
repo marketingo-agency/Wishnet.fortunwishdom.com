@@ -1217,6 +1217,10 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
         user_id: userId, role: 'assistant', content: videoCaption, mode, is_image: false, is_video: true, video_url: permanentVideoUrl,
       }).select().single();
 
+      // AGENT-008: Pixel writes to the shared osha_audit_logs table.
+      // The table is shared across all agents (Osha, Pixel, Promptor) as a
+      // unified audit log. Renaming it would require a migration; the name
+      // is a legacy artefact from when Osha was the only agent.
       if (settings.internal_audit_logging) {
         await supabaseAdmin.from('osha_audit_logs').insert({
           user_id: userId,
@@ -1366,6 +1370,7 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
         user_id: userId, role: 'assistant', content: imageCaption, mode, is_image: true, image_url: permanentImageUrl,
       }).select().single();
 
+      // AGENT-008: shared audit log table (see video block above for rationale)
       if (settings.internal_audit_logging) {
         await supabaseAdmin.from('osha_audit_logs').insert({
           user_id: userId,
@@ -1468,6 +1473,7 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
     user_id: userId, role: 'assistant', content: responseContent, mode,
   }).select().single();
 
+  // AGENT-008: shared audit log table (see video block above for rationale)
   if (settings.internal_audit_logging) {
     await supabaseAdmin.from('osha_audit_logs').insert({
       user_id: userId,

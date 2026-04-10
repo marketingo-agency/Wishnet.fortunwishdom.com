@@ -150,6 +150,7 @@ export function PdfInlinePreview({ pdfData, fileName, onDownload }: PdfInlinePre
     for (let i = 1; i <= initialPages; i++) {
       renderPage(i);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally re-render only when scale changes; numPages/pdfDoc/renderPage are stable refs
   }, [scale]);
 
   // Intersection observer for lazy loading

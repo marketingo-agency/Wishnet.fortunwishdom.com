@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 
 export type PixelMode = 'facebook' | 'instagram' | 'tiktok' | 'cross_platform';
 
+// eslint-disable-next-line react-refresh/only-export-components -- mode config co-located with top bar component
 export const PIXEL_MODES: { value: PixelMode; label: string; icon: React.ReactNode; description: string; comingSoon?: boolean }[] = [
   { value: 'facebook',       label: 'Facebook',       icon: <Facebook className="h-3.5 w-3.5" />,  description: 'Optimized visuals for Facebook posts, ads, and stories' },
   { value: 'instagram',      label: 'Instagram',      icon: <Instagram className="h-3.5 w-3.5" />, description: 'Feed posts, stories, reels, and carousel visuals' },

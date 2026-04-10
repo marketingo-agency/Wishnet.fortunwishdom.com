@@ -21,10 +21,12 @@ interface StorageStatsResponse {
   buckets: {
     files: BucketStats;
     'brain-documents': BucketStats;
+    'wishpedia-media': BucketStats;
   };
   bucket_limits: {
     files: BucketLimits;
     'brain-documents': BucketLimits;
+    'wishpedia-media': BucketLimits;
   };
 }
 
@@ -80,6 +82,15 @@ Deno.serve(async (req) => {
       console.error('Error fetching brain documents:', brainError);
     }
 
+    // AGENT-015: Query wishpedia_entry_images for wishpedia-media bucket stats
+    const { data: wishpediaData, error: wishpediaError } = await supabase
+      .from('wishpedia_entry_images')
+      .select('file_size');
+
+    if (wishpediaError) {
+      console.error('Error fetching wishpedia images:', wishpediaError);
+    }
+
     // Calculate stats
     const filesStats: BucketStats = {
       count: filesData?.length || 0,
@@ -89,6 +100,11 @@ Deno.serve(async (req) => {
     const brainStats: BucketStats = {
       count: brainData?.length || 0,
       size: brainData?.reduce((acc, doc) => acc + (doc.size || 0), 0) || 0,
+    };
+
+    const wishpediaStats: BucketStats = {
+      count: wishpediaData?.length || 0,
+      size: wishpediaData?.reduce((acc, img) => acc + (img.file_size || 0), 0) || 0,
     };
 
     // Get dynamic quota from file_settings table
@@ -113,12 +129,18 @@ Deno.serve(async (req) => {
       console.error('Error fetching brain-documents bucket config:', brainBucketError);
     }
 
+    const { data: wishpediaBucket, error: wishpediaBucketError } = await supabase.storage.getBucket('wishpedia-media');
+    if (wishpediaBucketError) {
+      console.error('Error fetching wishpedia-media bucket config:', wishpediaBucketError);
+    }
+
     const response: StorageStatsResponse = {
-      used: filesStats.size + brainStats.size,
+      used: filesStats.size + brainStats.size + wishpediaStats.size,
       total: totalQuota,
       buckets: {
         files: filesStats,
         'brain-documents': brainStats,
+        'wishpedia-media': wishpediaStats,
       },
       bucket_limits: {
         files: {
@@ -128,6 +150,10 @@ Deno.serve(async (req) => {
         'brain-documents': {
           file_size_limit: brainBucket?.file_size_limit || null,
           allowed_mime_types: brainBucket?.allowed_mime_types || null,
+        },
+        'wishpedia-media': {
+          file_size_limit: wishpediaBucket?.file_size_limit || null,
+          allowed_mime_types: wishpediaBucket?.allowed_mime_types || null,
         },
       },
     };

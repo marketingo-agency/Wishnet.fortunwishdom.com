@@ -222,6 +222,7 @@ export default function HeartRules() {
       }
     }
     return counts;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesSearch is a stable closure over searchQuery which is already listed
   }, [rules, searchQuery, ruleTypes]);
 
   const handleToggle = async (rule: HeartRule) => {
@@ -309,6 +310,7 @@ export default function HeartRules() {
       return { title: `No ${typeInfo.name} rules yet`, subtitle: `Create a rule in the ${typeInfo.name} category to get started.` };
     }
     return { title: 'No rules yet', subtitle: 'Create rules to define how your AI agents should behave and communicate.' };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- getTypeInfo is a stable closure over ruleTypes which is already listed
   }, [searchQuery, selectedType, ruleTypes]);
 
   return (

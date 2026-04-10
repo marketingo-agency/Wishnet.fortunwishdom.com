@@ -1,5 +1,14 @@
 project_id = "zlmideilxfnokemzkavm"
 
+# SEC-006: verify_jwt = false (defense-in-depth)
+# All 9 edge functions below disable Supabase's built-in JWT verification
+# because each function implements its own auth via supabase.auth.getUser().
+# This is intentional and *stronger* than verify_jwt because getUser() makes
+# a server round-trip to validate the token against the auth server, catching
+# revoked/expired tokens that a local JWT check would miss.
+# Do NOT re-enable verify_jwt — it would add redundant validation without
+# improving security, and would break the custom error handling in each function.
+
 [functions.ai-chat]
 verify_jwt = false
 

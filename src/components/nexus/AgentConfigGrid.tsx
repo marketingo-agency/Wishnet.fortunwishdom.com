@@ -117,6 +117,6 @@ export function AgentConfigGrid({ selectedAgentId, onSelectAgent }: AgentConfigG
   );
 }
 
-// Export agents for backwards compatibility
+// eslint-disable-next-line react-refresh/only-export-components -- re-exporting config data alongside component for backwards compatibility
 export { AI_AGENTS as agents };
 export type { AgentMetadata as Agent };

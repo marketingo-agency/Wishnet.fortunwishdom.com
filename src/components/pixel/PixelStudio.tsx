@@ -82,6 +82,7 @@ export function PixelStudio({
       const timeout = setTimeout(() => { setGenerationStartTime(null); setGenerationProgress(0); }, 600);
       return () => clearTimeout(timeout);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- generationStartTime is intentionally excluded to avoid restart loops
   }, [isPending, isVideoGeneration]);
 
   const { mutateAsync: sendMessage } = useSendPixelMessage();
@@ -199,6 +200,7 @@ export function PixelStudio({
         mode, created_at: new Date().toISOString(),
       }]);
     } finally { setIsPending(false); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedPostType and selectedSize are read from refs at call time, not reactive deps
   }, [input, pendingAttachments, globalReferences, isPending, mode, localMessages, sendMessage, onMessagesChange, activeBlueprint, styleLock, onAuditUpdate, onAttachmentsChange]);
 
   useEffect(() => {

@@ -1,16 +1,22 @@
 /**
  * Process Embeddings Edge Function
- * 
+ *
  * Extracts text from Brain documents and Heart rules,
  * chunks the content, generates embeddings using OpenAI,
  * and stores them in the knowledge_embeddings table.
- * 
+ *
  * Supported formats:
  * - DOCX (via fflate - lightweight unzip)
  * - Excel/Spreadsheets (via SheetJS)
  * - Text files (TXT, MD, JSON, CSV, HTML)
- * 
+ *
  * Note: PDFs and images require client-side OCR via the process-ocr function
+ *
+ * RAG-013: OpenAI API key sourcing
+ * This function reads OPENAI_API_KEY from the Deno env var (set in Supabase
+ * dashboard > Edge Functions > Secrets). This is consistent with all other
+ * edge functions after SEC-001 dropped the key columns from the llm_settings
+ * DB table. All functions now use env vars exclusively for API keys.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
