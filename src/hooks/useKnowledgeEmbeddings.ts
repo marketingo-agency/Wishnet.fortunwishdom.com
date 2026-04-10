@@ -5,7 +5,7 @@
  * for Brain documents and Heart rules.
  */
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { EDGE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '@/config/api';
 import { toast } from 'sonner';
@@ -272,25 +272,30 @@ export function useSearchKnowledge() {
 }
 
 /**
- * Get embedding stats from the database
+ * Get embedding stats from the database.
+ * CODE-004: this is a read-only query, so it must use useQuery (not
+ * useMutation) so the result is cached + invalidated by the rest of
+ * the vector-store invalidation flow.
  */
 export function useEmbeddingStats() {
-  return useMutation({
-    mutationFn: async () => {
+  return useQuery({
+    queryKey: ['vector-store', 'embedding-stats'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('knowledge_embeddings')
         .select('source_type, id', { count: 'exact' });
-      
+
       if (error) throw error;
-      
+
       const documentCount = data?.filter(e => e.source_type === 'brain_document').length || 0;
       const ruleCount = data?.filter(e => e.source_type === 'heart_rule').length || 0;
-      
+
       return {
         totalChunks: data?.length || 0,
         documentChunks: documentCount,
         ruleChunks: ruleCount,
       };
     },
+    staleTime: 30_000,
   });
 }
