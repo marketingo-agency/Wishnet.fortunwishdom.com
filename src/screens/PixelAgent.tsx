@@ -93,9 +93,9 @@ export default function PixelAgent() {
 
   return (
     <div className={cn(
-      'flex flex-col relative overflow-hidden border border-zinc-800',
+      'flex flex-col relative overflow-hidden border border-border',
       isFullscreen
-        ? 'fixed inset-0 z-50 bg-zinc-950 rounded-none'
+        ? 'fixed inset-0 z-50 bg-background rounded-none'
         : 'h-[calc(100vh-80px)] rounded-xl'
     )}>
       {/* Hidden file input for global references */}
@@ -170,13 +170,13 @@ export default function PixelAgent() {
         <div className="absolute bottom-5 left-3 flex gap-2 z-10 md:hidden">
           <button
             onClick={() => setMobileControlOpen(true)}
-            className="h-10 w-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 shadow-lg active:scale-95 transition-transform"
+            className="h-10 w-10 rounded-full bg-muted border border-border flex items-center justify-center text-foreground shadow-lg active:scale-95 transition-transform"
           >
             <SlidersHorizontal className="h-4 w-4" />
           </button>
           <button
             onClick={() => setMobileContextOpen(true)}
-            className="h-10 w-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 shadow-lg active:scale-95 transition-transform lg:hidden"
+            className="h-10 w-10 rounded-full bg-muted border border-border flex items-center justify-center text-foreground shadow-lg active:scale-95 transition-transform lg:hidden"
           >
             <BarChart3 className="h-4 w-4" />
           </button>
@@ -185,9 +185,9 @@ export default function PixelAgent() {
 
       {/* Mobile Control Panel Sheet */}
       <Sheet open={mobileControlOpen} onOpenChange={setMobileControlOpen}>
-        <SheetContent side="left" className="w-[300px] p-0 bg-zinc-900 border-zinc-800">
-          <SheetHeader className="p-4 border-b border-zinc-800">
-            <SheetTitle className="text-white text-sm">Controls</SheetTitle>
+        <SheetContent side="left" className="w-[300px] p-0 bg-background border-border">
+          <SheetHeader className="p-4 border-b border-border">
+            <SheetTitle className="text-foreground text-sm">Controls</SheetTitle>
           </SheetHeader>
           <div className="overflow-y-auto h-[calc(100%-60px)]">
             <PixelControlPanel
@@ -208,9 +208,9 @@ export default function PixelAgent() {
 
       {/* Mobile Context Panel Sheet */}
       <Sheet open={mobileContextOpen} onOpenChange={setMobileContextOpen}>
-        <SheetContent side="right" className="w-[300px] p-0 bg-zinc-900 border-zinc-800">
-          <SheetHeader className="p-4 border-b border-zinc-800">
-            <SheetTitle className="text-white text-sm">Context & Sizes</SheetTitle>
+        <SheetContent side="right" className="w-[300px] p-0 bg-background border-border">
+          <SheetHeader className="p-4 border-b border-border">
+            <SheetTitle className="text-foreground text-sm">Context & Sizes</SheetTitle>
           </SheetHeader>
           <div className="overflow-y-auto h-[calc(100%-60px)]">
             <PixelContextPanel
@@ -225,13 +225,13 @@ export default function PixelAgent() {
       </Sheet>
 
       {isInactive && (
-        <div className="absolute inset-0 bg-zinc-950/90 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center gap-4 z-10">
-          <div className="h-16 w-16 rounded-2xl bg-zinc-800 flex items-center justify-center">
-            <Lock className="h-8 w-8 text-zinc-500" />
+        <div className="absolute inset-0 bg-background/90 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center gap-4 z-10">
+          <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center">
+            <Lock className="h-8 w-8 text-muted-foreground" />
           </div>
           <div className="text-center">
-            <h3 className="font-semibold text-lg mb-1 text-white">Pixel is Inactive</h3>
-            <p className="text-sm text-zinc-400 max-w-xs">
+            <h3 className="font-semibold text-lg mb-1 text-foreground">Pixel is Inactive</h3>
+            <p className="text-sm text-muted-foreground max-w-xs">
               Pixel has been deactivated. Enable it in the Nexus Control Center.
             </p>
           </div>

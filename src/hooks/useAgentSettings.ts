@@ -30,7 +30,7 @@ export function useAgentSettings(agentId: string | null) {
     enabled: !!agentId,
     queryFn: async () => {
       if (!agentId) return null;
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('agent_settings')
         .select('*')
         .eq('agent_id', agentId)
@@ -46,7 +46,7 @@ export function useAllAgentSettings() {
   return useQuery({
     queryKey: ['agent-settings-all'],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('agent_settings')
         .select('agent_id, is_active, model, provider');
       if (error) throw error;
@@ -60,7 +60,7 @@ export function useUpsertAgentSettings() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (settings: UpsertAgentSettings) => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('agent_settings')
         .upsert(settings, { onConflict: 'agent_id' })
         .select()

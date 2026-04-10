@@ -255,7 +255,7 @@ export function PixelStudio({
   const stageCards = EMPTY_STAGE_CARDS[mode] || EMPTY_STAGE_CARDS.cross_platform;
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 min-w-0 bg-zinc-950">
+    <div className="flex flex-col flex-1 min-h-0 min-w-0 bg-background">
       <input
         ref={fileInputRef}
         type="file"
@@ -272,13 +272,13 @@ export function PixelStudio({
           'flex-1 min-h-0 overflow-y-auto px-3 py-4 sm:px-6 sm:py-6',
           '[&::-webkit-scrollbar]:w-1.5',
           '[&::-webkit-scrollbar-thumb]:rounded-full',
-          '[&::-webkit-scrollbar-thumb]:bg-zinc-700',
+          '[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30',
           '[&::-webkit-scrollbar-track]:transparent',
         )}
       >
         {isLoadingMessages ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-6 w-6 animate-spin text-zinc-600" />
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground/60" />
           </div>
         ) : localMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-4 select-none">
@@ -286,12 +286,12 @@ export function PixelStudio({
               <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center shadow-2xl shadow-pink-500/30">
                 <Palette className="h-11 w-11 text-white" />
               </div>
-              <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-emerald-500 border-2 border-zinc-950 flex items-center justify-center">
+              <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
                 <div className="h-2 w-2 rounded-full bg-card" />
               </div>
             </div>
-            <h2 className="text-xl font-bold text-zinc-100 mb-2">What shall we create?</h2>
-            <p className="text-sm text-zinc-500 mb-10 max-w-sm leading-relaxed">
+            <h2 className="text-xl font-bold text-foreground mb-2">What shall we create?</h2>
+            <p className="text-sm text-muted-foreground mb-10 max-w-sm leading-relaxed">
               I'm Pixel — your visual director. Describe a creative goal below, or start with one of these:
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-xl w-full">
@@ -300,14 +300,14 @@ export function PixelStudio({
                   key={idx}
                   onClick={() => onSendStarterPrompt(card.prompt)}
                   disabled={isPending}
-                  className="flex flex-col items-center gap-2.5 p-4 rounded-2xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:border-pink-500/30 text-zinc-400 hover:text-zinc-100 transition-all group"
+                  className="flex flex-col items-center gap-2.5 p-4 rounded-2xl border border-border bg-background hover:bg-muted hover:border-pink-500/30 text-muted-foreground hover:text-foreground transition-all group"
                 >
-                  <div className="h-9 w-9 rounded-xl bg-zinc-800 group-hover:bg-pink-500/10 border border-zinc-700 group-hover:border-pink-500/25 flex items-center justify-center text-zinc-500 group-hover:text-pink-400 transition-all">
+                  <div className="h-9 w-9 rounded-xl bg-muted group-hover:bg-pink-500/10 border border-border group-hover:border-pink-500/25 flex items-center justify-center text-muted-foreground group-hover:text-pink-400 transition-all">
                     {card.icon}
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-zinc-300 group-hover:text-white transition-colors">{card.label}</p>
-                    <p className="text-[10px] text-zinc-600 group-hover:text-zinc-500 transition-colors mt-0.5">{card.desc}</p>
+                    <p className="text-xs font-semibold text-foreground group-hover:text-foreground transition-colors">{card.label}</p>
+                    <p className="text-[10px] text-muted-foreground/60 group-hover:text-muted-foreground transition-colors mt-0.5">{card.desc}</p>
                   </div>
                 </button>
               ))}
@@ -335,8 +335,8 @@ export function PixelStudio({
             )}
             {isPending && (
               <div className="ml-0 sm:ml-8 animate-in slide-in-from-bottom-3 duration-300">
-                <div className="rounded-2xl border border-zinc-700/60 bg-zinc-900 overflow-hidden">
-                  <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-pink-500/10 to-transparent border-b border-zinc-800">
+                <div className="rounded-2xl border border-border/60 bg-background overflow-hidden">
+                  <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-pink-500/10 to-transparent border-b border-border">
                     <div className="h-5 w-5 rounded-md bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center">
                       <Palette className="h-3 w-3 text-white" />
                     </div>
@@ -345,9 +345,9 @@ export function PixelStudio({
                     </span>
                   </div>
                   <div className="px-5 py-4 space-y-3">
-                    <Progress value={generationProgress} className="h-2 bg-zinc-800" indicatorClassName="bg-gradient-to-r from-pink-500 to-rose-500" />
+                    <Progress value={generationProgress} className="h-2 bg-muted" indicatorClassName="bg-gradient-to-r from-pink-500 to-rose-500" />
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-zinc-500">
+                      <span className="text-[11px] text-muted-foreground">
                         {(() => {
                           const elapsed = generationStartTime ? (Date.now() - generationStartTime) / 1000 : 0;
                           if (elapsed < 3) return 'Analyzing your brief…';
@@ -358,7 +358,7 @@ export function PixelStudio({
                           return 'Almost there…';
                         })()}
                       </span>
-                      <span className="text-[11px] text-zinc-600 flex items-center gap-1">
+                      <span className="text-[11px] text-muted-foreground/60 flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         {generationStartTime ? `${Math.round((Date.now() - generationStartTime) / 1000)}s` : '0s'}
                       </span>
@@ -372,28 +372,28 @@ export function PixelStudio({
       </div>
 
       {/* Creative input bar */}
-      <div className="shrink-0 border-t border-zinc-800 bg-zinc-900/80 px-3 py-3 sm:px-6 sm:py-4">
+      <div className="shrink-0 border-t border-border bg-background/80 px-3 py-3 sm:px-6 sm:py-4">
         <div className="max-w-3xl mx-auto">
-          <div className="rounded-2xl border border-zinc-700 bg-zinc-900 focus-within:border-pink-500/50 focus-within:ring-1 focus-within:ring-pink-500/15 transition-all shadow-lg shadow-black/20">
+          <div className="rounded-2xl border border-border bg-background focus-within:border-pink-500/50 focus-within:ring-1 focus-within:ring-pink-500/15 transition-all shadow-lg shadow-black/20">
             {pendingAttachments.length > 0 && (
-              <div className="px-3 pt-3 flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:bg-zinc-700 [&::-webkit-scrollbar-track]:transparent">
+              <div className="px-3 pt-3 flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-track]:transparent">
                 {attachmentPreviews.map(att => (
                   <div key={att.id} className="relative shrink-0 group">
                     {att.type.startsWith('image/') && att.previewUrl ? (
-                      <div className="h-12 w-12 rounded-lg overflow-hidden border border-zinc-700 bg-zinc-800">
+                      <div className="h-12 w-12 rounded-lg overflow-hidden border border-border bg-muted">
                         <img src={att.previewUrl} alt={att.name} className="h-full w-full object-cover" />
                         {att.status === 'processing' && (
-                          <div className="absolute inset-0 bg-zinc-900/60 flex items-center justify-center rounded-lg">
+                          <div className="absolute inset-0 bg-background/60 flex items-center justify-center rounded-lg">
                             <Loader2 className="h-3 w-3 animate-spin text-pink-400" />
                           </div>
                         )}
                       </div>
                     ) : (
-                      <div className="h-12 flex items-center gap-2 px-2.5 rounded-lg border border-zinc-700 bg-zinc-800 max-w-[160px]">
-                        <FileText className="h-4 w-4 shrink-0 text-zinc-500" />
+                      <div className="h-12 flex items-center gap-2 px-2.5 rounded-lg border border-border bg-muted max-w-[160px]">
+                        <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                         <div className="min-w-0 flex-1">
-                          <p className="text-[10px] font-medium text-zinc-300 truncate leading-tight">{att.name}</p>
-                          <p className="text-[9px] text-zinc-600 leading-tight">
+                          <p className="text-[10px] font-medium text-foreground truncate leading-tight">{att.name}</p>
+                          <p className="text-[9px] text-muted-foreground/60 leading-tight">
                             {att.status === 'processing' ? 'Reading…' : att.status === 'error' ? 'Error' : formatFileSize(att.file.size)}
                           </p>
                         </div>
@@ -401,7 +401,7 @@ export function PixelStudio({
                     )}
                     <button
                       onClick={() => onAttachmentsChange(pendingAttachments.filter(a => a.id !== att.id))}
-                      className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-zinc-700 text-zinc-300 hover:text-rose-400 hover:bg-zinc-600 flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-sm"
+                      className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-muted text-foreground hover:text-rose-400 hover:bg-muted flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-sm"
                     >
                       <X className="h-2.5 w-2.5" />
                     </button>
@@ -418,25 +418,25 @@ export function PixelStudio({
               disabled={isPending}
               rows={1}
               placeholder={MODE_PLACEHOLDERS[mode]}
-              className="w-full resize-none bg-transparent px-5 pt-4 pb-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none disabled:opacity-50 min-h-[48px] max-h-[180px] leading-relaxed"
+              className="w-full resize-none bg-transparent px-5 pt-4 pb-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none disabled:opacity-50 min-h-[48px] max-h-[180px] leading-relaxed"
             />
             <div className="flex items-center justify-between px-3 pb-2.5">
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isPending}
-                  className="h-8 w-8 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-all disabled:opacity-50"
+                  className="h-8 w-8 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all disabled:opacity-50"
                   title="Attach file (temporary)"
                 >
                   <Paperclip className="h-4 w-4" />
                 </button>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button disabled={isPending} className="h-8 w-8 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-all disabled:opacity-50" title="Insert emoji">
+                    <button disabled={isPending} className="h-8 w-8 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all disabled:opacity-50" title="Insert emoji">
                       <Smile className="h-4 w-4" />
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent side="top" align="start" className="w-auto p-2 bg-zinc-800 border-zinc-700">
+                  <PopoverContent side="top" align="start" className="w-auto p-2 bg-muted border-border">
                     <div className="grid grid-cols-8 gap-1">
                       {['😀','😂','🔥','❤️','✨','👏','🎨','💡','🚀','💪','🎯','⭐','👀','💯','🙌','✅','📸','🎬','🖼️','📐','🎭','💎','🌟','⚡','🏆','💫','🎉','🤩','😍','👌','✌️','🤘'].map(emoji => (
                         <button
@@ -451,7 +451,7 @@ export function PixelStudio({
                               requestAnimationFrame(() => { ta.focus(); ta.selectionStart = ta.selectionEnd = start + emoji.length; });
                             } else { setInput(prev => prev + emoji); }
                           }}
-                          className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-zinc-700 text-base transition-colors"
+                          className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted text-base transition-colors"
                         >
                           {emoji}
                         </button>
@@ -466,7 +466,7 @@ export function PixelStudio({
                 className={cn(
                   'h-9 w-9 flex items-center justify-center rounded-xl transition-all',
                   isPending || (!input.trim() && pendingAttachments.filter(a => a.status === 'ready').length === 0 && globalReferences.filter(a => a.status === 'ready').length === 0)
-                    ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+                    ? 'bg-muted text-muted-foreground/60 cursor-not-allowed'
                     : 'bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400 text-white shadow-lg shadow-pink-500/25 hover:shadow-pink-500/40 hover:scale-105'
                 )}
               >
@@ -474,7 +474,7 @@ export function PixelStudio({
               </button>
             </div>
           </div>
-          <p className="text-[10px] text-zinc-700 text-center mt-2">↵ Enter to send · Shift+Enter for new line</p>
+          <p className="text-[10px] text-muted-foreground/60 text-center mt-2">↵ Enter to send · Shift+Enter for new line</p>
         </div>
       </div>
     </div>

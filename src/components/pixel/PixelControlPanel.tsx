@@ -112,10 +112,10 @@ export function PixelControlPanel({
   }, [refPreviews]);
 
   return (
-    <div className="w-[220px] shrink-0 flex flex-col border-r border-zinc-800 bg-zinc-900 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-zinc-700 [&::-webkit-scrollbar-track]:transparent">
+    <div className="w-[220px] shrink-0 flex flex-col border-r border-border bg-background overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-track]:transparent">
       {/* Post Types */}
-      <div className="p-3 border-b border-zinc-800">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2 px-1">Post Type</p>
+      <div className="p-3 border-b border-border">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 px-1">Post Type</p>
         <div className="space-y-1">
           {postTypes.map((pt) => (
             <button
@@ -126,7 +126,7 @@ export function PixelControlPanel({
                 'w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs transition-all text-left group',
                 selectedPostType === pt.id
                   ? 'text-pink-300 bg-pink-500/10 border border-pink-500/25'
-                  : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 border border-transparent'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent'
               )}
             >
               <span className={cn(
@@ -140,12 +140,12 @@ export function PixelControlPanel({
       </div>
 
       {/* Templates */}
-      <div className="p-3 flex-1 border-b border-zinc-800">
+      <div className="p-3 flex-1 border-b border-border">
         <div className="flex items-center justify-between px-1 mb-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Templates</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Templates</p>
           <button
             onClick={onNewBlueprint}
-            className="h-5 w-5 flex items-center justify-center rounded-md text-zinc-500 hover:text-pink-400 hover:bg-pink-500/10 transition-all"
+            className="h-5 w-5 flex items-center justify-center rounded-md text-muted-foreground hover:text-pink-400 hover:bg-pink-500/10 transition-all"
             title="New Template"
           >
             <Plus className="h-3 w-3" />
@@ -155,7 +155,7 @@ export function PixelControlPanel({
         {blueprints.length === 0 ? (
           <button
             onClick={onNewBlueprint}
-            className="w-full flex flex-col items-center gap-1.5 py-4 px-2 rounded-xl border border-dashed border-zinc-700 text-zinc-600 hover:text-zinc-400 hover:border-zinc-600 transition-all text-center"
+            className="w-full flex flex-col items-center gap-1.5 py-4 px-2 rounded-xl border border-dashed border-border text-muted-foreground/60 hover:text-muted-foreground hover:border-border transition-all text-center"
           >
             <Layers className="h-4 w-4" />
             <span className="text-[10px] leading-tight">Create your first visual template</span>
@@ -171,14 +171,14 @@ export function PixelControlPanel({
               }
             }}
           >
-            <SelectTrigger className="w-full h-8 bg-zinc-800 border-zinc-700 text-xs text-zinc-300 focus:ring-pink-500/30">
+            <SelectTrigger className="w-full h-8 bg-muted border-border text-xs text-foreground focus:ring-pink-500/30">
               <SelectValue placeholder="None" />
             </SelectTrigger>
-            <SelectContent className="bg-zinc-800 border-zinc-700">
+            <SelectContent className="bg-muted border-border">
               <SelectGroup>
-                <SelectItem value="_none" className="text-xs text-zinc-400">None</SelectItem>
+                <SelectItem value="_none" className="text-xs text-muted-foreground">None</SelectItem>
                 {blueprints.map(bp => (
-                  <SelectItem key={bp.id} value={bp.id} className="text-xs text-zinc-300">{bp.name}</SelectItem>
+                  <SelectItem key={bp.id} value={bp.id} className="text-xs text-foreground">{bp.name}</SelectItem>
                 ))}
               </SelectGroup>
             </SelectContent>
@@ -188,13 +188,13 @@ export function PixelControlPanel({
 
       {/* References */}
       <div className="p-3">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2 px-1">References</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 px-1">References</p>
 
         {/* Reference preview gallery */}
         {refPreviews.length > 0 && (
           <div className="grid grid-cols-2 gap-1.5 mb-2">
             {refPreviews.map((ref) => (
-              <div key={ref.id} className="relative group rounded-lg overflow-hidden border border-zinc-700 bg-zinc-800 aspect-square">
+              <div key={ref.id} className="relative group rounded-lg overflow-hidden border border-border bg-muted aspect-square">
                 {ref.previewUrl ? (
                   <img
                     src={ref.previewUrl}
@@ -203,20 +203,20 @@ export function PixelControlPanel({
                   />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center gap-1 p-1">
-                    <Film className="h-4 w-4 text-zinc-500" />
-                    <span className="text-[8px] text-zinc-500 truncate w-full text-center">{ref.name}</span>
+                    <Film className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-[8px] text-muted-foreground truncate w-full text-center">{ref.name}</span>
                   </div>
                 )}
                 {/* Remove button */}
                 <button
                   onClick={() => onRemoveReference?.(ref.id)}
-                  className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-zinc-900/80 text-zinc-400 hover:text-rose-400 hover:bg-zinc-900 flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                  className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-background/80 text-muted-foreground hover:text-rose-400 hover:bg-background flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                 >
                   <X className="h-2.5 w-2.5" />
                 </button>
                 {/* Processing indicator */}
                 {ref.status === 'processing' && (
-                  <div className="absolute inset-0 bg-zinc-900/60 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
                     <div className="h-3 w-3 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
                   </div>
                 )}
@@ -228,7 +228,7 @@ export function PixelControlPanel({
         <button
           onClick={onAttachFile}
           disabled={isPending}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-dashed border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 hover:bg-zinc-800/50 transition-all"
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-border hover:bg-muted/50 transition-all"
         >
           <Paperclip className="h-4 w-4 shrink-0" />
           <span className="text-xs">Attach reference</span>
