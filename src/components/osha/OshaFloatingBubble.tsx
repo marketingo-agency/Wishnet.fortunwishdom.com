@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { Bot, X, ChevronDown, Trash2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -51,6 +52,7 @@ const PANEL_POSITION_MAP: Record<string, string> = {
 export function OshaFloatingBubble() {
   const { user } = useAuth();
   const isMobile = useIsMobile();
+  const pathname = usePathname();
   const { data: settings = DEFAULT_OSHA_SETTINGS } = useOshaSettings();
   const { data: messages = [], isLoading: isLoadingMessages, refetch } = useOshaMessages();
   const { mutate: clearHistory, isPending: isClearing } = useClearOshaHistory();
@@ -132,7 +134,9 @@ export function OshaFloatingBubble() {
     if (isOpen) setHasNewMessage(false);
   }, [isOpen]);
 
-  if (!user || !settings.bubble_enabled) return null;
+  // UI-006: suppress on mobile (covers 85% of viewport)
+  // BUG-004: suppress on /ai-agents/osha (main chat already renders there)
+  if (!user || !settings.bubble_enabled || isMobile || pathname?.startsWith('/ai-agents/osha')) return null;
 
   const showClearButton = settings.bubble_show_clear_button !== false;
 

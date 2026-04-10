@@ -15,7 +15,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <Header />
-          <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-hidden bg-background flex flex-col safe-bottom safe-x">
+          <main id="main-content" className="flex-1 p-3 sm:p-4 md:p-6 overflow-hidden bg-background flex flex-col safe-bottom safe-x">
             {children}
           </main>
         </div>

@@ -37,7 +37,7 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar collapsible="icon" className="border-r-0 bg-card shadow-sm">
+    <Sidebar collapsible="icon" className="border-r-0 bg-card shadow-sm" aria-label="Main navigation">
       {/* Logo */}
       <SidebarHeader className={collapsed ? "p-2" : "px-6 py-8"}>
         <div className="flex items-center justify-center">
@@ -97,6 +97,7 @@ export function AppSidebar() {
                     icon={item.icon}
                     iconColor={item.iconColor}
                     collapsed={collapsed}
+                    badge={toolKey === 'taskforce' ? 'Soon' : undefined}
                   />
                 )
               ))}
@@ -127,6 +128,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild tooltip="Expand">
                   <button
                     onClick={toggleSidebar}
+                    aria-label="Expand sidebar"
                     className="flex items-center justify-center h-8 w-8 rounded-lg transition-all duration-150 text-muted-foreground hover:bg-muted hover:text-foreground"
                   >
                     <ChevronRight className="h-5 w-5" strokeWidth={1.5} />
@@ -136,6 +138,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild>
                   <button
                     onClick={toggleSidebar}
+                    aria-label="Collapse sidebar"
                     className="flex items-center gap-3 w-full px-2 py-3.5 rounded-lg transition-all duration-150 text-muted-foreground hover:bg-muted hover:text-foreground"
                   >
                     <ChevronLeft className="h-5 w-5" strokeWidth={1.5} />

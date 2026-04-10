@@ -114,7 +114,7 @@ export function Header() {
       {/* Left section with mobile trigger and breadcrumbs */}
       <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
         {/* Mobile sidebar trigger */}
-        <SidebarTrigger className="md:hidden h-9 w-9 shrink-0" />
+        <SidebarTrigger className="md:hidden h-9 w-9 shrink-0" aria-label="Toggle sidebar menu" />
         
         {/* Mobile: Show current page title only */}
         <span className="sm:hidden text-sm font-medium text-foreground truncate">
@@ -154,7 +154,7 @@ export function Header() {
         {/* User Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-10 w-10 rounded-xl hover:bg-muted transition-all duration-200">
+            <Button variant="ghost" aria-label="User menu" className="relative h-10 w-10 rounded-xl hover:bg-muted transition-all duration-200">
               <Avatar className="h-9 w-9 ring-2 ring-border ring-offset-2 ring-offset-card">
                 <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.full_name || 'User'} />
                 <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground text-sm font-semibold">

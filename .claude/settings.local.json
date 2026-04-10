@@ -141,7 +141,8 @@
       "Bash(node -e \" const fs = require\\('fs'\\); const content = fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/pixel-chat/index.ts', 'utf8'\\).replace\\(/\\\\r\\\\n/g, '\\\\n'\\); // Output the full content process.stdout.write\\(content\\); \")",
       "Bash(node -e \" const fs = require\\('fs'\\); const c = fs.readFileSync\\('c:/My-Dev-Projects/Fortun Wishnet/supabase/functions/osha-chat/index.ts', 'utf8'\\).replace\\(/\\\\r\\\\n/g, '\\\\n'\\); // Output as JSON string process.stdout.write\\(JSON.stringify\\([{name:'index.ts', content:c}]\\)\\); \")",
       "Bash(npm view:*)",
-      "Bash(npx update-browserslist-db@latest --update-db)"
+      "Bash(npx update-browserslist-db@latest --update-db)",
+      "mcp__claude_ai_Supabase__get_project"
     ]
   }
 }

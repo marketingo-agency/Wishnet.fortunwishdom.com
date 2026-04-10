@@ -20,13 +20,20 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, user, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
   // ProtectedRoute redirects unauthenticated users to /login?from=<original>.
   // After successful login we send them back to that path.
   const from = searchParams?.get('from') || '/dashboard';
+
+  // BUG-002: redirect to dashboard if already signed in
+  React.useEffect(() => {
+    if (!authLoading && user) {
+      router.replace(from);
+    }
+  }, [authLoading, user, router, from]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,6 +153,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="email"
                 className="h-11"
               />
             </div>
@@ -159,12 +167,14 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoComplete="current-password"
                   className="h-11 pr-10"
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                   className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-foreground"
                   onClick={() => setShowPassword(!showPassword)}
                 >
@@ -183,6 +193,7 @@ export default function Login() {
               </Button>
             </div>
             <Button
+              type="submit"
               className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
               disabled={isLoading}
             >

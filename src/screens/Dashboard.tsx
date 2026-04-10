@@ -77,8 +77,12 @@ function StatCard({ config, value, isLoading }: { config: StatConfig; value: num
 
   return (
     <Card
+      role="button"
+      tabIndex={0}
       onClick={() => router.push(config.link)}
-      className={`group relative cursor-pointer overflow-hidden border-border/40 bg-card hover:shadow-xl ${config.glowColor} transition-all duration-300 hover:-translate-y-0.5`}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(config.link); } }}
+      aria-label={`${config.label}: ${isLoading ? 'loading' : value}. Click to view.`}
+      className={`group relative cursor-pointer overflow-hidden border-border/40 bg-card hover:shadow-xl ${config.glowColor} transition-all duration-300 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
     >
       <CardContent className="flex items-center gap-4 p-4 sm:p-5">
         <div className={`shrink-0 w-11 h-11 rounded-xl bg-gradient-to-br ${config.gradient} flex items-center justify-center shadow-lg`}>

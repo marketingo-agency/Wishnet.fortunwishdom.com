@@ -56,6 +56,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${poppins.variable} font-sans`}>
+        {/* UI-010: skip-to-content link for keyboard/screen-reader users (WCAG 2.4.1) */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-lg focus:shadow-lg focus:outline-none"
+        >
+          Skip to content
+        </a>
         <Providers>{children}</Providers>
         <Analytics />
         <SpeedInsights />
