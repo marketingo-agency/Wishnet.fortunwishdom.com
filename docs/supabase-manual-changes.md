@@ -61,6 +61,29 @@ on JOIN/WHERE clauses involving these columns.
 
 ---
 
+## 2026-04-10 — SEC-014: profile-pictures bucket created with RLS
+
+```sql
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('profile-pictures', 'profile-pictures', true, 2097152,
+        ARRAY['image/jpeg','image/png','image/webp','image/gif']);
+```
+
+Policies: public SELECT, user-scoped INSERT/UPDATE/DELETE (path must
+start with user's auth.uid()).
+
+---
+
+## 2026-04-10 — SUP-010: pg_cron extension installed
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
+```
+
+Available for scheduled cleanup jobs (e.g., expired sessions, old audit logs).
+
+---
+
 ## 2026-04-10 — SUP-003: Consolidate multiple_permissive policies (20 warnings → 0)
 
 All tables with `FOR ALL` admin policies overlapping `FOR SELECT` user
