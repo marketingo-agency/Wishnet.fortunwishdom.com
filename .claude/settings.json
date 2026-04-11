@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(echo \"EXIT_CODE=$?\")",
-      "Bash(claude mcp:*)"
+      "Bash(claude mcp:*)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(where claude:*)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('mcpServers',{}\\), indent=2\\)\\)\")",
+      "Edit(~/.claude/skills/project-init/**)",
+      "Bash(where.exe claude:*)",
+      "Bash(ls /c/Users/3issam/AppData/Local/Programs/claude*)",
+      "Bash(ls /c/Users/3issam/AppData/Roaming/npm/claude*)",
+      "Bash(ls /c/Users/3issam/.claude/bin/claude*)",
+      "Bash(npx @anthropic-ai/claude-code mcp add --transport http sentry https://mcp.sentry.dev/mcp)",
+      "Bash(npx @anthropic-ai/claude-code mcp add --transport http sentry https://mcp.sentry.dev/mcp --scope user)"
     ]
   }
 }
