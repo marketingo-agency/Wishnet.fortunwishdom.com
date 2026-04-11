@@ -103,6 +103,11 @@ function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
 function createMarkdownComponents(messageId: string) {
   let mermaidIndex = 0;
   return {
+    // Render <p> as <div> to prevent invalid <p><pre> nesting (React hydration error)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- react-markdown component props are loosely typed
+    p({ children }: any) {
+      return <div className="my-1.5">{children}</div>;
+    },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- react-markdown component props are loosely typed
     code({ node, className, children, ...props }: any) {
       const language = /language-(\w+)/.exec(className || '')?.[1];
