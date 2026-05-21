@@ -81,7 +81,7 @@ export function ProviderStatus({ settings }: ProviderStatusProps) {
               ) : (
                 <Badge 
                   variant="outline" 
-                  className={`text-xs ${provider.connected ? 'text-muted-foreground' : 'text-muted-foreground/50'}`}
+                  className={`text-xs ${provider.connected ? 'text-muted-foreground' : 'text-amber-700 border-amber-300 dark:text-amber-300 dark:border-amber-800'}`}
                 >
                   {provider.connected ? 'Standby' : 'Not Connected'}
                 </Badge>

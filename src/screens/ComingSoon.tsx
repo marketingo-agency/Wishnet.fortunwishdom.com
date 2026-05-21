@@ -19,7 +19,7 @@ export default function ComingSoon({ title, description, icon: Icon, iconColor }
           </div>
           <h1 className="text-3xl font-bold mb-3">{title}</h1>
           <p className="text-muted-foreground mb-6">{description}</p>
-          <Badge variant="secondary" className="text-sm px-4 py-1">
+          <Badge className="text-sm px-4 py-1 bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-800">
             Coming Soon
           </Badge>
         </CardContent>
