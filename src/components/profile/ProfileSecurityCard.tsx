@@ -1,4 +1,3 @@
-import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Lock, KeyRound, Shield, User, CheckCircle2 } from 'lucide-react';
@@ -25,9 +24,9 @@ export default function ProfileSecurityCard({ role, onPasswordChange }: ProfileS
           <div className="flex items-center gap-3">
             <KeyRound className="h-4 w-4 text-muted-foreground shrink-0" />
             <div>
-              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                 Password
-              </label>
+              </span>
               <div className="flex items-center gap-2 mt-0.5">
                 <div className="flex gap-0.5">
                   {Array.from({ length: 8 }).map((_, i) => (
@@ -58,9 +57,9 @@ export default function ProfileSecurityCard({ role, onPasswordChange }: ProfileS
         <div className="flex items-center gap-3">
           <Shield className="h-4 w-4 text-muted-foreground shrink-0" />
           <div>
-            <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
               Role
-            </label>
+            </span>
             <div className="flex items-center gap-2 mt-1">
               <Badge
                 className={`text-[11px] font-semibold px-2.5 py-0.5 border-0 ${

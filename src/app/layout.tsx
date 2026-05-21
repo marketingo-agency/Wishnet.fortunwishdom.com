@@ -11,6 +11,11 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { Providers } from "./providers";
 
+// Only load Vercel telemetry when actually running on Vercel's CDN.
+// Locally-hosted or self-hosted deploys have no /_vercel/* endpoints, so the
+// scripts 404 and throw console errors. This flag keeps local dev quiet.
+const isVercelDeployment = !!process.env.VERCEL;
+
 const inter = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
@@ -56,7 +61,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} ${poppins.variable} font-sans`}>
+      <body className={`${inter.variable} ${poppins.variable} font-sans`} suppressHydrationWarning>
         {/* UI-010: skip-to-content link for keyboard/screen-reader users (WCAG 2.4.1) */}
         <a
           href="#main-content"
@@ -65,8 +70,8 @@ export default function RootLayout({
           Skip to content
         </a>
         <Providers>{children}</Providers>
-        <Analytics />
-        <SpeedInsights />
+        {isVercelDeployment && <Analytics />}
+        {isVercelDeployment && <SpeedInsights />}
       </body>
     </html>
   );

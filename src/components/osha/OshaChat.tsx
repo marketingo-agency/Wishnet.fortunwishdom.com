@@ -1,5 +1,4 @@
-import React from 'react';
-import { Send, Paperclip, Loader2, Bot, Trash2, Sparkles, Check, X, Lightbulb, Search, BookOpen, BrainCircuit, Square } from 'lucide-react';
+import { Send, Paperclip, Loader2, Bot, Trash2, Check, X, Search, BookOpen, Square, Circle, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -8,14 +7,50 @@ import { OshaMessageBubble } from './OshaMessageBubble';
 import { OshaFileAttachment } from './OshaFileAttachment';
 import { ACCEPTED_FILE_TYPES } from '@/lib/fileProcessing';
 import type { OshaMessage, OshaSettings } from '@/hooks/useOsha';
-import {
-  ASSISTANT_MODES,
-  IDEATION_MODES,
-  POWER_MODES,
-  PACK_SHORTCUTS,
-} from './oshaConstants';
+import { ASSISTANT_MODES, POWER_MODES, DEEP_RESEARCH_STAGES } from './oshaConstants';
 import { useOshaChatController } from '@/hooks/useOshaChatController';
 
+
+interface DeepResearchProgressProps {
+  stages: string[];
+  currentStage: number;
+  elapsed: number;
+  formatElapsed: (s: number) => string;
+}
+
+function DeepResearchProgress({ stages, currentStage, elapsed, formatElapsed }: DeepResearchProgressProps) {
+  return (
+    <div className="space-y-2">
+      <ul className="space-y-1.5">
+        {stages.map((label, i) => {
+          const isDone = i < currentStage;
+          const isActive = i === currentStage;
+          return (
+            <li key={i} className="flex items-center gap-2 text-xs">
+              {isDone ? (
+                <Check className="h-3.5 w-3.5 text-teal-500 shrink-0" aria-hidden />
+              ) : isActive ? (
+                <span className="h-2 w-2 rounded-full bg-teal-500 shrink-0 animate-pulse" aria-hidden />
+              ) : (
+                <Circle className="h-3 w-3 text-muted-foreground/40 shrink-0" aria-hidden />
+              )}
+              <span
+                className={cn(
+                  isDone && 'text-muted-foreground line-through decoration-muted-foreground/40',
+                  isActive && 'text-foreground font-medium',
+                  !isDone && !isActive && 'text-muted-foreground/50'
+                )}
+              >
+                {label}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="text-[10px] text-muted-foreground/50">Researching… {formatElapsed(elapsed)}</p>
+    </div>
+  );
+}
 
 interface OshaChatProps {
   messages: OshaMessage[];
@@ -46,29 +81,11 @@ export function OshaChat({ messages, settings, isLoadingMessages, onMessagesChan
                 onClick={() => ctrl.setMode(m.value)}
                 disabled={ctrl.isPending}
                 title={m.description}
+                aria-pressed={ctrl.mode === m.value}
                 className={cn(
                   'px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap shrink-0 min-h-[36px]',
                   ctrl.mode === m.value
                     ? 'bg-gradient-to-r from-sky-500 to-cyan-400 text-white shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent hover:border-border/50'
-                )}
-              >
-                {m.label}
-              </button>
-            ))}
-            {/* Separator */}
-            <div className="h-5 w-px bg-border/60 mx-1 shrink-0" />
-            {/* Ideation modes */}
-            {IDEATION_MODES.map(m => (
-              <button
-                key={m.value}
-                onClick={() => ctrl.setMode(m.value)}
-                disabled={ctrl.isPending}
-                title={m.description}
-                className={cn(
-                  'px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap shrink-0 min-h-[36px]',
-                  ctrl.mode === m.value
-                    ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent hover:border-border/50'
                 )}
               >
@@ -84,6 +101,7 @@ export function OshaChat({ messages, settings, isLoadingMessages, onMessagesChan
                 onClick={() => ctrl.setMode(m.value)}
                 disabled={ctrl.isPending}
                 title={m.description}
+                aria-pressed={ctrl.mode === m.value}
                 className={cn(
                   'px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap shrink-0 min-h-[36px]',
                   ctrl.mode === m.value
@@ -138,10 +156,6 @@ export function OshaChat({ messages, settings, isLoadingMessages, onMessagesChan
               {ASSISTANT_MODES.map(opt => (
                 <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
               ))}
-              <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase mt-1">Ideation</div>
-              {IDEATION_MODES.map(opt => (
-                <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
-              ))}
               <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase mt-1">Power</div>
               {POWER_MODES.map(opt => (
                 <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
@@ -173,29 +187,23 @@ export function OshaChat({ messages, settings, isLoadingMessages, onMessagesChan
               'h-16 w-16 rounded-2xl flex items-center justify-center mb-4 shadow-lg',
               ctrl.isPowerMode
                 ? 'bg-gradient-to-br from-teal-500 to-emerald-600 shadow-teal-500/20'
-                : ctrl.isIdeationMode
-                  ? 'bg-gradient-to-br from-yellow-500 to-amber-600 shadow-yellow-500/20'
-                  : 'bg-gradient-to-br from-sky-500 to-cyan-400 shadow-sky-500/20'
+                : 'bg-gradient-to-br from-sky-500 to-cyan-400 shadow-sky-500/20'
             )}>
               {ctrl.isPowerMode ? (
                 <BookOpen className="h-9 w-9 text-white" />
-              ) : ctrl.isIdeationMode ? (
-                <Lightbulb className="h-9 w-9 text-white" />
               ) : (
                 <Bot className="h-9 w-9 text-white" />
               )}
             </div>
             <h3 className="font-semibold text-foreground mb-1 text-base">
-              {ctrl.isPowerMode ? 'What shall I research?' : ctrl.isIdeationMode ? 'What shall we create today?' : 'How can I help you today?'}
+              {ctrl.isPowerMode ? 'What shall I research?' : 'How can I help you today?'}
             </h3>
             <p className="text-sm text-muted-foreground mb-6 max-w-xs leading-relaxed">
               {compact && settings.bubble_greeting
                 ? settings.bubble_greeting
                 : ctrl.isPowerMode
                   ? "I'll conduct in-depth research using AI, searching the web and synthesizing comprehensive findings."
-                  : ctrl.isIdeationMode
-                    ? "I'm Osha — your creative ideation partner. Pick a mode, choose a starter, or just describe what you want to create."
-                    : "I'm Osha — your Fortun Wishnet assistant. Ask me anything, attach files, or pick a starter below."}
+                  : "I'm Osha — your Fortun Wishnet assistant. Ask me anything, attach files, or pick a starter below."}
             </p>
             <div className="flex flex-wrap gap-2 justify-center max-w-lg">
               {ctrl.quickStarters.map((qs, i) => (
@@ -206,13 +214,10 @@ export function OshaChat({ messages, settings, isLoadingMessages, onMessagesChan
                     'text-xs border rounded-xl px-3 py-2 transition-all text-left max-w-[200px]',
                     ctrl.isPowerMode
                       ? 'bg-muted hover:bg-teal-500/10 hover:text-teal-700 dark:hover:text-teal-400 border-border hover:border-teal-500/30'
-                      : ctrl.isIdeationMode
-                        ? 'bg-muted hover:bg-yellow-500/10 hover:text-yellow-700 dark:hover:text-yellow-400 border-border hover:border-yellow-500/30'
-                        : 'bg-sky-500/8 hover:bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/20 hover:scale-105'
+                      : 'bg-sky-500/8 hover:bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/20 hover:scale-105'
                   )}
                 >
                   {ctrl.isPowerMode && <Search className="h-3 w-3 inline mr-1" />}
-                  {ctrl.isIdeationMode && <Sparkles className="h-3 w-3 inline mr-1" />}
                   {qs.label}
                 </button>
               ))}
@@ -237,40 +242,27 @@ export function OshaChat({ messages, settings, isLoadingMessages, onMessagesChan
                   'h-8 w-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ring-2',
                   ctrl.isPowerMode
                     ? 'bg-gradient-to-br from-teal-500 to-emerald-600 ring-teal-300/20'
-                    : ctrl.isIdeationMode
-                      ? 'bg-gradient-to-br from-yellow-500 to-amber-600 ring-yellow-300/20'
-                      : 'bg-gradient-to-br from-sky-500 to-cyan-400 ring-sky-300/20'
+                    : 'bg-gradient-to-br from-sky-500 to-cyan-400 ring-sky-300/20'
                 )}>
                   {ctrl.isPowerMode ? (
                     <Search className="h-4 w-4 text-white" />
-                  ) : ctrl.isIdeationMode ? (
-                    <Lightbulb className="h-4 w-4 text-white" />
                   ) : (
                     <Bot className="h-4 w-4 text-white" />
                   )}
                 </div>
                 <div className="bg-card border border-border/60 shadow-sm rounded-2xl rounded-tl-sm px-4 py-3 max-w-md">
                   {ctrl.mode === 'deep-research' && ctrl.researchPhase === 'researching' ? (
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full animate-bounce bg-teal-500" style={{ animationDelay: '0ms' }} />
-                        <span className="h-2 w-2 rounded-full animate-bounce bg-emerald-500" style={{ animationDelay: '150ms' }} />
-                        <span className="h-2 w-2 rounded-full animate-bounce bg-teal-400" style={{ animationDelay: '300ms' }} />
-                      </div>
-                      {ctrl.researchProgressText && (
-                        <p className="text-xs text-muted-foreground animate-in fade-in duration-500">
-                          {ctrl.researchProgressText}
-                        </p>
-                      )}
-                      <p className="text-[10px] text-muted-foreground/50">
-                        Researching… {ctrl.formatElapsed(ctrl.researchElapsed)}
-                      </p>
-                    </div>
+                    <DeepResearchProgress
+                      stages={DEEP_RESEARCH_STAGES}
+                      currentStage={ctrl.researchStageIndex}
+                      elapsed={ctrl.researchElapsed}
+                      formatElapsed={ctrl.formatElapsed}
+                    />
                   ) : (
                     <div className="flex items-center gap-1.5">
-                      <span className={cn('h-2 w-2 rounded-full animate-bounce', ctrl.isIdeationMode ? 'bg-yellow-500' : 'bg-sky-400')} style={{ animationDelay: '0ms' }} />
-                      <span className={cn('h-2 w-2 rounded-full animate-bounce', ctrl.isIdeationMode ? 'bg-amber-500' : 'bg-sky-400')} style={{ animationDelay: '150ms' }} />
-                      <span className={cn('h-2 w-2 rounded-full animate-bounce', ctrl.isIdeationMode ? 'bg-orange-500' : 'bg-sky-400')} style={{ animationDelay: '300ms' }} />
+                      <span className="h-2 w-2 rounded-full animate-bounce bg-sky-400" style={{ animationDelay: '0ms' }} />
+                      <span className="h-2 w-2 rounded-full animate-bounce bg-sky-400" style={{ animationDelay: '150ms' }} />
+                      <span className="h-2 w-2 rounded-full animate-bounce bg-sky-400" style={{ animationDelay: '300ms' }} />
                     </div>
                   )}
                 </div>
@@ -279,30 +271,6 @@ export function OshaChat({ messages, settings, isLoadingMessages, onMessagesChan
           </div>
         )}
       </div>
-
-      {/* Pack shortcut buttons — ideation modes only */}
-      {ctrl.isIdeationMode && (
-        <div className="px-4 pt-2 pb-0 border-t border-border/30 shrink-0">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden">
-            {PACK_SHORTCUTS.map((pack, i) => (
-              <button
-                key={i}
-                onClick={() => {
-                  ctrl.setInput(pack.prompt);
-                  if (ctrl.textareaRef.current) {
-                    ctrl.textareaRef.current.focus();
-                    ctrl.textareaRef.current.style.height = 'auto';
-                    ctrl.textareaRef.current.style.height = `${Math.min(ctrl.textareaRef.current.scrollHeight, 160)}px`;
-                  }
-                }}
-                className="shrink-0 text-[10px] bg-muted hover:bg-yellow-500/10 hover:text-yellow-700 dark:hover:text-yellow-400 border border-border/50 hover:border-yellow-500/30 rounded-lg px-2.5 py-1.5 transition-all whitespace-nowrap font-medium"
-              >
-                {pack.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Attachment preview strip */}
       {ctrl.pendingAttachments.length > 0 && (
@@ -340,16 +308,15 @@ export function OshaChat({ messages, settings, isLoadingMessages, onMessagesChan
             placeholder={
               ctrl.isPowerMode
                 ? (ctrl.researchPhase === 'clarifying' ? 'Answer the questions above, or say "go ahead" to start...' : 'Describe what to research in depth...')
-                : ctrl.isIdeationMode
-                  ? (ctrl.mode === 'spark' ? 'Describe what to ideate...' : ctrl.mode === 'expand' ? 'Share an idea to expand...' : ctrl.mode === 'combine' ? 'Describe ideas to combine...' : ctrl.mode === 'filter' ? 'Paste ideas to score...' : 'Describe your workshop goal...')
+                : ctrl.mode === 'workshop'
+                  ? 'Describe your workshop goal...'
                   : 'Ask Osha anything…'
             }
             rows={1}
             disabled={ctrl.isPending}
             className={cn(
               'flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none min-h-[32px] max-h-[160px] py-1 leading-relaxed',
-              ctrl.isPowerMode && 'focus-visible:border-teal-500',
-              ctrl.isIdeationMode && 'focus-visible:border-yellow-500'
+              ctrl.isPowerMode && 'focus-visible:border-teal-500'
             )}
           />
 
@@ -362,22 +329,35 @@ export function OshaChat({ messages, settings, isLoadingMessages, onMessagesChan
               <Square className="h-4 w-4 fill-current" />
             </button>
           ) : (
-            <button
-              onClick={() => ctrl.handleSend()}
-              disabled={!ctrl.input.trim() && ctrl.pendingAttachments.filter(a => a.status === 'ready').length === 0}
-              className={cn(
-                'h-9 w-9 rounded-full flex items-center justify-center shrink-0 self-end mb-0.5 transition-all',
-                ctrl.isPowerMode
-                  ? 'bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-sm hover:from-teal-600 hover:to-emerald-600'
-                  : ctrl.isIdeationMode
-                    ? 'bg-gradient-to-br from-yellow-500 to-amber-600 text-white shadow-sm hover:from-yellow-600 hover:to-amber-700'
+            <>
+              <button
+                onClick={ctrl.handleOptimizeDraft}
+                disabled={!ctrl.input.trim() || ctrl.isOptimizing}
+                title="Optimize with Promptor"
+                aria-label="Optimize with Promptor"
+                className="h-9 w-9 rounded-full flex items-center justify-center shrink-0 self-end mb-0.5 transition-all text-muted-foreground hover:text-violet-400 hover:bg-violet-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {ctrl.isOptimizing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Wand2 className="h-4 w-4" />
+                )}
+              </button>
+              <button
+                onClick={() => ctrl.handleSend()}
+                disabled={!ctrl.input.trim() && ctrl.pendingAttachments.filter(a => a.status === 'ready').length === 0}
+                className={cn(
+                  'h-9 w-9 rounded-full flex items-center justify-center shrink-0 self-end mb-0.5 transition-all',
+                  ctrl.isPowerMode
+                    ? 'bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-sm hover:from-teal-600 hover:to-emerald-600'
                     : 'bg-gradient-to-br from-sky-500 to-cyan-400 text-white shadow-sm hover:from-sky-600 hover:to-cyan-500',
-                'hover:scale-105 active:scale-95',
-                'disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100'
-              )}
-            >
-              <Send className="h-4 w-4" />
-            </button>
+                  'hover:scale-105 active:scale-95',
+                  'disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100'
+                )}
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </>
           )}
         </div>
 

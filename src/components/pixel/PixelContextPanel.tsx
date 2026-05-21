@@ -1,8 +1,7 @@
-import React from 'react';
 import { ShieldCheck, AlertTriangle, XCircle, BrainCircuit, RectangleHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PixelMode } from './PixelTopBar';
-import type { PostSize, PostType } from './PixelControlPanel';
+import type { PostSize } from './PixelControlPanel';
 import { PLATFORM_POST_TYPES } from './PixelControlPanel';
 
 interface PixelContextPanelProps {

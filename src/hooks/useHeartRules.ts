@@ -131,16 +131,18 @@ export function useDeleteHeartRule() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // Delete embeddings first (fire and forget, but invalidate vector store after)
-      import('@/hooks/useKnowledgeEmbeddings').then(({ processEmbedding }) => {
-        processEmbedding({
+      // CODE-023: await embedding cleanup so vector store stays consistent
+      try {
+        const { processEmbedding } = await import('@/hooks/useKnowledgeEmbeddings');
+        await processEmbedding({
           action: 'delete',
           source_type: 'heart_rule',
           source_id: id,
-        }).then(() => {
-          queryClient.invalidateQueries({ queryKey: ['vector-store'] });
-        }).catch(console.error);
-      });
+        });
+        queryClient.invalidateQueries({ queryKey: ['vector-store'] });
+      } catch {
+        toast.error('Failed to clean up embeddings — vector store may need manual cleanup');
+      }
 
       const { error } = await supabase
         .from('heart_rules')

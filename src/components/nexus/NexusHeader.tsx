@@ -1,6 +1,5 @@
 "use client";
 
-import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Settings2, BrainCircuit, Database } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +11,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { LLMSettings } from '@/hooks/useLLMSettings';
-import { useProviderKeyStatus } from '@/hooks/useProviderKeyStatus';
+import { useProviderKeyStatus, hasProviderKey } from '@/hooks/useProviderKeyStatus';
 
 interface NexusHeaderProps {
   settings: LLMSettings | null;
@@ -21,8 +20,8 @@ interface NexusHeaderProps {
 export function NexusHeader({ settings }: NexusHeaderProps) {
   const router = useRouter();
   const { data: keyStatus } = useProviderKeyStatus();
-  const hasOpenAI = !!keyStatus?.openai;
-  const hasGemini = !!keyStatus?.gemini;
+  const hasOpenAI = hasProviderKey(keyStatus?.openai);
+  const hasGemini = hasProviderKey(keyStatus?.gemini);
 
   return (
     <div className="px-4 sm:px-6 py-4 sm:py-6 border-b border-border">

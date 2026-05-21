@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useSearchParams } from 'next/navigation';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { useLLMSettings } from '@/hooks/useLLMSettings';
 import { NexusHeader } from '@/components/nexus/NexusHeader';
 import { NexusTabs, NexusTab } from '@/components/nexus/NexusTabs';
@@ -39,7 +38,7 @@ export default function NexusAgent() {
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
   const [selectedQuickPrompt, setSelectedQuickPrompt] = useState<QuickPrompt | null>(null);
 
-  const handleSelectQuickPrompt = (prompt: string, mode: 'text' | 'image') => {
+  const handleSelectQuickPrompt = (prompt: string, mode: 'text' | 'image' | 'research') => {
     setConsolePrompt(prompt);
     setConsoleMode(mode);
   };

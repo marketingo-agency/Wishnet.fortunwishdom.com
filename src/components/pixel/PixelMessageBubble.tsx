@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { useState, useEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import remarkGfm from 'remark-gfm';
-import { Palette, User, Copy, Check, FileText, Image as ImageIcon, Trash2, X, Download, ChevronDown, ChevronUp, Layers } from 'lucide-react';
+
+const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
+import { Palette, User, Copy, Check, FileText, Image as ImageIcon, Trash2, X, Download, Layers } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -142,8 +144,6 @@ export function PixelMessageBubble({ message, copiedId, onCopy, onDelete }: Pixe
   const [imgLoaded, setImgLoaded] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(false);
   const [copiedImage, setCopiedImage] = useState(false);
-  const [promptSetOpen, setPromptSetOpen] = useState(false);
-
   const handleCopyImage = async () => {
     try {
       const res = await fetch(message.image_url!);
@@ -178,7 +178,6 @@ export function PixelMessageBubble({ message, copiedId, onCopy, onDelete }: Pixe
 
   // Detect blueprint and prompt set in response
   const hasBlueprint = !isUser && message.content.includes('**Blueprint:**');
-  const hasPromptSet = !isUser && (message.content.includes('**Prompt Set:**') || message.content.includes('Prompt Set:'));
   const hasQAStatus = !isUser && message.content.includes('**QA Status:**');
 
   return (

@@ -171,14 +171,17 @@ export function useDeleteBrainDocument() {
 
   return useMutation({
     mutationFn: async ({ id, storagePath }: { id: string; storagePath: string }) => {
-      // Delete embeddings first (fire and forget - don't block on this)
-      import('@/hooks/useKnowledgeEmbeddings').then(({ processEmbedding }) => {
-        processEmbedding({
+      // CODE-023: await embedding cleanup so vector store stays consistent
+      try {
+        const { processEmbedding } = await import('@/hooks/useKnowledgeEmbeddings');
+        await processEmbedding({
           action: 'delete',
           source_type: 'brain_document',
           source_id: id,
-        }).catch(console.error);
-      });
+        });
+      } catch {
+        toast.error('Failed to clean up embeddings — vector store may need manual cleanup');
+      }
 
       // Delete from storage
       const { error: storageError } = await supabase.storage

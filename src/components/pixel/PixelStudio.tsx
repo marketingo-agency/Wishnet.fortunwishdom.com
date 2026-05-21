@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image';
-import { Send, Loader2, Palette, Paperclip, Smile, Clock, X, FileText } from 'lucide-react';
+import { Send, Loader2, Palette, Paperclip, Smile, Clock, X, FileText, Wand2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -14,7 +14,9 @@ import {
 } from '@/hooks/usePixel';
 import { toast } from 'sonner';
 import type { PixelMode } from './PixelTopBar';
+import type { WishpediaImageRef } from './WishReferencePanel';
 import { EMPTY_STAGE_CARDS, MODE_PLACEHOLDERS } from './pixelConstants';
+import { useOptimizeDraft } from '@/hooks/promptor';
 
 interface PixelStudioProps {
   messages: PixelMessage[];
@@ -25,7 +27,7 @@ interface PixelStudioProps {
   onBlueprintSelect: (bp: PixelBlueprint | null) => void;
   mode: PixelMode;
   styleLock: boolean;
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
   pendingAttachments: PendingAttachment[];
   onAttachmentsChange: (attachments: PendingAttachment[]) => void;
   onAuditUpdate: (audit: { heartCount: number; brainCount: number; complianceStatus: string }) => void;
@@ -35,6 +37,7 @@ interface PixelStudioProps {
   selectedPostType?: string | null;
   selectedSize?: { width: number; height: number; ratio: string } | null;
   globalReferences?: PendingAttachment[];
+  wishpediaImageRefs?: WishpediaImageRef[];
 }
 
 export function PixelStudio({
@@ -44,6 +47,7 @@ export function PixelStudio({
   _starterPrompt, _starterTrigger,
   selectedPostType, selectedSize,
   globalReferences = [],
+  wishpediaImageRefs = [],
 }: PixelStudioProps) {
   const [input, setInput] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -55,6 +59,26 @@ export function PixelStudio({
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const prevTriggerRef = useRef(0);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { optimizeDraft, isOptimizing } = useOptimizeDraft();
+
+  const handleOptimizeDraft = useCallback(async () => {
+    if (!input.trim()) return;
+    try {
+      const result = await optimizeDraft(input.trim());
+      setInput(result);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 180)}px`;
+      }
+    } catch {
+      // useOptimizeDraft already surfaces a toast on error
+    }
+  }, [input, optimizeDraft]);
+
+  // UI-031: cleanup copy timer on unmount
+  useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current); }, []);
 
   const isVideoGeneration = useMemo(() => {
     const vt = selectedPostType?.toLowerCase() || '';
@@ -109,7 +133,8 @@ export function PixelStudio({
     try {
       await navigator.clipboard.writeText(content);
       setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2000);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopiedId(null), 2000);
     } catch { toast.error('Failed to copy'); }
   }, []);
 
@@ -135,7 +160,7 @@ export function PixelStudio({
     const text = (overrideText ?? input).trim();
     const readyAttachments = pendingAttachments.filter(a => a.status === 'ready');
     const readyGlobalRefs = globalReferences.filter(a => a.status === 'ready');
-    if (!text && readyAttachments.length === 0 && readyGlobalRefs.length === 0) return;
+    if (!text && readyAttachments.length === 0 && readyGlobalRefs.length === 0 && wishpediaImageRefs.length === 0) return;
     if (isPending) return;
     if (pendingAttachments.some(a => a.status === 'processing')) { toast.info('Please wait for file processing'); return; }
 
@@ -170,6 +195,24 @@ export function PixelStudio({
     for (const a of readyAttachments) {
       attachmentsCtx.push({ name: a.name, type: a.type, content: a.isImage ? (a.base64 || '') : (a.type === 'application/pdf' ? (a.base64 || '') : (a.extractedContent || '')), isImage: a.isImage });
     }
+    // Wishpedia reference images → base64
+    for (const ref of wishpediaImageRefs) {
+      try {
+        const resp = await fetch(ref.publicUrl);
+        if (!resp.ok) continue;
+        const blob = await resp.blob();
+        if (blob.size > 3 * 1024 * 1024) { toast.warning(`${ref.entryName} image too large (>3MB), skipped`); continue; }
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve((reader.result as string).split(',')[1] || '');
+          reader.readAsDataURL(blob);
+        });
+        const label = `${ref.entryName}${ref.angle ? ` (${ref.angle})` : ''}`;
+        attachmentsCtx.push({ name: label, type: 'image/jpeg', content: base64, isImage: true });
+      } catch {
+        // Skip failed fetches silently
+      }
+    }
     const lastAssistant = [...localMessages].reverse().find(m => m.role === 'assistant');
     const lastBlueprintSummary = styleLock && lastAssistant ? lastAssistant.content.slice(0, 500) : undefined;
 
@@ -201,7 +244,7 @@ export function PixelStudio({
       }]);
     } finally { setIsPending(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedPostType and selectedSize are read from refs at call time, not reactive deps
-  }, [input, pendingAttachments, globalReferences, isPending, mode, localMessages, sendMessage, onMessagesChange, activeBlueprint, styleLock, onAuditUpdate, onAttachmentsChange]);
+  }, [input, pendingAttachments, globalReferences, wishpediaImageRefs, isPending, mode, localMessages, sendMessage, onMessagesChange, activeBlueprint, styleLock, onAuditUpdate, onAttachmentsChange]);
 
   useEffect(() => {
     if (pendingStarter && !isPending) {
@@ -463,6 +506,15 @@ export function PixelStudio({
                     </div>
                   </PopoverContent>
                 </Popover>
+                <button
+                  onClick={handleOptimizeDraft}
+                  disabled={!input.trim() || isOptimizing || isPending}
+                  title="Optimize with Promptor"
+                  aria-label="Optimize with Promptor"
+                  className="h-8 w-8 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-muted-foreground hover:text-violet-400 hover:bg-violet-500/10 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isOptimizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                </button>
               </div>
               <button
                 onClick={() => handleSend()}

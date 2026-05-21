@@ -16,11 +16,16 @@ export function usePixelBlueprints() {
       let headers: Record<string, string>;
       try { headers = await getAuthHeaders(); } catch { return []; }
 
-      const res = await fetch(PIXEL_URL, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ action: 'get-blueprints' }),
-      });
+      let res: Response;
+      try {
+        res = await fetch(PIXEL_URL, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ action: 'get-blueprints' }),
+        });
+      } catch {
+        return []; // network/extension failure — degrade, don't crash
+      }
       if (!res.ok) return [];
       const data = await res.json();
       return data.blueprints || [];

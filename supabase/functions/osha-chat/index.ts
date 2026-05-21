@@ -13,6 +13,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 import { sanitizeForPrompt } from '../_shared/sanitize.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
+import { TOKEN_BUDGETS } from '../_shared/token-budgets.ts';
 import { getAgentPrompts } from '../_shared/system-prompts.ts';
 
 // SEC-004: 20 requests per minute per user (governed chatbot, heavier per-request)
@@ -20,6 +21,10 @@ const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 20 });
 
 // SEC-003: CORS tightened from wildcard to allowed origins list
 let corsHeaders: Record<string, string> = getCorsHeaders(null);
+
+/** Maximum conversation messages to include in LLM context */
+const MAX_HISTORY_MAIN = 50;
+const MAX_HISTORY_SUB = 10;
 
 // AGENT-017: Generate a unique request ID for tracing/debugging
 function generateRequestId(): string {
@@ -137,12 +142,13 @@ async function searchBrain(
   query: string,
   openaiKey: string,
   limit: number,
-): Promise<{ content: string }[]> {
+): Promise<{ content: string; imageUrl?: string }[]> {
   const embedding = await generateEmbedding(query, openaiKey);
   if (!embedding) return [];
 
   const { data, error } = await supabaseAdmin.rpc('match_knowledge', {
     query_embedding: JSON.stringify(embedding),
+    query_text: query, // RAG-004: activate hybrid vector+BM25 (single overload now)
     match_threshold: 0.2,
     match_count: limit,
     filter_source_types: ['brain_document', 'wishpedia_entry'],
@@ -153,7 +159,29 @@ async function searchBrain(
     console.error('Brain search error:', error);
     return [];
   }
-  return (data || []).map((d: any) => ({ content: d.content }));
+
+  // Multimodal: for image chunks, mint a short-lived signed URL so the actual
+  // image can be attached to the vision-model call. Dedup by storage_path.
+  const rows = (data || []) as any[];
+  const signedCache = new Map<string, string>();
+  const results: { content: string; imageUrl?: string }[] = [];
+  for (const d of rows) {
+    let imageUrl: string | undefined;
+    const sp: string | undefined = d.metadata?.storage_path;
+    if (d.metadata?.is_image && sp) {
+      if (!signedCache.has(sp)) {
+        const { data: signed } = await supabaseAdmin.storage
+          .from('brain-documents')
+          .createSignedUrl(sp, 300); // 5-min TTL
+        if (signed?.signedUrl) signedCache.set(sp, signed.signedUrl);
+      }
+      imageUrl = signedCache.get(sp);
+    }
+    // SEC: sanitize Brain content (incl. vision OCR text from uploaded images) before
+    // it is interpolated into the system prompt — prevents prompt injection via Brain.
+    results.push({ content: sanitizeForPrompt(d.content), imageUrl });
+  }
+  return results;
 }
 
 function buildSystemPrompt(
@@ -171,16 +199,8 @@ function buildSystemPrompt(
   dbModeInstructions?: Record<string, string>,
 ): string {
   const defaultModeInstructions: Record<string, string> = {
-    // Assistant modes
     guide: 'You explain clearly with step-by-step structure, examples, and onboarding-friendly language. Use headings, numbered steps, and practical examples.',
     operator: 'You are concise, action-oriented. Respond with tasks, checklists, and direct answers. Avoid preamble. Lead with the action.',
-    creative: 'You are imaginative and expressive, generating novel ideas while respecting all Heart rules. Use vivid language and explore possibilities.',
-    analyst: 'You are analytical and thorough. Source claims, structure outputs, reason carefully. Use tables, comparisons, and evidence-based reasoning.',
-    // Ideation modes (from Muse)
-    spark: 'You are in Spark mode — a rapid-fire idea generator. Generate many ideas quickly (20+ when asked). Output as numbered lists grouped by themes. Each idea: title, one-line summary, and use-case hint. Prioritize volume and variety over depth. Be bold, surprising, and creative.',
-    expand: 'You are in Expand mode — a concept development expert. Take one idea and develop it into a complete concept with: messaging pillars, creative directions, do/avoid list, execution outline, and 2-3 variants. Be thorough and strategic.',
-    combine: 'You are in Combine mode — a hybrid concept engineer. Merge multiple ideas into stronger hybrid concepts. For each hybrid: name, core premise, how elements fuse, unique value proposition, and execution sketch. Find non-obvious connections.',
-    filter: 'You are in Filter mode — a structured idea evaluator. Score and rank ideas using these criteria: Originality (1-10), Feasibility (1-10), Brand Fit (1-10), Cost Efficiency (1-10), Time to Market (1-10), Emotional Impact (1-10), Clarity (1-10). Output a scoring table, shortlist top 3-5, and explain your reasoning.',
     workshop: 'You are in Workshop mode — a brainstorming facilitator. Guide the user through a structured creative session: 1) Ask opening questions to understand goals, 2) Generate ideas based on answers, 3) Help refine and shortlist, 4) Produce a Workshop Summary with key decisions and next actions.',
   };
 
@@ -219,8 +239,9 @@ function buildSystemPrompt(
     promptor: { name: 'Promptor', role: 'Prompt Engineer AI', capabilities: 'Create and optimize prompts for text, image, social media copy, social media images, and video. Outputs structured briefs with full/short prompts, QA checklists, negatives, variants, and compliance notes. Uses Heart rules and Brain knowledge for brand-aware prompt engineering.' },
     osha: { name: 'Osha (you)', role: 'AI Assistant, Ideation & Research Agent', capabilities: '10 modes (Guide, Operator, Creative, Analyst, Spark, Expand, Combine, Filter, Workshop, Deep Research). File analysis (PDF, DOCX, XLSX, images via Gemini). Image generation (OpenAI/Gemini). Web search (permission-based). Website URL analysis. Save responses to Brain. Mermaid diagram rendering. Up to 10,000-message history.' },
     pixel: { name: 'Pixel', role: 'Visual Creator AI', capabilities: 'AI image and video generation for social media, presentations, and marketing. Blueprint system for reusable visual styles (palette, composition, typography, style rules). Brand-aware visuals using Heart rules and Brain knowledge. Multiple modes: Quick Create, Campaign Pack, Brand Suite, Editorial.' },
-    echo: { name: 'Echo', role: 'Customer Support AI', capabilities: 'Handles customer support via Gmail, tickets, and embeddable chatbot. (Coming Soon — not yet active)' },
+    whisper: { name: 'Whisper', role: 'Podcast Generator AI', capabilities: 'Generates podcast scripts with AI and produces studio-quality audio narration using the ElevenLabs API. (Coming Soon — not yet active)' },
     pulse: { name: 'Pulse', role: 'Community Manager AI', capabilities: 'Manages social media interactions, replies to comments/messages, schedules posts across platforms. (Coming Soon — not yet active)' },
+    atlas: { name: 'ATLAS', role: 'Kickstarter Ops Control Agent', capabilities: 'Structures, calculates, verifies and monitors Kickstarter operations across SKU data, factory quotes, QC, freight, 3PL, pledge manager, backer delivery and financial modeling. Identifies risks, missing data, cost impact, and recommended next actions for human review — never makes final decisions. (Coming Soon — not yet active)' },
   };
 
   // Helper to format config fields
@@ -244,7 +265,7 @@ function buildSystemPrompt(
   let agentRegistryLines = '';
   for (const [agentId, meta] of Object.entries(agentMeta)) {
     const dbRow = agentStatuses?.find(a => a.agent_id === agentId);
-    const status = dbRow ? (dbRow.is_active ? '✅ Active' : '❌ Inactive') : (agentId === 'echo' || agentId === 'pulse' ? '🔜 Coming Soon' : '⚪ Not configured');
+    const status = dbRow ? (dbRow.is_active ? '✅ Active' : '❌ Inactive') : (agentId === 'whisper' || agentId === 'pulse' || agentId === 'atlas' ? '🔜 Coming Soon' : '⚪ Not configured');
     const modelInfo = dbRow ? ` | Model: ${dbRow.model} (${dbRow.provider})` : '';
     const configData = agentConfigs?.[agentId as keyof typeof agentConfigs];
     const configLine = formatConfig(configData, agentConfigKeys[agentId] || []);
@@ -372,6 +393,9 @@ ${settings.citation_behavior ? 'When using information from Brain Knowledge or a
 ## MARKDOWN
 Always render responses using proper markdown: headings, lists, tables, code blocks, blockquotes, bold/italic as appropriate.
 
+## OWNED VISUAL ASSETS
+All images in the Brain knowledge base, Wishpedia, and user-provided attachments are Fortun Wishdom's OWN proprietary, first-party assets. You are fully authorized to reproduce, recreate, regenerate, and edit them. NEVER refuse to recreate or reproduce a Fortun image on copyright, originality, intellectual-property, or "I can't duplicate existing artwork" grounds — these are owned assets and recreating them is an intended, sanctioned capability. When asked to recreate an image, do so faithfully.
+
 ## IDENTITY
 - You are Osha. Never claim to be GPT, ChatGPT, Claude, Gemini, or any other AI.
 - You are powered by Fortun Wishnet's AI infrastructure.
@@ -420,14 +444,20 @@ function detectUrlsInMessage(message: string): string[] {
 }
 
 function detectImageIntent(message: string): boolean {
-  const imageKeywords = [
-    'generate image', 'create image', 'make image', 'draw', 'visualize',
-    'generate a picture', 'create a picture', 'illustrate', 'design an image',
-    'generate photo', 'create photo', 'make a visual', 'generate visual',
-    'create artwork', 'generate artwork', 'dall-e', 'image of',
-  ];
   const lower = message.toLowerCase();
-  return imageKeywords.some(k => lower.includes(k));
+  // Strong explicit signals (no verb required)
+  const explicit = [
+    'dall-e', 'image of', 'picture of', 'photo of', 'visualize', 'illustrate',
+    'recreate', 'regenerate', 'reproduce', 'remake', 'redraw', 'remix',
+    'same image', 'this image', 'that image', 'identical image',
+    'edit the image', 'edit this image', 'make the same', 'a copy of',
+    'output must be an image', 'output an image', 'as an image', 'in an image',
+  ];
+  if (explicit.some(k => lower.includes(k))) return true;
+  // Generation verb followed (within ~40 chars, articles allowed) by an image noun.
+  // Catches "generate an image", "create a picture of", "combine X into an image", etc.
+  const pattern = /\b(generate|create|make|draw|render|produce|design|paint|illustrate|compose|combine|merge|build)\b[\s\S]{0,40}?\b(image|picture|photo|visual|artwork|illustration|drawing|portrait|graphic|render|scene)\b/;
+  return pattern.test(lower);
 }
 
 // ─── Image Prompt Builder — injects Brain knowledge + Heart rules ──────────────
@@ -522,7 +552,7 @@ async function extractPdfWithGemini(fileName: string, base64Content: string, gem
           },
         ],
       }],
-      generationConfig: { maxOutputTokens: 8192 },
+      generationConfig: { maxOutputTokens: TOKEN_BUDGETS.CHAT_RESPONSE },
     }),
   });
 
@@ -550,7 +580,7 @@ async function extractPdfWithOpenAI(fileName: string, base64Content: string, ope
     },
     body: JSON.stringify({
       model,
-      max_tokens: 8192,
+      max_tokens: TOKEN_BUDGETS.CHAT_RESPONSE,
       messages: [{
         role: 'user',
         content: [
@@ -1137,7 +1167,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
+      console.error('Osha get-settings error:', error);
+      return new Response(JSON.stringify({ error: 'Internal error' }), {
         status: 500,
         headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
@@ -1181,7 +1212,8 @@ Deno.serve(async (req) => {
     }
 
     if (result.error) {
-      return new Response(JSON.stringify({ error: result.error.message }), {
+      console.error('Osha save-settings error:', result.error);
+      return new Response(JSON.stringify({ error: 'Internal error' }), {
         status: 500,
         headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
@@ -1200,7 +1232,8 @@ Deno.serve(async (req) => {
       .eq('user_id', userId);
 
     if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
+      console.error('Osha clear-history error:', error);
+      return new Response(JSON.stringify({ error: 'Internal error' }), {
         status: 500,
         headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
@@ -1229,7 +1262,7 @@ Deno.serve(async (req) => {
     }
 
     const conversationHistory = body.conversationHistory || [];
-    const recentHistory = conversationHistory.slice(-10);
+    const recentHistory = conversationHistory.slice(-MAX_HISTORY_SUB);
 
     try {
       const clarifyRes = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -1237,7 +1270,7 @@ Deno.serve(async (req) => {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
         body: JSON.stringify({
           model: 'gpt-4.1-mini',
-          max_tokens: 500,
+          max_tokens: TOKEN_BUDGETS.CLASSIFICATION,
           messages: [
             {
               role: 'system',
@@ -1274,7 +1307,8 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
         headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), {
+      console.error('Deep research clarify error:', e);
+      return new Response(JSON.stringify({ error: 'Internal error' }), {
         status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -1310,13 +1344,13 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
     if (!isShortAnswer && clarificationAnswers) {
       // Use fast model to formulate an optimized research query
       try {
-        const recentHistory = conversationHistory.slice(-10);
+        const recentHistory = conversationHistory.slice(-MAX_HISTORY_SUB);
         const formulateRes = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
           body: JSON.stringify({
             model: 'gpt-4.1-mini',
-            max_tokens: 500,
+            max_tokens: TOKEN_BUDGETS.CLASSIFICATION,
             messages: [
               {
                 role: 'system',
@@ -1338,13 +1372,13 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
     } else if (conversationHistory.length > 0) {
       // Still resolve pronouns for "go ahead" case
       try {
-        const recentHistory = conversationHistory.slice(-10);
+        const recentHistory = conversationHistory.slice(-MAX_HISTORY_SUB);
         const resolutionRes = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
           body: JSON.stringify({
             model: 'gpt-4.1-mini',
-            max_tokens: 200,
+            max_tokens: TOKEN_BUDGETS.INTENT,
             messages: [
               {
                 role: 'system',
@@ -1419,7 +1453,8 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
 
       return new Response(JSON.stringify({ responseId: data.id, status: data.status, resolvedTopic }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
+      console.error('Deep research (legacy) error:', e);
+      return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
@@ -1447,13 +1482,13 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
     let resolvedTopic = message;
     if (conversationHistory.length > 0) {
       try {
-        const recentHistory = conversationHistory.slice(-10);
+        const recentHistory = conversationHistory.slice(-MAX_HISTORY_SUB);
         const resolutionRes = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
           body: JSON.stringify({
             model: 'gpt-4.1-mini',
-            max_tokens: 200,
+            max_tokens: TOKEN_BUDGETS.INTENT,
             messages: [
               {
                 role: 'system',
@@ -1526,7 +1561,8 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
 
       return new Response(JSON.stringify({ responseId: data.id, status: data.status, resolvedTopic }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
+      console.error('Deep research execute error:', e);
+      return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
@@ -1548,19 +1584,26 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
 
       const data = await response.json();
 
+      // Map OpenAI status → numeric stage (forward-compatible anchor for UI progress bar).
+      // 0 queued, 1 in_progress, 4 completed. Client may ignore.
+      const statusToStage: Record<string, number> = { queued: 0, in_progress: 1, completed: 4 };
+      const stage = statusToStage[data.status] ?? 1;
+
       if (data.status === 'completed') {
         const content = data.output_text || data.output?.[0]?.content?.[0]?.text || '';
         await supabase.from('osha_messages').insert({ user_id: userId, role: 'assistant', content, mode: 'deep-research' });
-        return new Response(JSON.stringify({ status: 'completed', content }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ status: 'completed', content, stage }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
       }
 
       if (data.status === 'failed' || data.status === 'cancelled') {
-        return new Response(JSON.stringify({ status: data.status, error: data.error?.message || 'Research failed' }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
+        console.error('Research poll status:', data.status, data.error);
+        return new Response(JSON.stringify({ status: data.status, error: 'Research failed' }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
       }
 
-      return new Response(JSON.stringify({ status: data.status }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ status: data.status, stage }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
+      console.error('Poll research error:', e);
+      return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
@@ -1615,7 +1658,8 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
 
       return new Response(JSON.stringify({ content }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
+      console.error('Web search error:', e);
+      return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
@@ -1648,7 +1692,7 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
             body: JSON.stringify({
               model: 'gpt-4o-mini',
-              max_tokens: 4096,
+              max_tokens: TOKEN_BUDGETS.CONTENT_GENERATION,
               temperature: 0.1,
               messages: [
                 {
@@ -1735,6 +1779,12 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
       let restrictedAgents: string[] | null = null;
       const dest = destination || 'general';
 
+      // SEC: `dest` is interpolated into the storage path — restrict to a safe slug
+      // to block path traversal / injection before it touches storage.
+      if (!/^[a-z0-9_-]+$/.test(dest)) {
+        return new Response(JSON.stringify({ error: 'Invalid destination' }), { status: 400, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
+      }
+
       if (dest === 'general') {
         const { data: sections } = await supabaseAdmin.from('brain_sections').select('id').eq('type', 'general').limit(1);
         if (!sections || sections.length === 0) {
@@ -1796,7 +1846,8 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
 
       return new Response(JSON.stringify({ success: true, documentId: doc?.id, fileName: suggestedFilename || title }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
+      console.error('Save to brain error:', e);
+      return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500, headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
   }
 
@@ -1881,7 +1932,7 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
   const heartRules = await fetchHeartRules(supabaseAdmin);
 
   // ── Step 2: Retrieve Brain Context (multi-query parallel search) ─────────────
-  let brainContext: { content: string }[] = [];
+  let brainContext: { content: string; imageUrl?: string }[] = [];
   if (openaiKey) {
     // Query 1: raw user message; Query 2: last assistant message (for follow-up context)
     const lastAssistant = [...conversationHistory].reverse().find(m => m.role === 'assistant');
@@ -1931,13 +1982,12 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
   const dbModePrompts = await getAgentPrompts(supabaseAdmin, 'osha', {});
   const systemPrompt = buildSystemPrompt(heartRules, brainContext, mode, settings, agentStatuses, agentConfigs, dbModePrompts);
 
-  // ── Step 4: Build messages array — AGENT-006: cap at last 50 messages ───────
+  // ── Step 4: Build messages array — AGENT-006: cap at last MAX_HISTORY_MAIN messages
   // At gpt-4o pricing (~$2.50/1M input), 10,000 uncapped messages would cost
   // ~$1.25 per turn. 50 messages preserves good conversational context while
   // keeping cost under ~$0.06/turn.
-  const MAX_HISTORY = 50;
-  const contextHistory = conversationHistory.length > MAX_HISTORY
-    ? conversationHistory.slice(-MAX_HISTORY)
+  const contextHistory = conversationHistory.length > MAX_HISTORY_MAIN
+    ? conversationHistory.slice(-MAX_HISTORY_MAIN)
     : conversationHistory;
 
   // Build user content — include attachments context if any
@@ -1968,8 +2018,8 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
           pdfExtractedText += `## DOCUMENT: ${pdf.name}\n[No text could be extracted from this PDF.]\n\n---\n\n`;
         }
       } catch (e: any) {
-        console.error(`PDF extraction error for ${pdf.name}:`, e.message);
-        pdfExtractedText += `## DOCUMENT: ${pdf.name}\n[Could not extract text from this document: ${e.message}]\n\n---\n\n`;
+        console.error(`PDF extraction error for ${pdf.name}:`, e);
+        pdfExtractedText += `## DOCUMENT: ${pdf.name}\n[Could not extract text from this document.]\n\n---\n\n`;
       }
     }
   }
@@ -1991,6 +2041,19 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
         type: 'image_url',
         image_url: { url: `data:${mimeType};base64,${img.content}`, detail: 'high' },
       });
+    }
+    userContent = contentArray;
+  }
+
+  // Multimodal RAG: attach retrieved Brain images so the model actually SEES them
+  // (their text description is already in brainContext). Capped + deduped; signed URLs.
+  const brainImageUrls = [...new Set(brainContext.map(c => c.imageUrl).filter(Boolean) as string[])].slice(0, 4);
+  if (brainImageUrls.length > 0) {
+    const contentArray: object[] = Array.isArray(userContent)
+      ? userContent as object[]
+      : [{ type: 'text', text: typeof userContent === 'string' ? userContent : message }];
+    for (const url of brainImageUrls) {
+      contentArray.push({ type: 'image_url', image_url: { url, detail: 'high' } });
     }
     userContent = contentArray;
   }
@@ -2047,9 +2110,13 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
       }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Resolve image provider + model from per-Osha settings (with global fallbacks)
-    const imageProvider = settings.image_provider || 'openai';
-    const imageModel = settings.image_model || (imageProvider === 'gemini' ? 'gemini-2.5-flash-image' : 'gpt-image-1');
+    // Resolve image provider + model — prefer per-Osha setting, else the globally
+    // SELECTED image model from llm_settings, else a safe default.
+    const imageProvider = settings.image_provider || llmSettings?.active_image_provider || 'openai';
+    const imageModel = settings.image_model
+      || (imageProvider === 'gemini'
+        ? (llmSettings?.gemini_image_model || 'gemini-2.5-flash-image')
+        : (llmSettings?.openai_image_model || 'gpt-image-1'));
     const imagePrompt = await buildImagePrompt(
       message,
       brainContext,
@@ -2060,6 +2127,32 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
       depthLimit,
     );
 
+    // Image-to-image source(s) (Fortun-owned): user attachments AND retrieved Brain
+    // images. Multiple sources let the model COMBINE characters from different images.
+    const sourceImages: Uint8Array[] = [];
+    const MAX_SOURCE_BYTES = 5 * 1024 * 1024; // 5MB per source image
+    try {
+      for (const att of imageAttachments) {
+        if (att.content && sourceImages.length < 4) {
+          const bin = atob(att.content);
+          if (bin.length > MAX_SOURCE_BYTES) continue;
+          const u = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+          sourceImages.push(u);
+        }
+      }
+      const brainImgUrls = [...new Set(brainContext.map(c => c.imageUrl).filter(Boolean) as string[])];
+      for (const url of brainImgUrls) {
+        if (sourceImages.length >= 4) break;
+        const r = await fetch(url);
+        if (!r.ok) continue;
+        const buf = await r.arrayBuffer();
+        if (buf.byteLength <= MAX_SOURCE_BYTES) sourceImages.push(new Uint8Array(buf));
+      }
+    } catch {
+      // fall back to text-to-image
+    }
+
     try {
       let imageBlob: Blob;
 
@@ -2067,11 +2160,18 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
         // ── Gemini image generation ──────────────────────────────────────────
         if (!geminiKey) throw new Error('Gemini API key not configured. Please add it in LLM Settings.');
         const geminiImgUrl = `https://generativelanguage.googleapis.com/v1beta/models/${imageModel}:generateContent?key=${geminiKey}`;
+        // Image-to-image: include source image(s) as inline data so Gemini recreates/combines them.
+        const geminiParts: object[] = [{ text: imagePrompt }];
+        for (const src of sourceImages) {
+          let b = '';
+          for (let i = 0; i < src.length; i++) b += String.fromCharCode(src[i]);
+          geminiParts.unshift({ inlineData: { mimeType: 'image/png', data: btoa(b) } });
+        }
         const geminiImgRes = await fetch(geminiImgUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: imagePrompt }] }],
+            contents: [{ role: 'user', parts: geminiParts }],
             generationConfig: { responseModalities: ['image', 'text'] },
           }),
         });
@@ -2087,7 +2187,7 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
       } else {
         // ── OpenAI image generation ──────────────────────────────────────────
         if (!openaiKey) throw new Error('OpenAI API key not configured. Please add it in LLM Settings.');
-        const imageRes = await fetch('https://api.openai.com/v1/images/generations', {
+        const runGeneration = () => fetch('https://api.openai.com/v1/images/generations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
           body: JSON.stringify({
@@ -2099,6 +2199,32 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
             // do not accept this parameter; dall-e-3 defaults to 'url' when omitted.
           }),
         });
+
+        let imageRes: Response;
+        if (sourceImages.length > 0) {
+          // Image-to-image (recreate / combine) via /v1/images/edits — multipart form.
+          // Multiple images go under image[] so gpt-image can merge characters/scenes.
+          const form = new FormData();
+          form.append('model', imageModel);
+          form.append('prompt', imagePrompt);
+          form.append('n', '1');
+          if (settings.image_default_size) form.append('size', settings.image_default_size);
+          sourceImages.forEach((src, i) => {
+            form.append('image[]', new File([src], `source_${i}.png`, { type: 'image/png' }));
+          });
+          imageRes = await fetch('https://api.openai.com/v1/images/edits', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${openaiKey}` }, // FormData sets its own Content-Type
+            body: form,
+          });
+          // Fall back to text-to-image if the edit is rejected (e.g. non-square/oversized source).
+          if (!imageRes.ok) {
+            console.error('Image edit failed, falling back to text-to-image:', await imageRes.text());
+            imageRes = await runGeneration();
+          }
+        } else {
+          imageRes = await runGeneration();
+        }
         if (!imageRes.ok) throw new Error(await imageRes.text());
         const imageData = await imageRes.json();
         const imageResult = imageData.data?.[0];
@@ -2125,8 +2251,8 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
           .upload(imagePath, imageBlob, { contentType: 'image/png', upsert: false });
 
         if (!uploadErr) {
-          // SEC-019: files bucket is private — use signed URL (7-day expiry)
-          const { data: signedData } = await supabaseServiceClient.storage.from('files').createSignedUrl(imagePath, 60 * 60 * 24 * 7);
+          // SEC-019: files bucket is private — use signed URL (24h expiry; tightened from 7d)
+          const { data: signedData } = await supabaseServiceClient.storage.from('files').createSignedUrl(imagePath, 60 * 60 * 24);
           permanentImageUrl = signedData?.signedUrl || '';
 
           // Save to files table for Files Manager
@@ -2180,7 +2306,8 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
       }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
 
     } catch (e: any) {
-      const errMsg = `I encountered an error generating the image: ${e.message}. Please try again or describe what you'd like in text instead.`;
+      console.error('Osha image generation error:', e);
+      const errMsg = 'I encountered an error generating the image. Please try again or describe what you\'d like in text instead.';
       return new Response(JSON.stringify({ content: errMsg, audit: { heartCount: heartRules.length, brainCount: brainContext.length, complianceStatus: 'pass' } }), {
         headers: { ...responseHeaders, 'Content-Type': 'application/json' },
       });
@@ -2266,7 +2393,7 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
             role: m.role === 'assistant' ? 'model' : 'user',
             parts: [{ text: m.content }],
           })),
-          generationConfig: { maxOutputTokens: 4096 },
+          generationConfig: { maxOutputTokens: TOKEN_BUDGETS.CONTENT_GENERATION },
         }),
       });
 
@@ -2274,22 +2401,32 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
       const geminiData = await geminiRes.json();
       responseContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated.';
     } else {
-      const openaiMessages: object[] = [
-        { role: 'system', content: systemPrompt },
-        ...contextHistory.map(m => ({ role: m.role, content: m.content })),
-        { role: 'user', content: userContent },
-      ];
-
-      const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+      const callOpenAIChat = (uc: string | object[]) => fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
         body: JSON.stringify({
           model: llmModel,
-          messages: openaiMessages,
-          max_tokens: 4096,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...contextHistory.map(m => ({ role: m.role, content: m.content })),
+            { role: 'user', content: uc },
+          ],
+          max_tokens: TOKEN_BUDGETS.CONTENT_GENERATION,
           temperature: 0.7,
         }),
       });
+
+      let openaiRes = await callOpenAIChat(userContent);
+
+      // Multimodal fail-safe: if the image-laden call fails (model/image fetch/size
+      // quirk), retry once text-only so we degrade to the image's description
+      // instead of crashing the whole turn.
+      if (!openaiRes.ok && Array.isArray(userContent)) {
+        const errText = await openaiRes.text();
+        console.error('OpenAI vision call failed, retrying text-only:', errText);
+        const textOnly = (userContent.find((p: any) => p?.type === 'text') as any)?.text || message;
+        openaiRes = await callOpenAIChat(textOnly);
+      }
 
       if (!openaiRes.ok) throw new Error(await openaiRes.text());
       const openaiData = await openaiRes.json();
@@ -2305,7 +2442,7 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
 
   } catch (e: any) {
     console.error('Chat completion error:', e);
-    responseContent = `I encountered an error processing your request. Please try again. (${e.message})`;
+    responseContent = 'I encountered an error processing your request. Please try again.';
     complianceStatus = 'adjusted';
   }
 

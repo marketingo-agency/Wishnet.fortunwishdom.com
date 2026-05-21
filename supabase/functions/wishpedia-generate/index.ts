@@ -315,7 +315,7 @@ Deno.serve(async (req) => {
       return json(result);
     } catch (e: any) {
       console.error('Wishpedia generate error:', e);
-      return json({ error: e.message || 'Generation failed' }, 500);
+      return json({ error: 'Generation failed' }, 500);
     }
   }
 
@@ -339,7 +339,7 @@ Deno.serve(async (req) => {
         return { angle: batchAngles[i], mediaUrl: r.value.mediaUrl, media: r.value.media };
       } else {
         console.error(`Batch generate error for ${batchAngles[i]}:`, r.reason);
-        return { angle: batchAngles[i], error: r.reason?.message || 'Generation failed' };
+        return { angle: batchAngles[i], error: 'Generation failed' };
       }
     });
 

@@ -33,7 +33,7 @@ export function useConsoleMessages() {
         id: msg.id,
         role: msg.role as 'user' | 'assistant',
         content: msg.content,
-        timestamp: new Date(msg.created_at),
+        timestamp: new Date(msg.created_at || new Date().toISOString()),
         isImage: msg.is_image || false,
         imageUrl: msg.image_url || undefined,
         provider: msg.provider || undefined,

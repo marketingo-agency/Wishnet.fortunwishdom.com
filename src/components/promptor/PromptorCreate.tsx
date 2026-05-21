@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -117,6 +117,10 @@ export function PromptorCreate({ settings, session, onUpdate, onOutputChange }: 
   const { toast } = useToast();
   const runPromptor = useRunPromptor();
 
+  // UI-029: mounted guard prevents setState after unmount
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
   const { outputType, blueprint, brief, output } = session;
 
   const handleOutputTypeChange = (val: OutputType) => {
@@ -145,6 +149,7 @@ export function PromptorCreate({ settings, session, onUpdate, onOutputChange }: 
       });
       clearTimeout(heartTimer);
       clearTimeout(brainTimer);
+      if (!mountedRef.current) return;
       onUpdate({ output: result });
       onOutputChange?.(result);
       setStep('done');
@@ -152,6 +157,7 @@ export function PromptorCreate({ settings, session, onUpdate, onOutputChange }: 
     } catch (err: any) {
       clearTimeout(heartTimer);
       clearTimeout(brainTimer);
+      if (!mountedRef.current) return;
       setStep('idle');
       toast({ title: 'Error', description: err.message || 'Generation failed', variant: 'destructive' });
     }

@@ -115,35 +115,19 @@ Deno.serve(async (req) => {
     // Convert to string format for the RPC call
     const embeddingString = `[${queryEmbedding.join(',')}]`;
     
-    // RAG-004: hybrid search — combine vector similarity + BM25 full-text
+    // RAG-004: hybrid search — match_knowledge now combines vector + BM25 + source weighting
     const { data: results, error: searchError } = await supabaseAdmin
-      .rpc('match_knowledge_hybrid', {
+      .rpc('match_knowledge', {
         query_embedding: embeddingString,
         query_text: query,
         match_threshold: threshold,
         match_count: limit,
         filter_source_types: source_types || null,
         filter_agent_id: agent_id || null,
-        vector_weight: 0.7,
-        text_weight: 0.3,
       });
 
-    if (searchError) {
-      // Fallback to original vector-only search if hybrid fails
-      console.warn('Hybrid search failed, falling back to vector-only:', searchError.message);
-      const { data: fallbackResults, error: fallbackError } = await supabaseAdmin
-        .rpc('match_knowledge', {
-          query_embedding: embeddingString,
-          match_threshold: threshold,
-          match_count: limit,
-          filter_source_types: source_types || null,
-          filter_agent_id: agent_id || null,
-        });
-      if (fallbackError) throw new Error(`Search failed: ${fallbackError.message}`);
-      var searchResults: SearchResult[] = fallbackResults || [];
-    } else {
-      var searchResults: SearchResult[] = results || [];
-    }
+    if (searchError) throw new Error('Internal error');
+    const searchResults: SearchResult[] = results || [];
     console.log(`Found ${searchResults.length} matching chunks (hybrid)`);
     
     // RAG-008: batch enrichment queries by source_type instead of N+1 per result
@@ -244,12 +228,10 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Error searching knowledge:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      JSON.stringify({ error: 'Internal error' }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }

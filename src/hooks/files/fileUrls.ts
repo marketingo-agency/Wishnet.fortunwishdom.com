@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import * as Sentry from '@sentry/nextjs';
 
 /**
  * @deprecated SEC-019: The files bucket is now private. Public URLs will return 403.
@@ -27,7 +28,7 @@ export async function getSignedFileUrl(
     .from('files')
     .createSignedUrl(storagePath, expiresInSeconds);
   if (error) {
-    console.error('Failed to create signed URL:', error);
+    Sentry.captureException(error instanceof Error ? error : new Error('Failed to create signed URL'), { extra: { context: 'Failed to create signed URL', storagePath } });
     return null;
   }
   return data.signedUrl;

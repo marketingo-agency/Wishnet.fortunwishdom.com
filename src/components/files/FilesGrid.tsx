@@ -80,7 +80,7 @@ export function FilesGrid({ files, selectedFileId, onFileSelect, isLoading, curr
             file={file}
             isSelected={selectedFileId === file.id}
             onClick={() => onFileSelect(file)}
-            isBrainDocument={isBrainDoc}
+            isBrainDocument={isBrainDoc || undefined}
             onRestore={currentView === 'trash' ? handleRestore : undefined}
             onDeletePermanently={currentView === 'trash' ? handleDeletePermanently : undefined}
             onDelete={currentView !== 'trash' && !isBrainDoc ? handleDelete : undefined}

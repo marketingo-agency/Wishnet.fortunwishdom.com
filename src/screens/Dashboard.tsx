@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -230,7 +230,7 @@ export default function Dashboard() {
   
 
   return (
-    <div className="flex-1 h-full p-4 md:p-6 overflow-auto">
+    <div className="h-full overflow-y-auto -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* ── Welcome Header ── */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 wp-animate-in">
@@ -377,11 +377,11 @@ export default function Dashboard() {
                   <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{inProgressRelease.description}</p>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {inProgressRelease.features.slice(0, 3).map((f) => (
+                  {inProgressRelease.features?.slice(0, 3).map((f) => (
                     <Badge key={f} variant="secondary" className="text-[10px]">{f}</Badge>
                   ))}
-                  {inProgressRelease.features.length > 3 && (
-                    <Badge variant="secondary" className="text-[10px]">+{inProgressRelease.features.length - 3}</Badge>
+                  {(inProgressRelease.features?.length ?? 0) > 3 && (
+                    <Badge variant="secondary" className="text-[10px]">+{(inProgressRelease.features?.length ?? 0) - 3}</Badge>
                   )}
                 </div>
               </CardContent>

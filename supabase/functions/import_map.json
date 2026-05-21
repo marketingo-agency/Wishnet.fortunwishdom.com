@@ -1,0 +1,7 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.91.0",
+    "zod": "https://esm.sh/zod@3.23.8",
+    "fflate": "https://esm.sh/fflate@0.8.2"
+  }
+}

@@ -14,39 +14,6 @@ export interface ModelOption {
   description: string;
 }
 
-interface ModelSelectorProps {
-  label: string;
-  value: string;
-  models: ModelOption[];
-  onValueChange: (model: string) => void;
-  placeholder?: string;
-}
-
-function ModelSelector({ label, value, models, onValueChange, placeholder }: ModelSelectorProps) {
-  return (
-    <div className="space-y-2">
-      <Label className="text-sm font-medium">{label}</Label>
-      <div className="flex gap-2">
-        <Select value={value} onValueChange={onValueChange}>
-          <SelectTrigger className="flex-1">
-            <SelectValue placeholder={placeholder ?? 'Select a model'} />
-          </SelectTrigger>
-          <SelectContent>
-            {models.map((model) => (
-              <SelectItem key={model.value} value={model.value} className="py-2.5">
-                <div className="flex flex-col items-start gap-0.5">
-                  <span className="font-medium">{model.label}</span>
-                  <span className="text-xs text-muted-foreground leading-tight">{model.description}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
-  );
-}
-
 interface TestButtonState {
   testingModel: string | null;
   hoveringModel: string | null;

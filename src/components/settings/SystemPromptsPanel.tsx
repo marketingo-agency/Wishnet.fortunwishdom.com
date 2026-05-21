@@ -22,7 +22,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Bot, Save, History, Plus, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Bot, Save, History, Plus, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   useSystemPrompts,

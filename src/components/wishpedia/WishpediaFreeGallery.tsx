@@ -14,6 +14,7 @@ import { getWishpediaImageUrl } from '@/hooks/useWishpediaImages';
 import { SelectFromFilesDialog } from './SelectFromFilesDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import * as Sentry from '@sentry/nextjs';
 
 interface Props {
   images: WishpediaEntryImage[];
@@ -49,7 +50,7 @@ export function WishpediaFreeGallery({ images, onUpload, onDelete, onSetPrimary,
       const file = new File([blob], selected.name, { type: selected.mime_type });
       onUpload(file);
     } catch (err) {
-      console.error('Failed to fetch file from Files Manager:', err);
+      Sentry.captureException(err instanceof Error ? err : new Error('Failed to fetch file from Files Manager'), { extra: { context: 'Failed to fetch file from Files Manager' } });
     }
   };
 

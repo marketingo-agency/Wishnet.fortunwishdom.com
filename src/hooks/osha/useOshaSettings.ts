@@ -16,11 +16,16 @@ export function useOshaSettings() {
       let headers: Record<string, string>;
       try { headers = await getAuthHeaders(); } catch { return DEFAULT_OSHA_SETTINGS; }
 
-      const res = await fetch(OSHA_URL, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ action: 'get-settings' }),
-      });
+      let res: Response;
+      try {
+        res = await fetch(OSHA_URL, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ action: 'get-settings' }),
+        });
+      } catch {
+        return DEFAULT_OSHA_SETTINGS; // network/extension failure — degrade, don't crash
+      }
       if (!res.ok) return DEFAULT_OSHA_SETTINGS;
       const data = await res.json();
       return data.settings ? { ...DEFAULT_OSHA_SETTINGS, ...data.settings } : DEFAULT_OSHA_SETTINGS;

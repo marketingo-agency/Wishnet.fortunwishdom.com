@@ -8,3 +8,4 @@ export { WishpediaAngleGrid } from './WishpediaAngleGrid';
 export { WishpediaFreeGallery } from './WishpediaFreeGallery';
 export { WishpediaCharacterView } from './WishpediaCharacterView';
 export { SelectFromFilesDialog } from './SelectFromFilesDialog';
+export { WishpediaLightbox } from './WishpediaLightbox';

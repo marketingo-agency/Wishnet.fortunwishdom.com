@@ -1,4 +1,3 @@
-import React from 'react';
 import { LucideIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';

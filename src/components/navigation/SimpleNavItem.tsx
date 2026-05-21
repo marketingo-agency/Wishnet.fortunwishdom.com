@@ -3,7 +3,6 @@
  * Reusable simple navigation item for the sidebar
  */
 
-import React from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';

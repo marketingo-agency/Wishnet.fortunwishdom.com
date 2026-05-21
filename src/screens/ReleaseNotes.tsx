@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+"use client";
+import { useState, useMemo } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ReleaseNotesHeader, ViewMode } from '@/components/release-notes/ReleaseNotesHeader';
 import { ReleaseNotesFilters, FilterCategory } from '@/components/release-notes/ReleaseNotesFilters';

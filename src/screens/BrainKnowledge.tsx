@@ -29,12 +29,11 @@ import { AI_AGENTS } from '@/data/agents';
 
 export default function BrainKnowledge() {
   const router = useRouter();
-  const { data: sections, isLoading: sectionsLoading, error: sectionsError, refetch: refetchSections } = useBrainSections();
+  const { isLoading: sectionsLoading, error: sectionsError, refetch: refetchSections } = useBrainSections();
   const { data: totalDocs } = useTotalDocumentCount();
   const { data: brainCategories } = useBrainCategories();
 
   // Get the count of agent sections that have documents
-  const agentSections = sections?.filter(s => s.type === 'agent') || [];
   const categoryCount = brainCategories?.length ?? 0;
 
   return (
@@ -76,7 +75,7 @@ export default function BrainKnowledge() {
             </Badge>
             <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 shrink-0 text-xs sm:text-sm">
               <Bot className="w-3 h-3 mr-1" />
-              {AI_AGENTS.length} agents
+              {AI_AGENTS.length} active agents
             </Badge>
             <TooltipProvider>
               <Tooltip>
@@ -157,7 +156,7 @@ export default function BrainKnowledge() {
               <div className="flex items-center gap-2 mb-3 sm:mb-4">
                 <h2 className="text-base sm:text-lg font-semibold text-foreground">Agent-Specific Knowledge</h2>
                 <Badge variant="outline" className="text-xs">
-                  {AI_AGENTS.length} agents
+                  {AI_AGENTS.length} active agents
                 </Badge>
               </div>
               <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">

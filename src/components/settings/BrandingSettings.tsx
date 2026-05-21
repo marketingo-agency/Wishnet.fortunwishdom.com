@@ -15,7 +15,7 @@ import {
   // Business & Work
   Home, Building2, Briefcase, Store, Wallet, CreditCard, PiggyBank, Coins, ShoppingCart, ShoppingBag,
   // Tech & Digital
-  Code, Terminal, Database, Server, Laptop, Smartphone, Wifi, Bot, Brain, Cpu, Monitor, Mouse, Keyboard,
+  Code, Terminal, Database, Server, Laptop, Smartphone, Wifi, Bot, Brain, Cpu, Monitor,
   // Nature & Weather
   Sun, Moon, Cloud, Flame, Leaf, TreeDeciduous, Flower2, Mountain, Waves, Snowflake, Droplets, Wind,
   // Objects & Tools

@@ -176,8 +176,6 @@ export function FilesManagerSettings() {
   const usedBytes = storageStats?.used ?? 0;
   const totalBytes = (storageQuota || 5) * 1024 * 1024 * 1024;
   const usagePercent = (usedBytes / totalBytes) * 100;
-  const isNearLimit = usagePercent > 80;
-
   return (
     <div className="space-y-6">
 

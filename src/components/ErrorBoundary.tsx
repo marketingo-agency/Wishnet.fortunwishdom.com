@@ -1,9 +1,12 @@
+"use client";
+
 /**
  * ErrorBoundary Component
  * Catches JavaScript errors in child components and displays a fallback UI
  */
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, ErrorInfo, ReactNode } from 'react';
+import * as Sentry from '@sentry/nextjs';
 import { AlertTriangle, RefreshCcw, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,7 +34,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    Sentry.captureException(error, { extra: { componentStack: errorInfo?.componentStack } });
     this.setState({ errorInfo });
   }
 
@@ -40,7 +43,7 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   private handleGoHome = () => {
-    window.location.href = '/dashboard';
+    window.location.replace('/dashboard');
   };
 
   public render() {

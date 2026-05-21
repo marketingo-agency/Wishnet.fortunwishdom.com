@@ -1,4 +1,3 @@
-import React from 'react';
 import { ReleaseUpdate, FeedbackState } from './types';
 import { UpdateCard } from './UpdateCard';
 

@@ -8,10 +8,8 @@
     ],
     "allowJs": true,
     "skipLibCheck": true,
-    "strict": false,
-    "strictNullChecks": false,
-    "noImplicitAny": false,
-    "noUnusedLocals": false,
+    "strict": true,
+    "noUnusedLocals": true,
     "noUnusedParameters": false,
     "noEmit": true,
     "esModuleInterop": true,
@@ -43,8 +41,6 @@
   ],
   "exclude": [
     "node_modules",
-    "supabase/functions/**",
-    "src/main.tsx",
-    "src/App.tsx"
+    "supabase/functions/**"
   ]
 }

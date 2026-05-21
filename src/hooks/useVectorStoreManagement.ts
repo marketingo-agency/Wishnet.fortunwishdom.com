@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { processEmbedding } from './useKnowledgeEmbeddings';
 import { toast } from 'sonner';
+import * as Sentry from '@sentry/nextjs';
 
 export interface IndexedItem {
   source_id: string;
@@ -94,8 +95,8 @@ export function useIndexedItems() {
         if (existing) {
           existing.chunk_count++;
           // Keep the latest indexed_at
-          if (new Date(row.created_at) > new Date(existing.indexed_at)) {
-            existing.indexed_at = row.created_at;
+          if (new Date(row.created_at || new Date().toISOString()) > new Date(existing.indexed_at)) {
+            existing.indexed_at = row.created_at ?? '';
           }
         } else {
           // Determine agent association
@@ -137,7 +138,7 @@ export function useIndexedItems() {
             chunk_count: 1,
             source_name: sourceName,
             source_category: (metadata?.category_name as string) || (metadata?.category as string) || 'Uncategorized',
-            indexed_at: row.created_at,
+            indexed_at: row.created_at ?? '',
             agent_id: agentId,
             restricted_agents: restrictedAgents,
             is_global: isGlobal,
@@ -227,7 +228,7 @@ export function useDeleteFromVectorStore() {
       toast.success('Removed from vector store');
     },
     onError: (error) => {
-      console.error('Failed to delete from vector store:', error);
+      Sentry.captureException(error instanceof Error ? error : new Error('Failed to delete from vector store'), { extra: { context: 'Failed to delete from vector store' } });
       toast.error('Failed to remove from vector store');
     },
   });
@@ -280,7 +281,7 @@ export function useReindexItem() {
       toast.success(`Reindexed: ${data.chunks || 0} chunks created`);
     },
     onError: (error) => {
-      console.error('Failed to reindex:', error);
+      Sentry.captureException(error instanceof Error ? error : new Error('Failed to reindex'), { extra: { context: 'Failed to reindex' } });
       toast.error('Failed to reindex item');
     },
   });
@@ -307,7 +308,7 @@ export function useBulkDeleteFromVectorStore() {
       toast.success(`Removed ${data.count} items from vector store`);
     },
     onError: (error) => {
-      console.error('Failed to bulk delete:', error);
+      Sentry.captureException(error instanceof Error ? error : new Error('Failed to bulk delete'), { extra: { context: 'Failed to bulk delete' } });
       toast.error('Failed to remove items from vector store');
     },
   });

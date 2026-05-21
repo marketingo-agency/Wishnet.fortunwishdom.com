@@ -29,6 +29,7 @@ import { useFileSettings } from '@/hooks/useFileSettings';
 import { useAuth } from '@/contexts/AuthContext';
 import { AI_AGENTS } from '@/data/agents';
 import { toast } from 'sonner';
+import * as Sentry from '@sentry/nextjs';
 
 interface UploadDocumentDialogProps {
   open: boolean;
@@ -187,7 +188,7 @@ export function UploadDocumentDialog({
           description: `Brain document: ${brainDoc.description || name || file.name}`,
         });
       } catch (error) {
-        console.error('Failed to create linked file in Files Manager:', error);
+        Sentry.captureException(error instanceof Error ? error : new Error('Failed to create linked file in Files Manager'), { extra: { context: 'Failed to create linked file in Files Manager' } });
       }
 
       if (progressIntervalRef.current) {

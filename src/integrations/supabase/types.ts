@@ -1508,7 +1508,7 @@ export type Database = {
         Row: {
           ai_agents: Database["public"]["Enums"]["permission_level"] | null
           ai_can_access_atlas: boolean | null
-          ai_can_access_echo: boolean | null
+          ai_can_access_whisper: boolean | null
           ai_can_access_muse: boolean | null
           ai_can_access_nexus: boolean | null
           ai_can_access_osha: boolean | null
@@ -1552,7 +1552,7 @@ export type Database = {
         Insert: {
           ai_agents?: Database["public"]["Enums"]["permission_level"] | null
           ai_can_access_atlas?: boolean | null
-          ai_can_access_echo?: boolean | null
+          ai_can_access_whisper?: boolean | null
           ai_can_access_muse?: boolean | null
           ai_can_access_nexus?: boolean | null
           ai_can_access_osha?: boolean | null
@@ -1596,7 +1596,7 @@ export type Database = {
         Update: {
           ai_agents?: Database["public"]["Enums"]["permission_level"] | null
           ai_can_access_atlas?: boolean | null
-          ai_can_access_echo?: boolean | null
+          ai_can_access_whisper?: boolean | null
           ai_can_access_muse?: boolean | null
           ai_can_access_nexus?: boolean | null
           ai_can_access_osha?: boolean | null

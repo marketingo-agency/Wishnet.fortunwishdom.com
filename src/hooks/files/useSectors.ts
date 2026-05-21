@@ -49,7 +49,7 @@ export function useCreateSector() {
         .single();
 
       if (error) throw error;
-      return data;
+      return data as Sector;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sectors'] });

@@ -111,6 +111,7 @@ export function FileCard({
                   isPinned ? 'bg-amber-500 hover:bg-amber-600' : 'bg-muted/500 hover:bg-muted-foreground'
                 )}
                 title={isPinned ? 'Unpin file' : 'Pin file'}
+                aria-label={isPinned ? 'Unpin file' : 'Pin file'}
               >
                 <Pin className="h-3.5 w-3.5" />
               </button>
@@ -124,6 +125,7 @@ export function FileCard({
                 }}
                 className="h-8 w-8 sm:h-6 sm:w-6 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 shadow-sm"
                 title="Delete file"
+                aria-label="Delete file"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -142,6 +144,7 @@ export function FileCard({
                 }}
                 className="h-8 w-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 rounded-full bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 shadow-md transition-colors"
                 title="Restore file"
+                aria-label="Restore file"
               >
                 <RotateCcw className="h-4 w-4" />
               </button>
@@ -154,6 +157,7 @@ export function FileCard({
                 }}
                 className="h-8 w-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 shadow-md transition-colors"
                 title="Delete permanently"
+                aria-label="Delete permanently"
               >
                 <Trash2 className="h-4 w-4" />
               </button>

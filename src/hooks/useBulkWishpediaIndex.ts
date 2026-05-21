@@ -5,11 +5,12 @@
  * Sequential processing to avoid OpenAI rate limits.
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { processEmbedding } from '@/hooks/useKnowledgeEmbeddings';
 import { toast } from 'sonner';
+import * as Sentry from '@sentry/nextjs';
 
 interface BulkIndexState {
   isRunning: boolean;
@@ -47,7 +48,15 @@ export function useBulkWishpediaIndex() {
     total: 0,
     currentName: '',
   });
-  const cancelRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Cleanup AbortController on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+    };
+  }, []);
 
   const fetchUnindexedEntries = useCallback(async () => {
     const { data: entries, error: entriesErr } = await supabase
@@ -68,7 +77,12 @@ export function useBulkWishpediaIndex() {
   }, []);
 
   const start = useCallback(async () => {
-    cancelRef.current = false;
+    // Abort any previous run and create a fresh controller
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const { signal } = controller;
+
     try {
       const unindexed = await fetchUnindexedEntries();
       if (unindexed.length === 0) {
@@ -80,7 +94,7 @@ export function useBulkWishpediaIndex() {
 
       let successCount = 0;
       for (let i = 0; i < unindexed.length; i++) {
-        if (cancelRef.current) break;
+        if (signal.aborted) break;
         const entry = unindexed[i];
         setState((s) => ({ ...s, progress: i + 1, currentName: entry.name }));
 
@@ -90,7 +104,7 @@ export function useBulkWishpediaIndex() {
           source_id: entry.id,
         });
         if (result.success) successCount++;
-        if (i < unindexed.length - 1) {
+        if (i < unindexed.length - 1 && !signal.aborted) {
           await new Promise((r) => setTimeout(r, 800));
         }
       }
@@ -100,20 +114,24 @@ export function useBulkWishpediaIndex() {
       queryClient.invalidateQueries({ queryKey: ['entry-index-status'] });
       queryClient.invalidateQueries({ queryKey: ['wishpedia-unindexed-count'] });
 
-      if (cancelRef.current) {
+      if (signal.aborted) {
         toast.info(`Indexing cancelled. ${successCount} entries indexed.`);
       } else {
         toast.success(`${successCount} Wishpedia entries indexed successfully`);
       }
     } catch (err) {
-      console.error('Bulk index error:', err);
+      Sentry.captureException(err instanceof Error ? err : new Error('Bulk index error'), { extra: { context: 'Bulk index error' } });
       toast.error('Bulk indexing failed');
       setState((s) => ({ ...s, isRunning: false }));
+    } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
     }
   }, [fetchUnindexedEntries, queryClient]);
 
   const cancel = useCallback(() => {
-    cancelRef.current = true;
+    abortControllerRef.current?.abort();
   }, []);
 
   return { ...state, start, cancel };

@@ -10,7 +10,6 @@ import {
   Clock, 
   CheckCircle2,
   TrendingUp,
-  Zap,
   BookOpen,
   Scale,
   ArrowRight,
@@ -69,7 +68,7 @@ export default function MasterMind() {
               size="sm"
             >
               <Heart className="w-4 h-4 text-rose-500" />
-              <span className="hidden sm:inline">Create Rule</span>
+              <span className="hidden sm:inline">Heart Rules</span>
               <span className="sm:hidden">Rule</span>
             </Button>
             <Button 
@@ -78,7 +77,7 @@ export default function MasterMind() {
               size="sm"
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Add Knowledge</span>
+              <span className="hidden sm:inline">Brain Knowledge</span>
               <span className="sm:hidden">Add</span>
             </Button>
             <TooltipProvider>
@@ -150,7 +149,7 @@ export default function MasterMind() {
                 <CardContent className="p-3 sm:p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs sm:text-sm text-muted-foreground mb-1">AI Agents</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground mb-1">Active AI Agents</p>
                       <p className="text-xl sm:text-2xl font-semibold text-foreground">{stats.agentsCovered}</p>
                     </div>
                     <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-purple-100 flex items-center justify-center">

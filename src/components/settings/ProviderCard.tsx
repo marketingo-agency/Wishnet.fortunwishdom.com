@@ -1,22 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
-  CheckCircle2, XCircle, X, PlayCircle, AlertCircle,
+  XCircle, X, PlayCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAIChat } from '@/hooks/useLLMSettings';
 import { useToast } from '@/hooks/use-toast';
 import { TestAllPanel, type TestAllStep } from './TestAllPanel';
 import { ProviderModelSelectors, type ModelOption } from './ProviderModelSelectors';
+import { ApiKeyEditor } from './ApiKeyEditor';
+import type { KeySource } from '@/hooks/useProviderKeyStatus';
 
 interface ProviderCardProps {
-  provider: 'openai' | 'gemini';
+  provider: 'openai' | 'gemini' | 'fal';
   title: string;
   icon: React.ReactNode;
   isConnected: boolean;
+  keySource: KeySource;
+  isAdmin: boolean;
   textModel: string;
   imageModel: string;
   textModels: ModelOption[];
@@ -47,6 +50,8 @@ export function ProviderCard({
   title,
   icon,
   isConnected,
+  keySource,
+  isAdmin,
   textModel,
   imageModel,
   textModels,
@@ -228,26 +233,8 @@ export function ProviderCard({
       <CardContent className="space-y-4">
         <TestAllPanel steps={testAllSteps} isTestingAll={isTestingAll} />
 
-        {/* API Key Status */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">API Key</Label>
-          <div className="flex items-center gap-2">
-            {isConnected ? (
-              <Badge variant="outline" className="text-emerald-500 border-emerald-500/30">
-                <CheckCircle2 className="h-3 w-3 mr-1" />Configured via environment secret
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="text-amber-500 border-amber-500/30">
-                <AlertCircle className="h-3 w-3 mr-1" />Not configured
-              </Badge>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {isConnected
-              ? `${provider === 'openai' ? 'OPENAI_API_KEY' : 'GEMINI_API_KEY'} is set in Supabase Edge Function secrets.`
-              : `Add ${provider === 'openai' ? 'OPENAI_API_KEY' : 'GEMINI_API_KEY'} to Supabase Edge Function secrets in the dashboard.`}
-          </p>
-        </div>
+        {/* API Key — admin-only editor (falls back to read-only when non-admin) */}
+        <ApiKeyEditor provider={provider} keySource={keySource} isAdmin={isAdmin} />
 
         <ProviderModelSelectors
           textModel={textModel}

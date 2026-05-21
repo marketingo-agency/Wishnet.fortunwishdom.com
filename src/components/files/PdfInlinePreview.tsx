@@ -5,6 +5,7 @@ import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { Download, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import * as Sentry from '@sentry/nextjs';
 
 // Worker is served as a static asset from /public so this works in Next.js
 // without bundler-specific import syntax. Browser-only init guard prevents
@@ -65,10 +66,13 @@ export function PdfInlinePreview({ pdfData, fileName, onDownload }: PdfInlinePre
         const errorName = error?.name || 'Unknown';
         const errorMessage = error?.message || String(err);
         
-        console.error('[PDF.js] Error loading PDF:', {
-          name: errorName,
-          message: errorMessage,
-          stack: error?.stack?.slice(0, 500),
+        Sentry.captureException(err instanceof Error ? err : new Error(`[PDF.js] Error loading PDF: ${errorMessage}`), {
+          extra: {
+            context: 'PDF.js error loading PDF',
+            errorName,
+            errorMessage,
+            stack: error?.stack?.slice(0, 500),
+          },
         });
         
         // Provide specific error messages based on error type
@@ -121,7 +125,7 @@ export function PdfInlinePreview({ pdfData, fileName, onDownload }: PdfInlinePre
         p.pageNum === pageNum ? { ...p, rendered: true } : p
       ));
     } catch (err) {
-      console.error(`[PDF.js] Error rendering page ${pageNum}:`, err);
+      Sentry.captureException(err instanceof Error ? err : new Error(`[PDF.js] Error rendering page ${pageNum}`), { extra: { context: 'PDF.js error rendering page', pageNum } });
     } finally {
       renderingRef.current.delete(pageNum);
     }

@@ -8,6 +8,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 import { sanitizeForPrompt } from '../_shared/sanitize.ts';
+import { TOKEN_BUDGETS } from '../_shared/token-budgets.ts';
 
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
@@ -404,8 +405,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── create / optimize ─────────────────────────────────────────────────────
-    if (action !== 'create' && action !== 'optimize') {
+    // ── create / optimize / optimize-draft ───────────────────────────────────
+    if (action !== 'create' && action !== 'optimize' && action !== 'optimize-draft') {
       return new Response(JSON.stringify({ error: 'Invalid action' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -530,7 +531,20 @@ Deno.serve(async (req) => {
       ? `\nSTYLE DEFAULTS:\n${styleDefaults.join('\n')}\n`
       : '';
 
-    const userMessage = action === 'optimize'
+    // Tight user message for in-place chat-draft rewrites (Osha/Pixel wand button).
+    // Skips blueprint variants and produces only a rewritten draft in final_prompt_full.
+    const optimizeDraftMessage = `The user has typed a draft chat prompt and wants it rewritten for clarity, specificity, and brand alignment with the Heart rules and Brain context above.
+
+Return a JSON object where "final_prompt_full" contains ONLY the rewritten draft as a single string. All other JSON fields may be empty strings, empty arrays, or short placeholders — they will be ignored. Do not wrap the rewrite in quotes or code fences.
+
+DRAFT TO REWRITE:
+${raw_request}
+
+Respond ONLY with the JSON object.`;
+
+    const userMessage = action === 'optimize-draft'
+      ? optimizeDraftMessage
+      : action === 'optimize'
       ? `Optimize this existing prompt for the output type "${output_type}" (blueprint: "${blueprintKey}"):
 
 EXISTING PROMPT:
@@ -549,6 +563,11 @@ Generate ${numVariants} variant(s). ${includeShort ? 'Include a short version.' 
 
 Respond ONLY with the JSON object.`;
 
+    // optimize-draft runs on a tight budget for fast in-chat rewrites.
+    const maxTokens = action === 'optimize-draft'
+      ? TOKEN_BUDGETS.PROMPT_OPTIMIZE
+      : TOKEN_BUDGETS.CONTENT_GENERATION;
+
     // ── LLM Call ──────────────────────────────────────────────────────────────
     let llmResponse: Record<string, unknown>;
 
@@ -559,7 +578,7 @@ Respond ONLY with the JSON object.`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n${userMessage}` }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
+          generationConfig: { temperature: 0.7, maxOutputTokens: maxTokens },
         }),
       });
       const geminiData = await geminiRes.json();
@@ -581,7 +600,7 @@ Respond ONLY with the JSON object.`;
             { role: 'user', content: userMessage },
           ],
           temperature: 0.7,
-          max_tokens: 4096,
+          max_tokens: maxTokens,
           response_format: { type: 'json_object' },
         }),
       });
@@ -666,7 +685,7 @@ Respond ONLY with the JSON object.`;
   } catch (error) {
     console.error('Promptor error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: 'Internal error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }

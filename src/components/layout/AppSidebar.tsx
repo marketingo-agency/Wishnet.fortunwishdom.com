@@ -1,4 +1,3 @@
-import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { FortunLogo } from '@/components/brand/FortunLogo';
 import {
@@ -28,7 +27,7 @@ export function AppSidebar() {
   const { state, toggleSidebar } = useSidebar();
   const collapsed = state === 'collapsed';
   const isMobile = useIsMobile();
-  const { permissions, isLoading } = useCurrentUserPermissions();
+  const { permissions } = useCurrentUserPermissions();
 
   // Helper to check if user has access to a tool
   const hasToolAccess = (tool: ToolKey) => {

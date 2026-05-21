@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Palette, Lock, SlidersHorizontal, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -17,10 +17,31 @@ import { PixelSettings } from '@/components/pixel/PixelSettings';
 import { usePixelSettings, usePixelMessages, DEFAULT_PIXEL_SETTINGS, type PixelBlueprint } from '@/hooks/usePixel';
 import { useAgentSettings } from '@/hooks/useAgentSettings';
 import type { PendingAttachment } from '@/types/attachments';
+import type { WishpediaImageRef } from '@/components/pixel/WishReferencePanel';
 import { toast } from 'sonner';
+
+type PixelTheme = 'light' | 'dark';
 
 export default function PixelAgent() {
   const router = useRouter();
+  const [pixelTheme, setPixelTheme] = useState<PixelTheme>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('pixel-theme') as PixelTheme | null) ?? 'dark';
+    }
+    return 'dark';
+  });
+  const togglePixelTheme = useCallback(() => {
+    setPixelTheme(prev => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('pixel-theme', next);
+      return next;
+    });
+  }, []);
+  // Sync to localStorage on mount (SSR safety)
+  useEffect(() => {
+    localStorage.setItem('pixel-theme', pixelTheme);
+  }, [pixelTheme]);
+
   const [mode, setMode] = useState<PixelMode>('facebook');
   const [activeBlueprint, setActiveBlueprint] = useState<PixelBlueprint | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -33,6 +54,7 @@ export default function PixelAgent() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mobileControlOpen, setMobileControlOpen] = useState(false);
   const [mobileContextOpen, setMobileContextOpen] = useState(false);
+  const [wishpediaImageRefs, setWishpediaImageRefs] = useState<WishpediaImageRef[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const globalRefInputRef = useRef<HTMLInputElement>(null);
   const toggleFullscreen = useCallback(() => setIsFullscreen(f => !f), []);
@@ -89,16 +111,37 @@ export default function PixelAgent() {
     setGlobalReferences(prev => prev.filter(a => a.id !== id));
   }, []);
 
+  const handleAddWishpediaImages = useCallback((refs: WishpediaImageRef[]) => {
+    setWishpediaImageRefs(prev => {
+      // Replace images for the same entry, add new ones
+      const otherEntries = prev.filter(r => !refs.some(nr => nr.entryId === r.entryId));
+      return [...otherEntries, ...refs];
+    });
+  }, []);
+
+  const handleRemoveWishpediaImage = useCallback((imageOrEntryId: string) => {
+    setWishpediaImageRefs(prev =>
+      prev.filter(r => r.wishpediaImageId !== imageOrEntryId && r.entryId !== imageOrEntryId)
+    );
+  }, []);
+
+  const handleDropFiles = useCallback((files: FileList) => {
+    handleGlobalRefSelect(files);
+  }, [handleGlobalRefSelect]);
+
   const starterPromptRef = useRef<string>('');
   const [starterTrigger, setStarterTrigger] = useState(0);
 
   return (
-    <div className={cn(
-      'flex flex-col relative overflow-hidden border border-border',
-      isFullscreen
-        ? 'fixed inset-0 z-50 bg-background rounded-none'
-        : 'h-[calc(100vh-80px)] rounded-xl'
-    )}>
+    <div
+      data-pixel-theme={pixelTheme}
+      className={cn(
+        'flex flex-col relative overflow-hidden border border-border bg-background text-foreground',
+        isFullscreen
+          ? 'fixed inset-0 z-50 rounded-none'
+          : 'h-[calc(100vh-80px)] rounded-xl'
+      )}
+    >
       {/* Hidden file input for global references */}
       <input
         ref={globalRefInputRef}
@@ -116,6 +159,8 @@ export default function PixelAgent() {
         isConnected={!isInactive}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
+        pixelTheme={pixelTheme}
+        onTogglePixelTheme={togglePixelTheme}
       />
 
       <div className="flex flex-1 min-h-0">
@@ -131,6 +176,10 @@ export default function PixelAgent() {
             isPending={false}
             globalReferences={globalReferences}
             onRemoveReference={handleRemoveGlobalRef}
+            wishpediaImageRefs={wishpediaImageRefs}
+            onAddWishpediaImages={handleAddWishpediaImages}
+            onRemoveWishpediaImage={handleRemoveWishpediaImage}
+            onDropFiles={handleDropFiles}
           />
         </div>
 
@@ -153,6 +202,7 @@ export default function PixelAgent() {
           selectedPostType={selectedPostType}
           selectedSize={selectedSize}
           globalReferences={globalReferences}
+          wishpediaImageRefs={wishpediaImageRefs}
         />
 
         <div className="hidden lg:flex">
@@ -202,6 +252,10 @@ export default function PixelAgent() {
               isPending={false}
               globalReferences={globalReferences}
               onRemoveReference={handleRemoveGlobalRef}
+              wishpediaImageRefs={wishpediaImageRefs}
+              onAddWishpediaImages={handleAddWishpediaImages}
+              onRemoveWishpediaImage={handleRemoveWishpediaImage}
+              onDropFiles={handleDropFiles}
             />
           </div>
         </SheetContent>

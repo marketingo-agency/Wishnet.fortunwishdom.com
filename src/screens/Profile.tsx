@@ -1,15 +1,13 @@
+"use client";
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { useFiles, getFileUrl, useUploadFile } from '@/hooks/useFiles';
+import { useUploadAvatar } from '@/hooks/useUploadAvatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Upload, Check, ImageIcon, Camera, Mail, KeyRound, LogOut } from 'lucide-react';
+import { Loader2, Upload, Camera, Mail, KeyRound, LogOut, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { ProfileHero, ProfileInfoCard, ProfileSecurityCard } from '@/components/profile';
@@ -34,8 +32,9 @@ export default function Profile() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
-  const { data: imageFiles, isLoading: isLoadingImages } = useFiles('all', 'images');
-  const uploadFile = useUploadFile();
+  const [pendingEmailChange, setPendingEmailChange] = useState(false);
+
+  const uploadAvatar = useUploadAvatar();
 
   useEffect(() => {
     if (profile) {
@@ -48,18 +47,19 @@ export default function Profile() {
     ? format(new Date(user.created_at), 'MMMM d, yyyy')
     : 'Unknown';
 
-  const lastSignIn = user?.last_sign_in_at
-    ? format(new Date(user.last_sign_in_at), 'MMM d, yyyy · h:mm a')
-    : 'Never';
-
   // ─── Handlers ───────────────────────────────────────
 
   const handleSaveName = async () => {
     if (!user) return;
+    const trimmed = fullName.trim();
+    if (!trimmed) {
+      toast.error('Name cannot be empty');
+      return;
+    }
     setIsSavingName(true);
     const { error } = await supabase
       .from('profiles')
-      .update({ full_name: fullName })
+      .update({ full_name: trimmed })
       .eq('id', user.id);
     if (error) {
       toast.error('Failed to update name', { description: error.message });
@@ -71,43 +71,15 @@ export default function Profile() {
     setIsSavingName(false);
   };
 
-  const handleSelectAvatar = async (url: string) => {
-    if (!user) return;
-    setIsLoadingAvatar(true);
-    const { error } = await supabase
-      .from('profiles')
-      .update({ avatar_url: url })
-      .eq('id', user.id);
-    if (error) {
-      toast.error('Failed to update avatar');
-    } else {
-      setAvatarUrl(url);
-      toast.success('Avatar updated');
-      await refreshProfile();
-    }
-    setIsLoadingAvatar(false);
-    setShowAvatarPicker(false);
-  };
-
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !user) return;
+    if (!file) return;
     setIsLoadingAvatar(true);
     try {
-      const uploadedFile = await uploadFile.mutateAsync({ file });
-      const publicUrl = getFileUrl(uploadedFile.storage_path);
-      const { error } = await supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', user.id);
-      if (error) throw error;
+      const publicUrl = await uploadAvatar.mutateAsync(file);
       setAvatarUrl(publicUrl);
-      toast.success('Avatar updated');
-      await refreshProfile();
-    } catch (error) {
-      toast.error('Failed to upload avatar', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
+    } catch {
+      // Error toast handled by useUploadAvatar
     }
     setIsLoadingAvatar(false);
     setShowAvatarPicker(false);
@@ -131,13 +103,18 @@ export default function Profile() {
   };
 
   const handleEmailChange = async () => {
-    if (!newEmail.trim()) { toast.error('Please enter a valid email'); return; }
+    const trimmed = newEmail.trim();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
     setIsUpdatingEmail(true);
-    const { error } = await supabase.auth.updateUser({ email: newEmail });
+    const { error } = await supabase.auth.updateUser({ email: trimmed });
     if (error) {
       toast.error('Failed to update email', { description: error.message });
     } else {
       toast.success('Confirmation email sent', { description: 'Check your new email to confirm the change.' });
+      setPendingEmailChange(true);
       setShowEmailDialog(false);
       setNewEmail('');
     }
@@ -145,7 +122,7 @@ export default function Profile() {
   };
 
   const handlePasswordChange = async () => {
-    if (newPassword.length < 6) { toast.error('Password must be at least 6 characters'); return; }
+    if (newPassword.length < 8) { toast.error('Password must be at least 8 characters'); return; }
     if (newPassword !== confirmPassword) { toast.error('Passwords do not match'); return; }
     setIsUpdatingPassword(true);
     const { error } = await supabase.auth.updateUser({ password: newPassword });
@@ -174,7 +151,7 @@ export default function Profile() {
           <ProfileHero
             fullName={profile?.full_name}
             email={profile?.email}
-            role={role}
+            role={role ?? ''}
             avatarUrl={avatarUrl}
             isLoadingAvatar={isLoadingAvatar}
             joinDate={joinDate}
@@ -193,6 +170,7 @@ export default function Profile() {
               isEditingName={isEditingName}
               editNameValue={fullName}
               isSavingName={isSavingName}
+              pendingEmailChange={pendingEmailChange}
               onEditName={() => setIsEditingName(true)}
               onCancelEditName={() => { setIsEditingName(false); setFullName(profile?.full_name || ''); }}
               onChangeNameValue={setFullName}
@@ -203,7 +181,7 @@ export default function Profile() {
 
           <div className="profile-glass-card rounded-2xl p-6 profile-fade-in-up" style={{ animationDelay: '0.15s' }}>
             <ProfileSecurityCard
-              role={role}
+              role={role ?? ''}
               onPasswordChange={() => setShowPasswordDialog(true)}
             />
           </div>
@@ -252,83 +230,48 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* ── Avatar Picker Dialog ── */}
+      {/* ── Avatar Upload Dialog ── */}
       <Dialog open={showAvatarPicker} onOpenChange={setShowAvatarPicker}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Change Profile Picture</DialogTitle>
-            <DialogDescription>Select an image from your files or upload a new one</DialogDescription>
+            <DialogDescription>Upload a new image for your profile</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex justify-center">
-              <label className="cursor-pointer">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleAvatarUpload}
-                  className="hidden"
-                  disabled={isLoadingAvatar}
-                />
-                <div className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
-                  {isLoadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                  <span>Upload New Image</span>
-                </div>
-              </label>
-            </div>
-
-            <Separator />
-
-            <div>
-              <p className="text-sm font-medium mb-2">Or select from your files:</p>
-              {isLoadingImages ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : imageFiles && imageFiles.length > 0 ? (
-                <ScrollArea className="h-64">
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {imageFiles.map((file) => {
-                      const url = getFileUrl(file.storage_path);
-                      const isSelected = avatarUrl === url;
-                      return (
-                        <button
-                          key={file.id}
-                          onClick={() => handleSelectAvatar(url)}
-                          className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all hover:opacity-80 cursor-pointer ${
-                            isSelected ? 'border-primary ring-2 ring-primary ring-offset-2' : 'border-transparent'
-                          }`}
-                          disabled={isLoadingAvatar}
-                        >
-                          <Image src={url} alt={file.name} fill className="object-cover" unoptimized />
-                          {isSelected && (
-                            <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                              <Check className="h-6 w-6 text-primary" />
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                  <ImageIcon className="h-8 w-8 mb-2" />
-                  <p className="text-sm">No images in your files</p>
-                </div>
-              )}
-            </div>
+          <div className="flex justify-center py-4">
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                className="hidden"
+                disabled={isLoadingAvatar}
+              />
+              <div className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors cursor-pointer">
+                {isLoadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                <span>{isLoadingAvatar ? 'Uploading...' : 'Choose Image'}</span>
+              </div>
+            </label>
           </div>
+          <p className="text-xs text-muted-foreground text-center">Recommended: square image, at least 200×200px</p>
         </DialogContent>
       </Dialog>
 
       {/* ── Email Change Dialog ── */}
-      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+      <Dialog open={showEmailDialog} onOpenChange={(open) => { setShowEmailDialog(open); if (!open) setNewEmail(''); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Change Email Address</DialogTitle>
             <DialogDescription>A confirmation link will be sent to your new email address.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {pendingEmailChange && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  A confirmation email was sent. Check your inbox to complete the change.
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="currentEmail">Current Email</Label>
               <Input id="currentEmail" type="email" value={profile?.email || ''} disabled className="bg-muted" />
@@ -354,7 +297,7 @@ export default function Profile() {
       </Dialog>
 
       {/* ── Password Change Dialog ── */}
-      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+      <Dialog open={showPasswordDialog} onOpenChange={(open) => { setShowPasswordDialog(open); if (!open) { setNewPassword(''); setConfirmPassword(''); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Change Password</DialogTitle>

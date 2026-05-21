@@ -7,3 +7,5 @@ export { PixelContextPanel } from './PixelContextPanel';
 export { PixelMessageBubble } from './PixelMessageBubble';
 export { PixelSettings } from './PixelSettings';
 export { PixelBlueprintPanel } from './PixelBlueprintPanel';
+export { WishReferencePanel } from './WishReferencePanel';
+export type { WishpediaImageRef } from './WishReferencePanel';

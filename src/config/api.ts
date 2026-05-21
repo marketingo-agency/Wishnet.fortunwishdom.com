@@ -26,6 +26,8 @@ export const SUPABASE_ANON_KEY = KEY_FROM_ENV;
 export const EDGE_FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`;
 export const AI_CHAT_ENDPOINT = `${EDGE_FUNCTIONS_URL}/ai-chat`;
 export const MANAGE_USERS_ENDPOINT = `${EDGE_FUNCTIONS_URL}/manage-users`;
+export const SETTINGS_KEYS_ENDPOINT = `${EDGE_FUNCTIONS_URL}/settings-keys`;
+export const PULSE_API_ENDPOINT = `${EDGE_FUNCTIONS_URL}/pulse-api`;
 
 // Storage
 export const STORAGE_URL = `${SUPABASE_URL}/storage/v1`;

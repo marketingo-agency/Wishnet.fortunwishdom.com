@@ -1,13 +1,13 @@
 /**
  * WishpediaCharacterView
- * Premium split-panel showcase: hero image left, info panel right, filmstrip + gallery below.
- * Responsive: stacked on mobile, side-by-side on lg+.
+ * Clean detail layout: framed hero image + info panel, with angle filmstrip and
+ * gallery below. Card-framed and neutral to match the app pattern (no cinematic overlay).
  */
 
 import { useState } from 'react';
-import { ImageOff, Eye, Images, Calendar, RefreshCw } from 'lucide-react';
+import { ImageOff, Eye, Images, Calendar, RefreshCw, Expand } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { WishpediaLightbox } from './WishpediaLightbox';
 import { ANGLE_VIEWS } from '@/types/wishpedia';
 import type { WishpediaEntryImage } from '@/types/wishpedia';
 import type { WishpediaCategory } from '@/hooks/useWishpediaCategories';
@@ -27,25 +27,27 @@ interface Props {
 }
 
 const ANGLE_LABELS: Record<string, string> = {
-  front: 'Front',
-  back: 'Back',
-  left: 'Left',
-  right: 'Right',
-  top: 'Top',
-  bottom: 'Bottom',
+  front: 'Front', back: 'Back', left: 'Left',
+  right: 'Right', top: 'Top', bottom: 'Bottom',
 };
 
 export function WishpediaCharacterView({ entry, category, images }: Props) {
   const primaryImage = images.find((i) => i.is_primary) || images.find((i) => i.angle === 'front') || images[0];
   const [activeImage, setActiveImage] = useState<WishpediaEntryImage | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const heroImage = activeImage || primaryImage;
+
+  const openLightbox = (index: number) => {
+    setLightboxIndex(index >= 0 ? index : 0);
+    setLightboxOpen(true);
+  };
 
   const angleImages = ANGLE_VIEWS.map((angle) => ({
     angle,
     label: ANGLE_LABELS[angle],
     image: images.find((i) => i.angle === angle),
   }));
-
   const freeImages = images.filter((i) => !i.angle);
   const filledAngles = angleImages.filter((a) => a.image).length;
 
@@ -53,169 +55,126 @@ export function WishpediaCharacterView({ entry, category, images }: Props) {
     new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6 sm:space-y-10 wp-animate-in">
+    <div className="w-full px-3 sm:px-6 py-4 sm:py-8 space-y-6 sm:space-y-8">
 
-      {/* ── Split Panel: Hero + Info ── */}
-      <div className="flex flex-col lg:flex-row gap-5 lg:gap-10">
-
-        {/* Hero Image — 60% on desktop */}
+      {/* ── Hero + Info ── */}
+      <div className="flex flex-col lg:flex-row gap-5 lg:gap-8">
+        {/* Framed hero */}
         <div className="w-full lg:w-[58%] shrink-0">
-          <div className="relative aspect-[3/4] sm:aspect-[4/5] lg:aspect-[3/4] rounded-xl sm:rounded-2xl border border-border/30 bg-muted/10 overflow-hidden shadow-md shadow-black/[0.04] group">
-            {/* Subtle background pattern */}
-            <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)', backgroundSize: '24px 24px' }} />
-
+          <div className="group relative aspect-[4/5] rounded-2xl border border-border/40 bg-muted/20 overflow-hidden">
             {heroImage ? (
               <img
                 src={getWishpediaImageUrl(heroImage.storage_path)}
                 alt={entry.name}
-                className="relative w-full h-full object-contain transition-transform duration-500 group-hover:scale-[1.02]"
+                className="h-full w-full object-contain"
               />
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-muted-foreground/20">
-                <ImageOff className="w-16 h-16" />
-                <span className="text-xs font-medium text-muted-foreground/30">No images</span>
+              <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground/30">
+                <ImageOff className="h-12 w-12" />
+                <span className="text-xs font-medium">No images yet</span>
               </div>
             )}
 
-            {/* Angle indicator pill */}
-            {heroImage?.angle && (
-              <div className="absolute bottom-3 left-3">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/70 backdrop-blur-xl border border-border/30 text-[10px] font-semibold uppercase tracking-wider text-foreground/80 shadow-sm">
-                  <Eye className="w-3 h-3 text-amber-500" />
-                  {ANGLE_LABELS[heroImage.angle]}
-                </span>
-              </div>
+            {heroImage && (
+              <button
+                onClick={() => openLightbox(images.indexOf(heroImage))}
+                className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-background/70 text-foreground/70 backdrop-blur-sm transition-colors hover:bg-background hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Open fullscreen"
+              >
+                <Expand className="h-4 w-4" />
+              </button>
             )}
-
-            {/* Primary badge */}
             {heroImage?.is_primary && (
-              <div className="absolute top-3 right-3">
-                <Badge className="bg-amber-500/90 text-white border-0 text-[9px] px-2 py-0.5 rounded-md shadow-sm">
-                  Primary
-                </Badge>
-              </div>
+              <Badge className="absolute left-3 top-3 border-0 bg-amber-500 text-[10px] text-amber-950">Primary</Badge>
+            )}
+            {heroImage?.angle && (
+              <Badge variant="secondary" className="absolute bottom-3 left-3 gap-1 text-[10px] uppercase tracking-wider">
+                <Eye className="h-3 w-3 text-amber-500" />
+                {ANGLE_LABELS[heroImage.angle]}
+              </Badge>
             )}
           </div>
         </div>
 
-        {/* Info Panel — 40% on desktop */}
-        <div className="w-full lg:w-[42%] flex flex-col justify-between gap-6">
-          {/* Top: Name + Category + Description */}
-          <div className="space-y-5">
-            <div className="space-y-2.5">
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-foreground leading-[1.15]">
-                {entry.name}
-              </h1>
-
-              {category && (
-                <div className="flex items-center gap-2.5">
-                  <span className="w-2 h-2 rounded-full shrink-0 bg-amber-500 shadow-sm shadow-amber-500/30" />
-                  <span className="text-sm font-medium text-amber-600 dark:text-amber-400">
-                    {category.name}
-                  </span>
-                  {category.has_angle_views && (
-                    <Badge variant="outline" className="text-[10px] border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-md">
-                      6-Angle
-                    </Badge>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {entry.description && (
-              <>
-                <Separator className="opacity-30" />
-                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                  {entry.description}
-                </p>
-              </>
+        {/* Info panel */}
+        <div className="flex w-full flex-col gap-5 lg:w-[42%]">
+          <div className="space-y-2">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{entry.name}</h1>
+            {category && (
+              <Badge
+                variant="outline"
+                className="gap-1.5 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                {category.name}
+                {category.has_angle_views && <span className="opacity-60">· 6-angle</span>}
+              </Badge>
             )}
           </div>
 
-          {/* Bottom: Metadata */}
-          <div className="space-y-4 pt-2">
-            <Separator className="opacity-30" />
+          {entry.description && (
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground sm:text-base">
+              {entry.description}
+            </p>
+          )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <MetaStat
-                label="Images"
-                icon={<Images className="w-3.5 h-3.5" />}
-                value={
-                  <>
-                    {images.length}
-                    {category?.has_angle_views && (
-                      <span className="text-muted-foreground text-xs ml-1">
-                        ({filledAngles}/6)
-                      </span>
-                    )}
-                  </>
-                }
-              />
-              <MetaStat
-                label="Created"
-                icon={<Calendar className="w-3.5 h-3.5" />}
-                value={formatDate(entry.created_at)}
-              />
-              {entry.updated_at !== entry.created_at && (
-                <MetaStat
-                  label="Updated"
-                  icon={<RefreshCw className="w-3.5 h-3.5" />}
-                  value={formatDate(entry.updated_at)}
-                />
-              )}
-            </div>
+          {/* Metadata */}
+          <div className="grid grid-cols-2 gap-3 rounded-xl border border-border/60 bg-muted/20 p-4">
+            <MetaStat
+              label="Images"
+              icon={<Images className="h-3.5 w-3.5" />}
+              value={
+                <>
+                  {images.length}
+                  {category?.has_angle_views && (
+                    <span className="ml-1 text-xs text-muted-foreground">({filledAngles}/6)</span>
+                  )}
+                </>
+              }
+            />
+            <MetaStat label="Created" icon={<Calendar className="h-3.5 w-3.5" />} value={formatDate(entry.created_at)} />
+            {entry.updated_at !== entry.created_at && (
+              <MetaStat label="Updated" icon={<RefreshCw className="h-3.5 w-3.5" />} value={formatDate(entry.updated_at)} />
+            )}
           </div>
         </div>
       </div>
 
-      {/* ── Angle Filmstrip ── */}
+      {/* ── Angle views ── */}
       {category?.has_angle_views && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">
-              Angle Views
-            </h3>
-            <span className="text-[10px] text-muted-foreground/50 font-medium tabular-nums">
-              {filledAngles}/6
-            </span>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Angle Views</h3>
+            <span className="text-[11px] font-medium tabular-nums text-muted-foreground/60">{filledAngles}/6</span>
           </div>
-
-          <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0">
+          <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-6">
             {angleImages.map(({ angle, label, image }) => {
-              const isActive = heroImage?.id === image?.id && !!image;
+              const isActive = !!image && heroImage?.id === image.id;
               return (
                 <button
                   key={angle}
                   onClick={() => image && setActiveImage(image)}
                   disabled={!image}
+                  aria-label={label}
                   className={cn(
-                    "relative shrink-0 w-20 sm:w-[100px] aspect-square rounded-xl overflow-hidden transition-all duration-200 touch-manipulation",
-                    "min-h-[72px] min-w-[72px]",
+                    'relative aspect-[3/4] overflow-hidden rounded-xl border transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     isActive
-                      ? "ring-2 ring-amber-500/60 shadow-lg shadow-amber-500/10 scale-[1.03]"
+                      ? 'border-amber-500 ring-2 ring-amber-500/40'
                       : image
-                        ? "border-2 border-border/40 hover:border-amber-500/30 hover:shadow-md cursor-pointer active:scale-95"
-                        : "border-2 border-dashed border-border/20 cursor-default opacity-40"
+                        ? 'border-border/60 hover:border-amber-500/40 cursor-pointer'
+                        : 'border-dashed border-border/50 cursor-default opacity-50',
                   )}
                 >
                   {image ? (
-                    <img
-                      src={getWishpediaImageUrl(image.storage_path)}
-                      alt={label}
-                      className="w-full h-full object-contain"
-                    />
+                    <img src={getWishpediaImageUrl(image.storage_path)} alt={label} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-muted/5">
-                      <ImageOff className="w-3.5 h-3.5 text-muted-foreground/15" />
+                    <div className="flex h-full w-full items-center justify-center bg-muted/30">
+                      <ImageOff className="h-4 w-4 text-muted-foreground/30" />
                     </div>
                   )}
-                  <div className={cn(
-                    "absolute bottom-0 inset-x-0 py-1 text-center text-[8px] font-bold uppercase tracking-[0.12em]",
-                    "bg-background/70 backdrop-blur-md",
-                    isActive ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground/60"
-                  )}>
+                  <span className="absolute inset-x-0 bottom-0 bg-background/80 py-0.5 text-center text-[9px] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-sm">
                     {label}
-                  </div>
+                  </span>
                 </button>
               );
             })}
@@ -223,37 +182,26 @@ export function WishpediaCharacterView({ entry, category, images }: Props) {
         </div>
       )}
 
-      {/* ── Free Gallery ── */}
+      {/* ── Gallery ── */}
       {freeImages.length > 0 && (
-        <div className="space-y-4">
-          <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 px-1">
-            Gallery
-          </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Gallery</h3>
+          <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 lg:grid-cols-5">
             {freeImages.map((img) => {
               const isActive = heroImage?.id === img.id;
               return (
                 <button
                   key={img.id}
-                  onClick={() => setActiveImage(img)}
+                  onClick={() => { setActiveImage(img); openLightbox(images.indexOf(img)); }}
+                  aria-label={img.original_name}
                   className={cn(
-                    "relative aspect-square rounded-xl overflow-hidden transition-all duration-200 active:scale-95 touch-manipulation",
-                    isActive
-                      ? "ring-2 ring-amber-500/60 shadow-lg shadow-amber-500/10 scale-[1.02]"
-                      : "border-2 border-border/30 hover:border-amber-500/30 hover:shadow-md"
+                    'relative aspect-square overflow-hidden rounded-xl border transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    isActive ? 'border-amber-500 ring-2 ring-amber-500/40' : 'border-border/60 hover:border-amber-500/40',
                   )}
                 >
-                  <img
-                    src={getWishpediaImageUrl(img.storage_path)}
-                    alt={img.original_name}
-                    className="w-full h-full object-contain"
-                  />
+                  <img src={getWishpediaImageUrl(img.storage_path)} alt={img.original_name} className="h-full w-full object-cover" />
                   {img.is_primary && (
-                    <div className="absolute top-1.5 right-1.5">
-                      <Badge className="bg-amber-500/90 text-white border-0 text-[7px] px-1.5 py-0 leading-tight rounded-md">
-                        Primary
-                      </Badge>
-                    </div>
+                    <Badge className="absolute right-1.5 top-1.5 border-0 bg-amber-500 px-1.5 py-0 text-[8px] leading-tight text-amber-950">Primary</Badge>
                   )}
                 </button>
               );
@@ -261,19 +209,24 @@ export function WishpediaCharacterView({ entry, category, images }: Props) {
           </div>
         </div>
       )}
+
+      <WishpediaLightbox
+        images={images}
+        activeIndex={lightboxIndex}
+        open={lightboxOpen}
+        onOpenChange={setLightboxOpen}
+        onNavigate={setLightboxIndex}
+      />
     </div>
   );
 }
 
-/* ── Small metadata stat component ── */
 function MetaStat({ label, icon, value }: { label: string; icon: React.ReactNode; value: React.ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
-        {label}
-      </span>
-      <div className="flex items-center gap-1.5 text-sm text-foreground font-medium">
-        <span className="text-muted-foreground/40">{icon}</span>
+    <div className="space-y-1">
+      <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">{label}</span>
+      <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+        <span className="text-muted-foreground/50">{icon}</span>
         {value}
       </div>
     </div>

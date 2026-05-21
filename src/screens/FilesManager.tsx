@@ -1,3 +1,4 @@
+"use client";
 import { useState, useMemo, useEffect } from 'react';
 import { FilesSidebar } from '@/components/files/FilesSidebar';
 import { FilesToolbar } from '@/components/files/FilesToolbar';
@@ -11,7 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, RefreshCcw, FolderOpen } from 'lucide-react';
+import { AlertTriangle, RefreshCcw } from 'lucide-react';
 
 // Error fallback component for FilesManager
 function FilesManagerErrorFallback() {

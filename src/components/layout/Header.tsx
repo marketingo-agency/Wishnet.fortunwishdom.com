@@ -36,11 +36,11 @@ const routeLabels: Record<string, string> = {
   '/ai-agents/nexus': 'Nexus',
   '/ai-agents/promptor': 'Promptor',
   '/ai-agents/osha': 'Osha',
-  '/ai-agents/echo': 'Echo',
+  '/ai-agents/whisper': 'Whisper',
   '/ai-agents/pulse': 'Pulse',
   '/ai-agents/pixel': 'Pixel',
   '/ai-agents/muse': 'Muse',
-  '/ai-agents/atlas': 'Atlas',
+  '/ai-agents/atlas': 'ATLAS',
   // MasterMind
   '/mastermind': 'MasterMind',
   '/mastermind/brain': 'Brain Knowledge',

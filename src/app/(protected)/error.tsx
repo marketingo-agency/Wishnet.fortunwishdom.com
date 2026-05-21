@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import * as Sentry from '@sentry/nextjs';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -11,7 +12,7 @@ interface ErrorProps {
 
 export default function ProtectedError({ error, reset }: ErrorProps) {
   useEffect(() => {
-    console.error('Protected route error:', error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { EDGE_FUNCTIONS_URL, SUPABASE_ANON_KEY } from '@/config/api';
 import { getAuthHeaders } from '@/lib/apiHelpers';
 import { toast } from 'sonner';
-import { useCallback } from 'react';
+import * as Sentry from '@sentry/nextjs';
 
 // Helper to invalidate vector store queries after embedding changes
 function invalidateVectorStoreQueries(queryClient: ReturnType<typeof useQueryClient>) {
@@ -73,14 +73,14 @@ export async function processEmbedding(params: ProcessEmbeddingParams): Promise<
         // Response wasn't JSON - use status text
         errorMessage = response.statusText || errorMessage;
       }
-      console.error('Embedding processing failed:', response.status, errorMessage);
+      Sentry.captureMessage('Embedding processing failed', { extra: { status: response.status, errorMessage } });
       return { success: false, error: errorMessage };
     }
     
     const data = await response.json();
     return { success: true, chunks: data.chunks, truncated: data.truncated };
   } catch (error) {
-    console.error('Error processing embedding:', error);
+    Sentry.captureException(error instanceof Error ? error : new Error('Error processing embedding'), { extra: { context: 'Error processing embedding' } });
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error' 
@@ -121,7 +121,7 @@ export async function searchKnowledge(params: SearchKnowledgeParams): Promise<{ 
 
     return { results: data.results || [] };
   } catch (error) {
-    console.error('Error searching knowledge:', error);
+    Sentry.captureException(error instanceof Error ? error : new Error('Error searching knowledge'), { extra: { context: 'Error searching knowledge' } });
     return { 
       results: [], 
       error: error instanceof Error ? error.message : 'Unknown error' 
@@ -159,7 +159,7 @@ export function useProcessBrainDocumentEmbedding() {
       queryClient.invalidateQueries({ queryKey: ['document-index-status'] });
     },
     onError: (error) => {
-      console.error('Failed to process document embedding:', error);
+      Sentry.captureException(error instanceof Error ? error : new Error('Failed to process document embedding'), { extra: { context: 'Failed to process document embedding' } });
       // Don't show error toast - embedding is a background process
     },
   });
@@ -193,7 +193,7 @@ export function useProcessHeartRuleEmbedding() {
       invalidateVectorStoreQueries(queryClient);
     },
     onError: (error) => {
-      console.error('Failed to process rule embedding:', error);
+      Sentry.captureException(error instanceof Error ? error : new Error('Failed to process rule embedding'), { extra: { context: 'Failed to process rule embedding' } });
       // Don't show error toast - embedding is a background process
     },
   });
@@ -227,7 +227,7 @@ export function useProcessWishpediaEntryEmbedding() {
       queryClient.invalidateQueries({ queryKey: ['entry-index-status'] });
     },
     onError: (error) => {
-      console.error('Failed to process Wishpedia entry embedding:', error);
+      Sentry.captureException(error instanceof Error ? error : new Error('Failed to process Wishpedia entry embedding'), { extra: { context: 'Failed to process Wishpedia entry embedding' } });
     },
   });
 }

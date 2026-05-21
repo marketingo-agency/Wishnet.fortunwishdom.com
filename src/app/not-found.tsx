@@ -7,15 +7,16 @@
  */
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
+import * as Sentry from "@sentry/nextjs";
 
 export default function NotFoundPage() {
   const pathname = usePathname();
 
   useEffect(() => {
-    console.error(
-      "404 Error: User attempted to access non-existent route:",
-      pathname,
-    );
+    Sentry.captureMessage("404 Error: User attempted to access non-existent route", {
+      level: "warning",
+      extra: { pathname },
+    });
   }, [pathname]);
 
   return (

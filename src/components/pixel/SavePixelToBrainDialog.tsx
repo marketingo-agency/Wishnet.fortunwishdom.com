@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import { useBrainSections } from '@/hooks/useBrainSections';
 import { useOcrIndexing } from '@/hooks/useOcrIndexing';
 import { AI_AGENTS } from '@/data/agents';
 import type { BrainCategory as BrainCategoryEnum } from '@/types/brain';
+import * as Sentry from '@sentry/nextjs';
 
 interface SavePixelToBrainDialogProps {
   open: boolean;
@@ -109,7 +110,7 @@ export function SavePixelToBrainDialog({ open, onOpenChange, imageUrl, messageId
       toast.success('Image saved to Brain knowledge base');
       onOpenChange(false);
     } catch (error) {
-      console.error('Save to Brain error:', error);
+      Sentry.captureException(error instanceof Error ? error : new Error('Save to Brain error'), { extra: { context: 'Save to Brain error (Pixel image)' } });
       toast.error(error instanceof Error ? error.message : 'Failed to save image');
     } finally {
       setSaving(false);

@@ -10,9 +10,8 @@
 import { useState } from 'react';
 import { useBulkWishpediaIndex, useUnindexedEntryCount } from '@/hooks/useBulkWishpediaIndex';
 import { 
-  Database, 
-  FileText, 
-  Heart, 
+  Database,
+  Heart,
   RefreshCw, 
   Trash2,
   Loader2,
@@ -21,6 +20,8 @@ import {
   Globe,
   Users,
   BookOpen,
+  Search,
+  Eye,
 } from 'lucide-react';
 import { getFileTypeLabel, getFileIcon } from '@/lib/fileTypes';
 
@@ -103,6 +104,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 import { formatDistanceToNow } from 'date-fns';
 import {
   useIndexedItems,
@@ -128,6 +130,8 @@ export function VectorStorePanel() {
   const [deleteTarget, setDeleteTarget] = useState<IndexedItem | null>(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -177,6 +181,13 @@ export function VectorStorePanel() {
 
   const isLoading = itemsLoading || statsLoading;
   const hasItems = items && items.length > 0;
+
+  // BUG-003: filter items by search query and source type
+  const filteredItems = items?.filter(item => {
+    const matchesSearch = !searchQuery || item.source_name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = typeFilter === 'all' || item.source_type === typeFilter;
+    return matchesSearch && matchesType;
+  });
 
   return (
     <Card>
@@ -328,6 +339,32 @@ export function VectorStorePanel() {
         {/* Indexed Items Table */}
         {(isLoading || hasItems) && (
           <>
+            {/* BUG-003: Search + Type Filter */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 h-9"
+                />
+              </div>
+              <div className="flex gap-1.5">
+                {['all', 'brain_document', 'heart_rule', 'wishpedia_entry'].map(type => (
+                  <Button
+                    key={type}
+                    variant={typeFilter === type ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setTypeFilter(type)}
+                    className="text-xs h-9"
+                  >
+                    {type === 'all' ? 'All' : type === 'brain_document' ? 'Documents' : type === 'heart_rule' ? 'Rules' : 'Wishpedia'}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
             {/* Bulk Actions */}
             {selectedItems.size > 0 && (
               <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg border">
@@ -382,7 +419,7 @@ export function VectorStorePanel() {
                       </TableRow>
                     ))
                   ) : (
-                    items?.map((item) => {
+                    filteredItems?.map((item) => {
                       // Determine agent icon and tooltip
                       const agentInfo = item.agent_id ? getAgentById(item.agent_id) : null;
                       const isGlobalRule = item.source_type === 'heart_rule' && item.is_global;
@@ -465,22 +502,38 @@ export function VectorStorePanel() {
                             </div>
                           </TableCell>
                         <TableCell>
-                          <Badge 
-                            variant="outline" 
-                            className={
-                              item.source_type === 'brain_document' 
-                                ? getTypeBadgeStyles(item.mime_type)
+                          <div className="flex items-center gap-1.5">
+                            <Badge
+                              variant="outline"
+                              className={
+                                item.source_type === 'brain_document'
+                                  ? getTypeBadgeStyles(item.mime_type)
+                                  : item.source_type === 'wishpedia_entry'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                              }
+                            >
+                              {item.source_type === 'brain_document'
+                                ? (item.mime_type ? getFileTypeLabel(item.mime_type) : 'Document')
                                 : item.source_type === 'wishpedia_entry'
-                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                  : 'bg-rose-50 text-rose-700 border-rose-200'
-                            }
-                          >
-                            {item.source_type === 'brain_document' 
-                              ? (item.mime_type ? getFileTypeLabel(item.mime_type) : 'Document')
-                              : item.source_type === 'wishpedia_entry'
-                                ? 'Wishpedia'
-                                : 'Rule'}
-                          </Badge>
+                                  ? 'Wishpedia'
+                                  : 'Rule'}
+                            </Badge>
+                            {/* Multimodal: image docs are vision-indexed (describable + recreatable by agents) */}
+                            {item.source_type === 'brain_document' && item.mime_type?.startsWith('image/') && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge variant="outline" className="gap-1 bg-violet-50 text-violet-700 border-violet-200">
+                                      <Eye className="w-3 h-3" />
+                                      Vision
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Vision-indexed — agents can see and recreate this image</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-center font-medium">
                           {item.chunk_count}

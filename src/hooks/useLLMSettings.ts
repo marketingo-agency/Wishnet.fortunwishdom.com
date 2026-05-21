@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { AI_CHAT_ENDPOINT } from '@/config/api';
 import { getAuthHeaders } from '@/lib/apiHelpers';
+import { LLM_SETTINGS_ROW_ID } from '@/lib/constants';
 import type { LLMSettings, ChatRequest, DeepResearchRequest } from '@/types/llm';
 
 // Re-export model definitions from config for backwards compatibility
@@ -18,10 +19,43 @@ export {
   GEMINI_TEXT_MODELS,
   GEMINI_IMAGE_MODELS,
   GEMINI_VIDEO_MODELS,
+  FAL_TEXT_MODELS,
+  FAL_IMAGE_MODELS,
+  FAL_VIDEO_MODELS,
 } from '@/config/llmModels';
 
 // Re-export types
 export type { LLMSettings, ChatMessage } from '@/types/llm';
+
+// SEC-001 MITIGATION: explicit column whitelist that OMITS openai_api_key / gemini_api_key / fal_api_key.
+// The columns exist server-side and are admin-readable via RLS, but this client-side query must never
+// request them. All key reads happen server-side inside edge functions using Deno.env fallback; writes
+// go through the settings-keys edge function with the service role. Do NOT change this to select('*').
+const LLM_SETTINGS_CLIENT_COLUMNS = [
+  'id',
+  'openai_text_model',
+  'openai_image_model',
+  'openai_deep_research_model',
+  'openai_video_model',
+  'openai_enabled',
+  'gemini_text_model',
+  'gemini_image_model',
+  'gemini_video_model',
+  'gemini_enabled',
+  'fal_text_model',
+  'fal_image_model',
+  'fal_video_model',
+  'fal_enabled',
+  'active_text_provider',
+  'active_image_provider',
+  'active_deep_research_provider',
+  'active_video_provider',
+  'pulse_timezone',
+  'pulse_queue_enabled',
+  'pulse_webhook_url',
+  'created_at',
+  'updated_at',
+].join(', ');
 
 export function useLLMSettings() {
   return useQuery({
@@ -29,11 +63,11 @@ export function useLLMSettings() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('llm_settings')
-        .select('*')
+        .select(LLM_SETTINGS_CLIENT_COLUMNS)
         .single();
 
       if (error) throw error;
-      return data as LLMSettings;
+      return data as unknown as LLMSettings;
     },
   });
 }
@@ -43,11 +77,13 @@ export function useUpdateLLMSettings() {
 
   return useMutation({
     mutationFn: async (updates: Partial<LLMSettings>) => {
+      // SEC-001 MITIGATION: explicit column whitelist on the return select so the PATCH response
+      // never contains API key columns, even if the caller's `updates` payload would be type-safe.
       const { data, error } = await supabase
         .from('llm_settings')
         .update(updates)
-        .eq('id', '00000000-0000-0000-0000-000000000001')
-        .select()
+        .eq('id', LLM_SETTINGS_ROW_ID)
+        .select(LLM_SETTINGS_CLIENT_COLUMNS)
         .single();
 
       if (error) throw error;
@@ -62,7 +98,7 @@ export function useUpdateLLMSettings() {
 export function useTestConnection() {
   return useMutation({
     onError: () => {}, // suppress React Query's internal console.error
-    mutationFn: async ({ provider, apiKey }: { provider: 'openai' | 'gemini'; apiKey: string }) => {
+    mutationFn: async ({ provider, apiKey }: { provider: 'openai' | 'gemini' | 'fal'; apiKey: string }) => {
       const headers = await getAuthHeaders();
       const response = await fetch(AI_CHAT_ENDPOINT, {
         method: 'POST',

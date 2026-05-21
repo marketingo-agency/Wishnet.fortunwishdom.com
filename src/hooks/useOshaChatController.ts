@@ -15,15 +15,22 @@ import {
   type AttachmentContext,
 } from '@/hooks/useOsha';
 import { useOshaDeepResearch, useOshaDeepResearchClarify } from '@/hooks/useOshaPower';
+import { useOptimizeDraft } from '@/hooks/promptor';
 import { toast } from 'sonner';
 import {
-  IDEATION_MODE_VALUES,
   POWER_MODE_VALUES,
   ASSISTANT_STARTERS,
-  IDEATION_STARTERS,
   POWER_STARTERS,
-  getProgressMessage,
+  DEEP_RESEARCH_STAGES,
+  ALL_MODES,
 } from '@/components/osha/oshaConstants';
+
+// Coerce any persisted legacy mode (creative/analyst/spark/expand/combine/filter)
+// back to a supported value so stale osha_settings rows don't leave the UI in a
+// dead state after the mode cleanup.
+const ALLOWED_MODE_VALUES = new Set(ALL_MODES.map(m => m.value));
+const coerceMode = (m: string | undefined | null): string =>
+  m && ALLOWED_MODE_VALUES.has(m) ? m : 'guide';
 
 interface UseOshaChatControllerParams {
   messages: OshaMessage[];
@@ -40,7 +47,7 @@ export function useOshaChatController({
 }: UseOshaChatControllerParams) {
   // ── State ──────────────────────────────────────────────────────────────
   const [input, setInput] = useState('');
-  const [mode, setMode] = useState(settings.default_mode || 'guide');
+  const [mode, setMode] = useState(coerceMode(settings.default_mode));
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [localMessages, setLocalMessages] = useState<OshaMessage[]>([]);
@@ -48,7 +55,7 @@ export function useOshaChatController({
   const [clearPending, setClearPending] = useState(false);
   const [researchElapsed, setResearchElapsed] = useState(0);
   const [researchTopic, setResearchTopic] = useState('');
-  const [researchProgressText, setResearchProgressText] = useState('');
+  const [researchStageIndex, setResearchStageIndex] = useState(0);
   const [researchPhase, setResearchPhase] = useState<'idle' | 'clarifying' | 'researching'>('idle');
   const [researchOriginalTopic, setResearchOriginalTopic] = useState('');
 
@@ -66,10 +73,11 @@ export function useOshaChatController({
   const { mutate: deleteMessage } = useDeleteOshaMessage();
   const deepResearch = useOshaDeepResearch();
   const deepResearchClarify = useOshaDeepResearchClarify();
+  const { optimizeDraft, isOptimizing } = useOptimizeDraft();
 
   // ── Derived ────────────────────────────────────────────────────────────
-  const isIdeationMode = IDEATION_MODE_VALUES.has(mode);
   const isPowerMode = POWER_MODE_VALUES.has(mode);
+  const researchProgressText = DEEP_RESEARCH_STAGES[researchStageIndex] ?? '';
 
   // ── Effects ────────────────────────────────────────────────────────────
 
@@ -86,20 +94,28 @@ export function useOshaChatController({
     });
   }, [messages, isPending]);
 
-  // Auto-scroll
+  // Auto-scroll — keeps the newest message visible as the assistant response grows.
+  // Depends on localMessages.length so each new message fires an additional scroll-to-bottom.
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [localMessages, isPending, researchProgressText]);
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, [localMessages, localMessages.length, isPending, researchProgressText]);
 
   // Sync default mode
-  useEffect(() => { setMode(settings.default_mode || 'guide'); }, [settings.default_mode]);
+  useEffect(() => { setMode(coerceMode(settings.default_mode)); }, [settings.default_mode]);
 
-  // Deep research progress text
+  // Deep research stage advancement — simulated 5-stage progress driven by elapsed seconds.
+  // Thresholds: 15s / 45s / 90s / 150s. Reset happens at session start (handleSend).
   useEffect(() => {
-    if (!isPending || researchPhase !== 'researching' || !researchTopic) return;
-    const msg = getProgressMessage(researchElapsed, researchTopic);
-    if (msg) setResearchProgressText(msg);
-  }, [researchElapsed, isPending, researchPhase, researchTopic]);
+    if (!isPending || researchPhase !== 'researching') return;
+    let next = 0;
+    if (researchElapsed >= 150) next = 4;
+    else if (researchElapsed >= 90) next = 3;
+    else if (researchElapsed >= 45) next = 2;
+    else if (researchElapsed >= 15) next = 1;
+    setResearchStageIndex(prev => (next > prev ? next : prev));
+  }, [researchElapsed, isPending, researchPhase]);
 
   // Cleanup research timer
   useEffect(() => {
@@ -113,12 +129,35 @@ export function useOshaChatController({
     deleteMessage(id);
   }, [deleteMessage]);
 
+  // Clear history: reset local state immediately on success so the chat empties
+  // instantly. The DB-sync effect ignores the now-empty server result (0 >= N is
+  // false), so without this the UI keeps stale messages until a remount.
+  const handleClearHistory = useCallback((_vars?: void, options?: { onSuccess?: () => void }) => {
+    clearHistory(undefined, {
+      onSuccess: () => { setLocalMessages([]); options?.onSuccess?.(); },
+    });
+  }, [clearHistory]);
+
   const handleTextareaInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
     const el = e.target;
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, []);
+
+  const handleOptimizeDraft = useCallback(async () => {
+    if (!input.trim()) return;
+    try {
+      const result = await optimizeDraft(input.trim());
+      setInput(result);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+      }
+    } catch {
+      // useOptimizeDraft already surfaces a toast on error
+    }
+  }, [input, optimizeDraft]);
 
   const handleCopy = useCallback(async (content: string, id: string) => {
     try {
@@ -220,7 +259,7 @@ export function useOshaChatController({
         setResearchPhase('researching');
         setResearchElapsed(0);
         setResearchTopic(researchOriginalTopic);
-        setResearchProgressText('');
+        setResearchStageIndex(0);
         dbSyncCooldownRef.current = true;
         researchTimerRef.current = setInterval(() => setResearchElapsed(prev => prev + 1), 1000);
 
@@ -236,7 +275,7 @@ export function useOshaChatController({
             conversationHistory: history, signal: abortController.signal,
             onResolvedTopic: (resolved) => setResearchTopic(resolved),
           });
-          setResearchProgressText('');
+          setResearchStageIndex(0);
           setLocalMessages(prev => [...prev, {
             id: crypto.randomUUID(), user_id: '', role: 'assistant',
             content: result.content, mode, created_at: new Date().toISOString(),
@@ -244,7 +283,7 @@ export function useOshaChatController({
           setTimeout(() => { dbSyncCooldownRef.current = false; onMessagesChange?.(); }, 8000);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- edge function errors may include AbortError name check
         } catch (err: any) {
-          setResearchProgressText('');
+          setResearchStageIndex(0);
           const content = err?.name === 'AbortError'
             ? "🛑 Research was cancelled."
             : "Deep research encountered an error. Please try again.";
@@ -334,9 +373,7 @@ export function useOshaChatController({
     ? settings.bubble_quick_starters.filter(qs => qs.label?.trim())
     : isPowerMode
       ? (POWER_STARTERS[mode] || POWER_STARTERS['deep-research'])
-      : isIdeationMode
-        ? (IDEATION_STARTERS[mode] || IDEATION_STARTERS.spark)
-        : (ASSISTANT_STARTERS[mode] || ASSISTANT_STARTERS.guide);
+      : (ASSISTANT_STARTERS[mode] || ASSISTANT_STARTERS.guide);
 
   const formatElapsed = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -346,7 +383,6 @@ export function useOshaChatController({
 
   const getModeGradient = () => {
     if (isPowerMode) return 'from-teal-500 to-emerald-500';
-    if (isIdeationMode) return 'from-yellow-500 to-amber-500';
     return 'from-sky-500 to-cyan-400';
   };
 
@@ -357,8 +393,10 @@ export function useOshaChatController({
     copiedId, localMessages, isPending,
     clearPending, setClearPending,
     researchElapsed, researchTopic, researchProgressText, researchPhase,
-    isIdeationMode, isPowerMode,
+    researchStageIndex,
+    isPowerMode,
     isClearing, quickStarters,
+    isOptimizing,
 
     // Refs
     scrollRef, fileInputRef, textareaRef,
@@ -367,7 +405,8 @@ export function useOshaChatController({
     handleSend, handleKeyDown, handleCopy, handleDeleteMessage,
     handleTextareaInput, handleFileSelect,
     handleDrop, handleDragOver, handlePaste, handleAbort,
-    clearHistory, formatElapsed, getModeGradient,
+    handleOptimizeDraft,
+    clearHistory: handleClearHistory, formatElapsed, getModeGradient,
 
     // Display
     displayMessages: localMessages,

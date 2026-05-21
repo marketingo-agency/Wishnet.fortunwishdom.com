@@ -71,8 +71,9 @@ Deno.serve(async (req) => {
       })
 
       if (createError) {
+        console.error('Failed to create user:', createError.message)
         return new Response(
-          JSON.stringify({ error: createError.message }),
+          JSON.stringify({ error: 'Failed to create user' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
@@ -119,7 +120,7 @@ Deno.serve(async (req) => {
       }).then(({ error: auditErr }) => { if (auditErr) console.error('Audit log failed:', auditErr); });
 
       return new Response(
-        JSON.stringify({ success: true, user: newUser.user }),
+        JSON.stringify({ success: true, userId: newUser.user.id }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -147,8 +148,9 @@ Deno.serve(async (req) => {
           .eq('user_id', userId)
 
         if (updateError) {
+          console.error('Failed to update role:', updateError.message)
           return new Response(
-            JSON.stringify({ error: updateError.message }),
+            JSON.stringify({ error: 'Failed to update role' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
@@ -159,8 +161,9 @@ Deno.serve(async (req) => {
           .insert({ user_id: userId, role })
 
         if (insertError) {
+          console.error('Failed to update role:', insertError.message)
           return new Response(
-            JSON.stringify({ error: insertError.message }),
+            JSON.stringify({ error: 'Failed to update role' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
@@ -203,8 +206,9 @@ Deno.serve(async (req) => {
       const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
 
       if (deleteError) {
+        console.error('Failed to delete user:', deleteError.message)
         return new Response(
-          JSON.stringify({ error: deleteError.message }),
+          JSON.stringify({ error: 'Failed to delete user' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }

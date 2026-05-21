@@ -30,7 +30,7 @@ export const mockReleaseUpdates: ReleaseUpdate[] = [
     changes: [
       'Dashboard: Your central command center for quick insights and navigation',
       'Files Manager: Upload, organize, and inspect files with grid/list views and custom sectors',
-      'AI Agents Hub: Browse all agents — Nexus, Promptor, Osha, Pixel, Pulse, and Echo',
+      'AI Agents Hub: Browse all agents — Nexus, Promptor, Osha, Pixel, Pulse, and Whisper',
       'Nexus Control Center: Configure OpenAI & Google Gemini providers, test connections in real-time',
       'Prompt Library: Create, edit, and organize quick prompts and agent-specific templates',
       'Settings: Manage account details, upload custom branding (logo & favicon), configure LLM keys',

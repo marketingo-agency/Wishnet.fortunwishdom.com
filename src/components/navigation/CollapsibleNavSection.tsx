@@ -5,7 +5,6 @@
 
 "use client";
 
-import React from 'react';
 import { usePathname } from 'next/navigation';
 import { ChevronDown } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';

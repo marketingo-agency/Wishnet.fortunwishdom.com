@@ -19,6 +19,9 @@ export const TOKEN_BUDGETS = {
   /** Short classification / routing decisions */
   CLASSIFICATION: 500,
 
+  /** In-place chat prompt optimization for Osha/Pixel inputs (Promptor optimize-draft action) */
+  PROMPT_OPTIMIZE: 800,
+
   /** Ultra-short: intent detection, yes/no, single-label */
   INTENT: 200,
 

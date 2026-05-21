@@ -1,10 +1,10 @@
-import React, { useMemo } from 'react';
-import { Layers, Plus, Paperclip, Image as ImageIcon, Film, LayoutGrid, RectangleHorizontal, CircleUser, Megaphone, X } from 'lucide-react';
+import React from 'react';
+import { ImageIcon, Film, LayoutGrid, RectangleHorizontal, CircleUser, Megaphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { usePixelBlueprints, type PixelBlueprint } from '@/hooks/usePixel';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup } from '@/components/ui/select';
+import type { PixelBlueprint } from '@/hooks/usePixel';
 import type { PixelMode } from './PixelTopBar';
 import type { PendingAttachment } from '@/types/attachments';
+import { WishReferencePanel, type WishpediaImageRef } from './WishReferencePanel';
 
 export interface PostSize {
   label: string;
@@ -86,31 +86,23 @@ interface PixelControlPanelProps {
   isPending: boolean;
   globalReferences?: PendingAttachment[];
   onRemoveReference?: (id: string) => void;
+  wishpediaImageRefs?: WishpediaImageRef[];
+  onAddWishpediaImages?: (refs: WishpediaImageRef[]) => void;
+  onRemoveWishpediaImage?: (imageId: string) => void;
+  onDropFiles?: (files: FileList) => void;
 }
 
 export function PixelControlPanel({
-  mode, activeBlueprint, onBlueprintSelect,
+  mode,
   selectedPostType, onPostTypeSelect,
-  onAttachFile, onNewBlueprint, isPending,
+  onAttachFile, isPending,
   globalReferences = [], onRemoveReference,
+  wishpediaImageRefs = [],
+  onAddWishpediaImages,
+  onRemoveWishpediaImage,
+  onDropFiles,
 }: PixelControlPanelProps) {
-  const { data: blueprints = [] } = usePixelBlueprints();
   const postTypes = PLATFORM_POST_TYPES[mode] || [];
-
-  // Create object URLs for image previews
-  const refPreviews = useMemo(() => {
-    return globalReferences.map(ref => ({
-      ...ref,
-      previewUrl: ref.type.startsWith('image/') ? URL.createObjectURL(ref.file) : undefined,
-    }));
-  }, [globalReferences]);
-
-  // Cleanup object URLs
-  React.useEffect(() => {
-    return () => {
-      refPreviews.forEach(r => { if (r.previewUrl) URL.revokeObjectURL(r.previewUrl); });
-    };
-  }, [refPreviews]);
 
   return (
     <div className="w-[220px] shrink-0 flex flex-col border-r border-border bg-background overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-track]:transparent">
@@ -140,100 +132,18 @@ export function PixelControlPanel({
         </div>
       </div>
 
-      {/* Templates */}
-      <div className="p-3 flex-1 border-b border-border">
-        <div className="flex items-center justify-between px-1 mb-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Templates</p>
-          <button
-            onClick={onNewBlueprint}
-            className="h-5 w-5 flex items-center justify-center rounded-md text-muted-foreground hover:text-pink-400 hover:bg-pink-500/10 transition-all"
-            title="New Template"
-          >
-            <Plus className="h-3 w-3" />
-          </button>
-        </div>
-
-        {blueprints.length === 0 ? (
-          <button
-            onClick={onNewBlueprint}
-            className="w-full flex flex-col items-center gap-1.5 py-4 px-2 rounded-xl border border-dashed border-border text-muted-foreground/60 hover:text-muted-foreground hover:border-border transition-all text-center"
-          >
-            <Layers className="h-4 w-4" />
-            <span className="text-[10px] leading-tight">Create your first visual template</span>
-          </button>
-        ) : (
-          <Select
-            value={activeBlueprint?.id ?? '_none'}
-            onValueChange={(val) => {
-              if (val === '_none') onBlueprintSelect(null);
-              else {
-                const bp = blueprints.find(b => b.id === val);
-                if (bp) onBlueprintSelect(bp);
-              }
-            }}
-          >
-            <SelectTrigger className="w-full h-8 bg-muted border-border text-xs text-foreground focus:ring-pink-500/30">
-              <SelectValue placeholder="None" />
-            </SelectTrigger>
-            <SelectContent className="bg-muted border-border">
-              <SelectGroup>
-                <SelectItem value="_none" className="text-xs text-muted-foreground">None</SelectItem>
-                {blueprints.map(bp => (
-                  <SelectItem key={bp.id} value={bp.id} className="text-xs text-foreground">{bp.name}</SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
-      {/* References */}
-      <div className="p-3">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 px-1">References</p>
-
-        {/* Reference preview gallery */}
-        {refPreviews.length > 0 && (
-          <div className="grid grid-cols-2 gap-1.5 mb-2">
-            {refPreviews.map((ref) => (
-              <div key={ref.id} className="relative group rounded-lg overflow-hidden border border-border bg-muted aspect-square">
-                {ref.previewUrl ? (
-                  <img
-                    src={ref.previewUrl}
-                    alt={ref.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center gap-1 p-1">
-                    <Film className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-[8px] text-muted-foreground truncate w-full text-center">{ref.name}</span>
-                  </div>
-                )}
-                {/* Remove button */}
-                <button
-                  onClick={() => onRemoveReference?.(ref.id)}
-                  className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-background/80 text-muted-foreground hover:text-rose-400 hover:bg-background flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="h-2.5 w-2.5" />
-                </button>
-                {/* Processing indicator */}
-                {ref.status === 'processing' && (
-                  <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
-                    <div className="h-3 w-3 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        <button
-          onClick={onAttachFile}
-          disabled={isPending}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-border hover:bg-muted/50 transition-all"
-        >
-          <Paperclip className="h-4 w-4 shrink-0" />
-          <span className="text-xs">Attach reference</span>
-        </button>
+      {/* WishReference */}
+      <div className="p-3 flex-1">
+        <WishReferencePanel
+          globalReferences={globalReferences}
+          onRemoveReference={onRemoveReference ?? (() => {})}
+          onAttachFile={onAttachFile}
+          wishpediaImageRefs={wishpediaImageRefs}
+          onAddWishpediaImages={onAddWishpediaImages ?? (() => {})}
+          onRemoveWishpediaImage={onRemoveWishpediaImage ?? (() => {})}
+          onDropFiles={onDropFiles ?? (() => {})}
+          isPending={isPending}
+        />
       </div>
     </div>
   );

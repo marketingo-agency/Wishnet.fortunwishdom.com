@@ -30,12 +30,12 @@ export const mockPlannedReleases: PlannedRelease[] = [
   },
   {
     id: 'p4',
-    title: 'Echo Communication Agent',
-    description: 'Connect and engage like never before. The Echo AI agent brings intelligent communication assistance for customer support via Gmail, tickets, and embeddable chatbot capabilities.',
+    title: 'Whisper Podcast Agent',
+    description: 'Turn ideas into audio. The Whisper AI agent generates podcast scripts with AI and produces studio-quality narration using the ElevenLabs API.',
     targetDate: 'July 2026',
     quarter: 'Q3 2026',
     status: 'planned',
-    features: ['Echo Communication Agent', 'Gmail Integration', 'Embeddable Chatbot']
+    features: ['Whisper Podcast Agent', 'AI Script Generation', 'ElevenLabs Audio']
   },
   {
     id: 'p5',

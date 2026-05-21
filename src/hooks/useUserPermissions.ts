@@ -79,7 +79,7 @@ export function useCurrentUserPermissions() {
         ai_can_access_nexus: true,
         ai_can_access_promptor: true,
         ai_can_access_osha: true,
-        ai_can_access_echo: true,
+        ai_can_access_whisper: true,
         ai_can_access_pulse: true,
         ai_can_access_muse: true,
         ai_can_access_pixel: true,

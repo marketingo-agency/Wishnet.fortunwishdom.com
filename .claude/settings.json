@@ -12,7 +12,33 @@
       "Bash(ls /c/Users/3issam/AppData/Roaming/npm/claude*)",
       "Bash(ls /c/Users/3issam/.claude/bin/claude*)",
       "Bash(npx @anthropic-ai/claude-code mcp add --transport http sentry https://mcp.sentry.dev/mcp)",
-      "Bash(npx @anthropic-ai/claude-code mcp add --transport http sentry https://mcp.sentry.dev/mcp --scope user)"
+      "Bash(npx @anthropic-ai/claude-code mcp add --transport http sentry https://mcp.sentry.dev/mcp --scope user)",
+      "Read(//c/My-Dev-Projects\" 2>/dev/**)",
+      "Read(//c/My-Dev-Projects/**)",
+      "Read(//My-Dev-Projects/Fortun Wishnet-audit-archive/**)",
+      "Read(//c/My-Dev-Projects/Fortun Wishnet-audit-archive/**)",
+      "Bash(grep -l \"UPDATE storage.buckets.*public\" \"C:/My-Dev-Projects/Fortun Wishnet/supabase/migrations\"/*.sql)",
+      "Bash(find \"C:/My-Dev-Projects/Fortun Wishnet/supabase/migrations\" -type f -name \"*.sql\" -exec grep -l \"files.*public.*false\\\\|UPDATE storage.buckets SET public = false\" {} \\\\;)",
+      "Bash(curl -sI https://wishnet.fortunwishdom.com)",
+      "Bash(cat vercel.json)",
+      "Bash(head -30 .github/workflows/ci.yml)",
+      "Read(//c/Users/3issam/.claude/plans/**)",
+      "Bash(python3 -c ':*)",
+      "Bash(node -e ':*)",
+      "Bash(node -e \"const fs=require\\('fs'\\); fs.writeFileSync\\('C:\\\\\\\\\\\\\\\\Users\\\\\\\\\\\\\\\\3issam\\\\\\\\\\\\\\\\.claude\\\\\\\\\\\\\\\\plans\\\\\\\\\\\\\\\\sequential-finding-lake-agent-a453b6603a583adb8.md', 'Plan placeholder', 'utf8'\\); console.log\\('ok'\\);\")",
+      "Bash(node -e \"const fs=require\\('fs'\\); const p=process.env.USERPROFILE+'/.claude/plans/sequential-finding-lake-agent-a453b6603a583adb8.md'; fs.writeFileSync\\(p, 'test', 'utf8'\\); console.log\\('ok to: '+p\\);\")",
+      "Bash(node -e \"const fs=require\\('fs'\\); const p=process.env.USERPROFILE+'/.claude/plans/sequential-finding-lake-agent-a453b6603a583adb8.md'; fs.writeFileSync\\(p, 'placeholder written via node', 'utf8'\\); console.log\\('ok'\\);\")",
+      "Bash(node -e \"const fs=require\\('fs'\\); const p=process.env.USERPROFILE+'/.claude/plans/sequential-finding-lake-agent-a453b6603a583adb8.md'; fs.writeFileSync\\(p, 'See the detailed plan in the conversation response above. The plan file could not be written due to shell escaping constraints with special characters.', 'utf8'\\); console.log\\('ok'\\);\")",
+      "Bash(npx update-browserslist-db@latest)",
+      "Bash(grep -n \"error instanceof Error ? error.message : 'Unknown error'\" \"/c/My-Dev-Projects/Fortun Wishnet/supabase/functions\"/*/*.ts)",
+      "Bash(grep -n \"error.message\" \"/c/My-Dev-Projects/Fortun Wishnet/supabase/functions\"/*/*.ts)",
+      "Bash(grep -n \"error.stack\" \"/c/My-Dev-Projects/Fortun Wishnet/supabase/functions\"/*/*.ts)",
+      "Bash(grep -rn \"JSON.stringify.*error\\\\|return.*error\" \"/c/My-Dev-Projects/Fortun Wishnet/supabase/functions\"/*/*.ts)",
+      "Bash(grep -rn \"Internal error\\\\|'Unknown error'\" \"/c/My-Dev-Projects/Fortun Wishnet/supabase/functions\"/*/*.ts)",
+      "Bash(grep -B5 -A10 \"from.*profiles\" \"/c/My-Dev-Projects/Fortun Wishnet/supabase/functions\"/*/*.ts)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
     ]
   }
 }

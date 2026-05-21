@@ -8,6 +8,7 @@
 
 const DEFAULT_ORIGINS = [
   'http://localhost:3000',
+  'http://localhost:8000', // LOCKED_PORT for this project (see CLAUDE.md Runtime Config)
   'http://localhost:8080',
   'https://wishnet.fortunwishdom.com',
 ];

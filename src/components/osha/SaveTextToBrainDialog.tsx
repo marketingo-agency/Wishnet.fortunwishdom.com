@@ -4,7 +4,7 @@
  * with destination (General/Agent-specific), category, and name options.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ import { edgeFunctionUrl, getAuthHeaders } from '@/lib/apiHelpers';
 import { useQueryClient } from '@tanstack/react-query';
 import { useBrainCategories } from '@/hooks/useBrainCategories';
 import { AI_AGENTS } from '@/data/agents';
+import * as Sentry from '@sentry/nextjs';
 
 interface SaveTextToBrainDialogProps {
   open: boolean;
@@ -86,7 +87,7 @@ export function SaveTextToBrainDialog({ open, onOpenChange, content, messageId }
       toast.success(`Saved as "${savedName}" to Brain`);
       onOpenChange(false);
     } catch (error) {
-      console.error('Save to Brain error:', error);
+      Sentry.captureException(error instanceof Error ? error : new Error('Save to Brain error'), { extra: { context: 'Save to Brain error (Osha text)' } });
       toast.error(error instanceof Error ? error.message : 'Failed to save');
     } finally {
       setSaving(false);

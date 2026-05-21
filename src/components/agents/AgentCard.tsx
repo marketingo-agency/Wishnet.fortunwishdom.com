@@ -1,6 +1,5 @@
 "use client";
 
-import React from 'react';
 import Link from 'next/link';
 import { LucideIcon, Lock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';

@@ -53,7 +53,7 @@ export function useBrainSectionByAgent(agentId: string | null) {
       const { data, error } = await supabase
         .from('brain_sections')
         .select('*')
-        .eq('agent_id', agentId)
+        .eq('agent_id', agentId || '')
         .single();
 
       if (error) throw error;

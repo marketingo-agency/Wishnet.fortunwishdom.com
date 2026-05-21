@@ -8,7 +8,6 @@ import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { PermissionLevelSelector } from './PermissionLevelSelector';
 import { useUserPermissions, useUpdateUserPermissions } from '@/hooks/useUserPermissions';
 import type { PermissionLevel, UserPermissions } from '@/types/user';
@@ -22,7 +21,6 @@ import {
   Brain, 
   Bot,
   Sparkles,
-  Globe,
   ListTodo,
   ChevronDown,
   Settings,
@@ -35,10 +33,10 @@ import {
   Edit,
   Settings2,
   Wand2,
-  Headphones,
+  Mic,
   Share2,
-  Lightbulb,
   Palette,
+  Boxes,
   Home,
   Cat,
   PersonStanding,
@@ -97,9 +95,10 @@ const toolConfigs = [
       { key: 'ai_can_access_nexus', label: 'Nexus (Control Center)', icon: Settings2 },
       { key: 'ai_can_access_promptor', label: 'Promptor (Prompts)', icon: Wand2 },
       { key: 'ai_can_access_osha', label: 'Osha (Assistant)', icon: Bot },
-      { key: 'ai_can_access_echo', label: 'Echo (Support)', icon: Headphones },
+      { key: 'ai_can_access_whisper', label: 'Whisper (Podcast)', icon: Mic },
       { key: 'ai_can_access_pulse', label: 'Pulse (Social)', icon: Share2 },
       { key: 'ai_can_access_pixel', label: 'Pixel (Visuals)', icon: Palette },
+      { key: 'ai_can_access_atlas', label: 'ATLAS (Operations)', icon: Boxes },
     ]
   },
   { 
@@ -162,9 +161,10 @@ export function EditUserSheet({ open, onOpenChange, user, onSave }: EditUserShee
     ai_can_access_nexus: true,
     ai_can_access_promptor: true,
     ai_can_access_osha: true,
-    ai_can_access_echo: true,
+    ai_can_access_whisper: true,
     ai_can_access_pulse: true,
     ai_can_access_pixel: true,
+    ai_can_access_atlas: true,
     // Wishdom
     wishdom_can_access_main: true,
     wishdom_can_access_plushes: true,
@@ -210,9 +210,10 @@ export function EditUserSheet({ open, onOpenChange, user, onSave }: EditUserShee
         ai_can_access_nexus: userPermissions.ai_can_access_nexus,
         ai_can_access_promptor: userPermissions.ai_can_access_promptor,
         ai_can_access_osha: userPermissions.ai_can_access_osha,
-        ai_can_access_echo: userPermissions.ai_can_access_echo,
+        ai_can_access_whisper: userPermissions.ai_can_access_whisper,
         ai_can_access_pulse: userPermissions.ai_can_access_pulse,
         ai_can_access_pixel: userPermissions.ai_can_access_pixel,
+        ai_can_access_atlas: userPermissions.ai_can_access_atlas,
         // Wishdom
         wishdom_can_access_main: userPermissions.wishdom_can_access_main,
         wishdom_can_access_plushes: userPermissions.wishdom_can_access_plushes,
@@ -555,8 +556,8 @@ export function EditUserSheet({ open, onOpenChange, user, onSave }: EditUserShee
                         </div>
                       </div>
                       <Switch
-                        checked={permissions.can_access_branding}
-                        onCheckedChange={(checked) => 
+                        checked={permissions.can_access_branding ?? undefined}
+                        onCheckedChange={(checked) =>
                           setPermissions(prev => ({ ...prev, can_access_branding: checked }))
                         }
                       />
@@ -573,8 +574,8 @@ export function EditUserSheet({ open, onOpenChange, user, onSave }: EditUserShee
                         </div>
                       </div>
                       <Switch
-                        checked={permissions.can_access_user_management}
-                        onCheckedChange={(checked) => 
+                        checked={permissions.can_access_user_management ?? undefined}
+                        onCheckedChange={(checked) =>
                           setPermissions(prev => ({ ...prev, can_access_user_management: checked }))
                         }
                       />

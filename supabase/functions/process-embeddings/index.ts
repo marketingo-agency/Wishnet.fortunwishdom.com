@@ -718,9 +718,9 @@ Deno.serve(async (req) => {
     console.error('[ERROR]', error);
     
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        success: false 
+      JSON.stringify({
+        error: 'Internal error',
+        success: false
       }),
       { 
         status: 500,

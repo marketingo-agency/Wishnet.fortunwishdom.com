@@ -17,8 +17,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -30,7 +30,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useToast } from '@/hooks/use-toast';
 import {
   useWishpediaEntryBySlug,
   useUpdateWishpediaEntry,
@@ -62,7 +61,6 @@ export default function WishpediaEntry() {
   const params = useParams<{ slug: string }>();
   const slug = typeof params?.slug === 'string' ? params.slug : '';
   const router = useRouter();
-  const { toast } = useToast();
 
   const { data: entry, isLoading: loadingEntry } = useWishpediaEntryBySlug(slug);
   const { data: categories = [] } = useWishpediaCategories();
@@ -140,8 +138,22 @@ export default function WishpediaEntry() {
   /* ── Loading / Not Found ── */
   if (loadingEntry) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      <div className="flex h-full p-0">
+        <div className="flex flex-col w-full bg-card rounded-xl sm:rounded-2xl shadow-sm border border-border overflow-hidden">
+          <div className="border-b px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+            <Skeleton className="h-8 w-40" />
+            <Skeleton className="h-9 w-24" />
+          </div>
+          <div className="p-4 sm:p-8 flex flex-col lg:flex-row gap-5 lg:gap-8">
+            <Skeleton className="w-full lg:w-[58%] aspect-[4/5] rounded-2xl" />
+            <div className="w-full lg:w-[42%] space-y-4">
+              <Skeleton className="h-8 w-3/4" />
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-20 w-full rounded-xl" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -170,15 +182,9 @@ export default function WishpediaEntry() {
     <div className="flex h-full p-0">
       <div className="flex flex-col w-full bg-card rounded-xl sm:rounded-2xl shadow-sm border border-border overflow-hidden">
 
-        {/* ── Premium Header ── */}
-        <div className="relative border-b border-border/60 bg-gradient-to-r from-card via-card to-card">
-          {/* Ambient glow */}
-          <div className="absolute inset-0 pointer-events-none overflow-hidden">
-            <div className="absolute -top-8 -left-8 w-32 h-32 rounded-full bg-amber-500/[0.06] blur-2xl" />
-            <div className="absolute -top-4 right-1/4 w-24 h-24 rounded-full bg-amber-400/[0.04] blur-xl" />
-          </div>
-
-          <div className="relative flex items-center justify-between gap-2 sm:gap-4 px-3 sm:px-6 py-3 sm:py-4">
+        {/* ── Header ── */}
+        <div className="border-b border-border bg-card">
+          <div className="flex items-center justify-between gap-2 sm:gap-4 px-3 sm:px-6 py-3 sm:py-4">
             {/* Left: Back + Breadcrumb */}
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               <Button
@@ -265,7 +271,7 @@ export default function WishpediaEntry() {
                 size="sm"
                 className={cn(
                   "gap-1.5 text-xs h-9 min-h-[44px] px-2.5 sm:px-3 rounded-xl transition-all duration-200",
-                  !isViewMode && "bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20"
+                  !isViewMode && "bg-amber-500 hover:bg-amber-600 text-amber-950"
                 )}
                 onClick={() => setIsViewMode(!isViewMode)}
               >
@@ -321,7 +327,7 @@ export default function WishpediaEntry() {
                   {dirty && (
                     <Button
                       size="sm"
-                      className="gap-1.5 text-xs bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-lg shadow-amber-500/25 h-9 min-h-[44px] px-3 sm:px-4 rounded-xl transition-all duration-200"
+                      className="gap-1.5 text-xs bg-amber-500 hover:bg-amber-600 text-amber-950 h-9 min-h-[44px] px-3 sm:px-4"
                       onClick={handleSave}
                       disabled={updateEntry.isPending || !name.trim()}
                     >
@@ -356,10 +362,7 @@ export default function WishpediaEntry() {
 
                 {/* Hero Image — same position as view mode */}
                 <div className="w-full lg:w-[58%] shrink-0">
-                  <div className="relative aspect-[3/4] sm:aspect-[4/5] lg:aspect-[3/4] rounded-xl sm:rounded-2xl border border-border/30 bg-muted/10 overflow-hidden shadow-sm group">
-                    {/* Subtle checkerboard hint for transparency */}
-                    <div className="absolute inset-0 opacity-[0.03] bg-[repeating-conic-gradient(hsl(var(--muted))_0%_25%,transparent_0%_50%)] bg-[length:16px_16px]" />
-
+                  <div className="group relative aspect-[4/5] rounded-2xl border border-border/40 bg-muted/20 overflow-hidden">
                     {primaryImage ? (
                       <img
                         src={getWishpediaImageUrl(primaryImage.storage_path)}
@@ -422,7 +425,7 @@ export default function WishpediaEntry() {
                       <Input
                         value={name}
                         onChange={(e) => handleNameChange(e.target.value)}
-                        className="text-xl sm:text-2xl lg:text-3xl font-bold h-auto py-2.5 px-3.5 rounded-xl border-border/30 bg-background/50 backdrop-blur-sm focus-visible:border-amber-500/40 focus-visible:shadow-[0_0_0_3px_hsl(var(--primary)/0.06)] transition-all duration-200"
+                        className="text-xl sm:text-2xl lg:text-3xl font-bold h-auto py-2.5 px-3.5"
                         placeholder="Entry name"
                       />
                     </div>
@@ -454,7 +457,7 @@ export default function WishpediaEntry() {
                         onChange={(e) => handleDescChange(e.target.value)}
                         placeholder="Add a description…"
                         rows={4}
-                        className="resize-none rounded-xl border-border/30 bg-background/50 backdrop-blur-sm text-sm leading-relaxed focus-visible:border-amber-500/40 focus-visible:shadow-[0_0_0_3px_hsl(var(--primary)/0.06)] min-h-[100px] transition-all duration-200"
+                        className="resize-none text-sm leading-relaxed min-h-[100px]"
                       />
                     </div>
                   </div>

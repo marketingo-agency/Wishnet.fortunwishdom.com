@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Bot, Paperclip, Image as ImageIcon, Bell, Save, Loader2, Plus, Trash2, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 import { useUpsertOshaSettings, type OshaSettings } from '@/hooks/useOsha';
-import { OPENAI_IMAGE_MODELS, GEMINI_IMAGE_MODELS, getImageModelsForProvider, getFileAnalysisModelsForProvider } from '@/config/llmModels';
+import { getImageModelsForProvider, getFileAnalysisModelsForProvider } from '@/config/llmModels';
 import { cn } from '@/lib/utils';
 
 interface OshaSettingsProps {
@@ -77,17 +77,7 @@ export function OshaSettings({ settings }: OshaSettingsProps) {
                     <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">Assistant</SelectLabel>
                     <SelectItem value="guide">📖 Guide — clear & explanatory</SelectItem>
                     <SelectItem value="operator">⚡ Operator — concise & action-focused</SelectItem>
-                    <SelectItem value="creative">🎨 Creative — imaginative & exploratory</SelectItem>
-                    <SelectItem value="analyst">🔬 Analyst — structured & evidence-based</SelectItem>
-                  </SelectGroup>
-                  <SelectSeparator />
-                  <SelectGroup>
-                    <SelectLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">Ideation</SelectLabel>
-                    <SelectItem value="spark">💡 Spark — rapid-fire ideas</SelectItem>
-                    <SelectItem value="expand">🔍 Expand — deep concept development</SelectItem>
-                    <SelectItem value="combine">🔗 Combine — hybrid concept merging</SelectItem>
-                    <SelectItem value="filter">📊 Filter — idea scoring & ranking</SelectItem>
-                    <SelectItem value="workshop">🛠️ Workshop — guided brainstorming</SelectItem>
+                    <SelectItem value="workshop">🎓 Workshop — guided brainstorming</SelectItem>
                   </SelectGroup>
                   <SelectSeparator />
                   <SelectGroup>

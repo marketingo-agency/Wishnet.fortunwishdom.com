@@ -13,6 +13,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 import { sanitizeForPrompt } from '../_shared/sanitize.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
+import { TOKEN_BUDGETS } from '../_shared/token-budgets.ts';
 
 // SEC-004: 10 requests per minute per user (image generation, expensive)
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 10 });
@@ -123,12 +124,13 @@ async function searchBrain(
   query: string,
   openaiKey: string,
   limit: number,
-): Promise<{ content: string }[]> {
+): Promise<{ content: string; imageUrl?: string }[]> {
   const embedding = await generateEmbedding(query, openaiKey);
   if (!embedding) return [];
 
   const { data, error } = await supabaseAdmin.rpc('match_knowledge', {
     query_embedding: JSON.stringify(embedding),
+    query_text: query, // hybrid vector+BM25 (single overload)
     match_threshold: 0.2,
     match_count: limit,
   });
@@ -137,7 +139,28 @@ async function searchBrain(
     console.error('Brain search error:', error);
     return [];
   }
-  return (data || []).map((d: any) => ({ content: d.content }));
+
+  // Multimodal: mint short-lived signed URLs for Brain image chunks so Pixel can
+  // use the actual images as references / image-to-image sources. Dedup by path.
+  const rows = (data || []) as any[];
+  const signedCache = new Map<string, string>();
+  const results: { content: string; imageUrl?: string }[] = [];
+  for (const d of rows) {
+    let imageUrl: string | undefined;
+    const sp: string | undefined = d.metadata?.storage_path;
+    if (d.metadata?.is_image && sp) {
+      if (!signedCache.has(sp)) {
+        const { data: signed } = await supabaseAdmin.storage
+          .from('brain-documents')
+          .createSignedUrl(sp, 300);
+        if (signed?.signedUrl) signedCache.set(sp, signed.signedUrl);
+      }
+      imageUrl = signedCache.get(sp);
+    }
+    // SEC: sanitize Brain content before it reaches the prompt (prompt-injection defense).
+    results.push({ content: sanitizeForPrompt(d.content), imageUrl });
+  }
+  return results;
 }
 
 /**
@@ -592,7 +615,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
+      console.error('Pixel get-settings error:', error);
+      return new Response(JSON.stringify({ error: 'Internal error' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -635,7 +659,8 @@ Deno.serve(async (req) => {
     }
 
     if (result.error) {
-      return new Response(JSON.stringify({ error: result.error.message }), {
+      console.error('Pixel save-settings error:', result.error);
+      return new Response(JSON.stringify({ error: 'Internal error' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -653,7 +678,8 @@ Deno.serve(async (req) => {
       .eq('user_id', userId);
 
     if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
+      console.error('Pixel clear-history error:', error);
+      return new Response(JSON.stringify({ error: 'Internal error' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -672,7 +698,8 @@ Deno.serve(async (req) => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
+      console.error('Pixel get-blueprints error:', error);
+      return new Response(JSON.stringify({ error: 'Internal error' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -702,7 +729,8 @@ Deno.serve(async (req) => {
         .single();
 
       if (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
+        console.error('Pixel update-blueprint error:', error);
+        return new Response(JSON.stringify({ error: 'Internal error' }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -718,7 +746,8 @@ Deno.serve(async (req) => {
         .single();
 
       if (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
+        console.error('Pixel insert-blueprint error:', error);
+        return new Response(JSON.stringify({ error: 'Internal error' }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -746,7 +775,8 @@ Deno.serve(async (req) => {
       .eq('user_id', userId);
 
     if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
+      console.error('Pixel delete-blueprint error:', error);
+      return new Response(JSON.stringify({ error: 'Internal error' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -849,7 +879,7 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ role: 'user', parts: [{ text: generationPrompt }] }],
-            generationConfig: { temperature: 0.85, maxOutputTokens: 1024 },
+            generationConfig: { temperature: 0.85, maxOutputTokens: TOKEN_BUDGETS.IMAGE_PROMPT },
           }),
         });
         if (!geminiRes.ok) throw new Error(await geminiRes.text());
@@ -868,7 +898,7 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
               { role: 'user', content: generationPrompt },
             ],
             temperature: 0.85,
-            max_tokens: 1024,
+            max_tokens: TOKEN_BUDGETS.IMAGE_PROMPT,
             response_format: { type: 'json_object' },
           }),
         });
@@ -879,7 +909,7 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
       }
     } catch (err: any) {
       console.error('Blueprint generation error:', err);
-      return new Response(JSON.stringify({ error: 'AI generation failed: ' + (err.message || 'Unknown error') }), {
+      return new Response(JSON.stringify({ error: 'AI generation failed' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -1245,7 +1275,7 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
 
     } catch (e: any) {
       console.error('Video generation error:', e);
-      const errMsg = `I encountered an error generating the video: ${e.message}. I can provide a detailed art direction brief instead — just ask.`;
+      const errMsg = 'I encountered an error generating the video. I can provide a detailed art direction brief instead — just ask.';
       return new Response(JSON.stringify({
         content: errMsg,
         audit: { heartCount: heartRules.length, brainCount: brainContext.length, complianceStatus: 'pass' },
@@ -1268,6 +1298,32 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
       selectedPostType, selectedSize, supabaseUrl,
     );
 
+    // Image-to-image source(s) (Fortun-owned): selected reference images + retrieved
+    // Brain images. Multiple sources let Pixel combine/recreate characters and scenes.
+    const sourceImages: Uint8Array[] = [];
+    const MAX_SOURCE_BYTES = 5 * 1024 * 1024; // 5MB per source image
+    try {
+      for (const att of imageAttachments) {
+        if (att.content && sourceImages.length < 4) {
+          const bin = atob(att.content);
+          if (bin.length > MAX_SOURCE_BYTES) continue;
+          const u = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+          sourceImages.push(u);
+        }
+      }
+      const brainImgUrls = [...new Set((brainContext as { content: string; imageUrl?: string }[]).map(c => c.imageUrl).filter(Boolean) as string[])];
+      for (const url of brainImgUrls) {
+        if (sourceImages.length >= 4) break;
+        const r = await fetch(url);
+        if (!r.ok) continue;
+        const buf = await r.arrayBuffer();
+        if (buf.byteLength <= MAX_SOURCE_BYTES) sourceImages.push(new Uint8Array(buf));
+      }
+    } catch {
+      // fall back to text-to-image
+    }
+
     try {
       let imageBlob: Blob;
 
@@ -1277,8 +1333,14 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
 
         // Model-specific request format
         const geminiAspect = mapRatioToGemini(selectedSize);
+        const geminiImgParts: object[] = [{ text: imagePrompt }];
+        for (const src of sourceImages) {
+          let b = '';
+          for (let i = 0; i < src.length; i++) b += String.fromCharCode(src[i]);
+          geminiImgParts.unshift({ inlineData: { mimeType: 'image/png', data: btoa(b) } });
+        }
         const geminiBody: any = {
-          contents: [{ role: 'user', parts: [{ text: imagePrompt }] }],
+          contents: [{ role: 'user', parts: geminiImgParts }],
         };
         if (imageModel === 'gemini-2.5-flash-image') {
           // Standard body, no responseModalities needed
@@ -1308,11 +1370,35 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
       } else {
         if (!openaiKey) throw new Error('OpenAI API key not configured.');
         const openaiSize = mapSizeToOpenAI(selectedSize);
-        const imageRes = await fetch('https://api.openai.com/v1/images/generations', {
+        const runGeneration = () => fetch('https://api.openai.com/v1/images/generations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
           body: JSON.stringify({ model: imageModel, prompt: imagePrompt, n: 1, size: openaiSize }),
         });
+
+        let imageRes: Response;
+        if (sourceImages.length > 0) {
+          // Image-to-image (recreate / combine) via /v1/images/edits — multipart, image[].
+          const form = new FormData();
+          form.append('model', imageModel);
+          form.append('prompt', imagePrompt);
+          form.append('n', '1');
+          if (openaiSize) form.append('size', openaiSize);
+          sourceImages.forEach((src, i) => {
+            form.append('image[]', new File([src], `source_${i}.png`, { type: 'image/png' }));
+          });
+          imageRes = await fetch('https://api.openai.com/v1/images/edits', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${openaiKey}` },
+            body: form,
+          });
+          if (!imageRes.ok) {
+            console.error('Pixel image edit failed, falling back to text-to-image:', await imageRes.text());
+            imageRes = await runGeneration();
+          }
+        } else {
+          imageRes = await runGeneration();
+        }
         if (!imageRes.ok) throw new Error(await imageRes.text());
         const imageData = await imageRes.json();
         const imageResult = imageData.data?.[0];
@@ -1394,7 +1480,7 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
 
     } catch (e: any) {
       console.error('Image generation error:', e);
-      const errMsg = `I encountered an error generating the image: ${e.message}. I can provide a detailed art direction brief instead — just ask.`;
+      const errMsg = 'I encountered an error generating the image. I can provide a detailed art direction brief instead — just ask.';
       return new Response(JSON.stringify({
         content: errMsg,
         audit: { heartCount: heartRules.length, brainCount: brainContext.length, complianceStatus: 'pass' },
@@ -1426,7 +1512,7 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
             role: m.role === 'assistant' ? 'model' : 'user',
             parts: [{ text: m.content }],
           })),
-          generationConfig: { maxOutputTokens: 8192 },
+          generationConfig: { maxOutputTokens: TOKEN_BUDGETS.CHAT_RESPONSE },
         }),
       });
 
@@ -1446,7 +1532,7 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
         body: JSON.stringify({
           model: llmModel,
           messages: openaiMessages,
-          max_tokens: 8192,
+          max_tokens: TOKEN_BUDGETS.CHAT_RESPONSE,
           temperature: 0.8,
         }),
       });
@@ -1463,7 +1549,7 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
     }
   } catch (e: any) {
     console.error('Chat completion error:', e);
-    responseContent = `I encountered an error processing your request: ${e.message}. Please try again.`;
+    responseContent = 'I encountered an error processing your request. Please try again.';
     complianceStatus = 'pass';
   }
 

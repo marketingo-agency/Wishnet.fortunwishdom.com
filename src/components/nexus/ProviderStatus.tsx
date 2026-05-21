@@ -1,13 +1,12 @@
 "use client";
 
-import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Settings, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { LLMSettings } from '@/hooks/useLLMSettings';
-import { useProviderKeyStatus } from '@/hooks/useProviderKeyStatus';
+import { useProviderKeyStatus, hasProviderKey } from '@/hooks/useProviderKeyStatus';
 
 interface ProviderStatusProps {
   settings: LLMSettings | null;
@@ -20,7 +19,7 @@ export function ProviderStatus({ settings }: ProviderStatusProps) {
     {
       id: 'openai',
       name: 'OpenAI',
-      connected: !!keyStatus?.openai,
+      connected: hasProviderKey(keyStatus?.openai),
       activeFor: [
         settings?.active_text_provider === 'openai' && 'Text',
         settings?.active_image_provider === 'openai' && 'Image',
@@ -30,7 +29,7 @@ export function ProviderStatus({ settings }: ProviderStatusProps) {
     {
       id: 'gemini',
       name: 'Google Gemini',
-      connected: !!keyStatus?.gemini,
+      connected: hasProviderKey(keyStatus?.gemini),
       activeFor: [
         settings?.active_text_provider === 'gemini' && 'Text',
         settings?.active_image_provider === 'gemini' && 'Image',

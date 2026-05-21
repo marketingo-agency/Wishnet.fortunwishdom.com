@@ -1,4 +1,3 @@
-import React from 'react';
 import { Newspaper, Search, Clock, Rocket } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';

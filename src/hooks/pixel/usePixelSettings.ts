@@ -16,11 +16,16 @@ export function usePixelSettings() {
       let headers: Record<string, string>;
       try { headers = await getAuthHeaders(); } catch { return DEFAULT_PIXEL_SETTINGS; }
 
-      const res = await fetch(PIXEL_URL, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ action: 'get-settings' }),
-      });
+      let res: Response;
+      try {
+        res = await fetch(PIXEL_URL, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ action: 'get-settings' }),
+        });
+      } catch {
+        return DEFAULT_PIXEL_SETTINGS; // network/extension failure — degrade, don't crash
+      }
       if (!res.ok) return DEFAULT_PIXEL_SETTINGS;
       const data = await res.json();
       return data.settings ? { ...DEFAULT_PIXEL_SETTINGS, ...data.settings } : DEFAULT_PIXEL_SETTINGS;

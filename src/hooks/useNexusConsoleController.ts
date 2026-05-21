@@ -15,7 +15,7 @@ import {
   useDeepResearch,
   useStreamingChat,
 } from '@/hooks/useLLMSettings';
-import { useProviderKeyStatus } from '@/hooks/useProviderKeyStatus';
+import { useProviderKeyStatus, hasProviderKey } from '@/hooks/useProviderKeyStatus';
 import { useConsoleMessages, useSaveMessage, useClearMessages, useDeleteSelectedMessages, ConsoleMessage } from '@/hooks/useConsoleMessages';
 import { useUploadFile, useDeleteFile } from '@/hooks/files/useFilesCore';
 import { useSectors, useCreateSector } from '@/hooks/files/useSectors';
@@ -67,9 +67,11 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
 
   // ── Derived ────────────────────────────────────────────────────────────
   const { data: keyStatus } = useProviderKeyStatus();
+  const hasOpenAIKey = hasProviderKey(keyStatus?.openai);
+  const hasGeminiKey = hasProviderKey(keyStatus?.gemini);
   const availableProviders = [
-    keyStatus?.openai && 'openai',
-    keyStatus?.gemini && 'gemini',
+    hasOpenAIKey && 'openai',
+    hasGeminiKey && 'gemini',
   ].filter(Boolean) as ('openai' | 'gemini')[];
 
   const currentModels = (() => {
@@ -355,11 +357,11 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
 
   const handleModeChange = useCallback((newMode: 'text' | 'image' | 'research') => {
     setMode(newMode);
-    if (newMode === 'research' && keyStatus?.openai) {
+    if (newMode === 'research' && hasOpenAIKey) {
       setProvider('openai');
       if (OPENAI_DEEP_RESEARCH_MODELS.length > 0) setModel(OPENAI_DEEP_RESEARCH_MODELS[0].value);
     }
-  }, [keyStatus]);
+  }, [hasOpenAIKey]);
 
   return {
     // State

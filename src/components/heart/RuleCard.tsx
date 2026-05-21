@@ -5,13 +5,11 @@
  * Uses hooks to track indexing status per-card.
  */
 
-import { useRef } from 'react';
-import { 
-  Eye, 
-  Edit2, 
-  Trash2, 
-  Copy, 
-  Globe, 
+import {
+  Eye,
+  Edit2,
+  Trash2,
+  Globe,
   Bot,
   MoreVertical,
   Database,
@@ -126,11 +124,6 @@ export function RuleCard({
     queryClient.invalidateQueries({ queryKey: ['rule-index-status', rule.id] });
   };
 
-  const handleDuplicate = () => {
-    suppressNextCardClick();
-    onDuplicate?.();
-  };
-
   return (
     <Card 
       className={`relative overflow-hidden border-border/50 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group ${
@@ -189,10 +182,6 @@ export function RuleCard({
                 }}>
                   <Edit2 className="w-4 h-4 mr-2" />
                   Edit
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={handleDuplicate}>
-                  <Copy className="w-4 h-4 mr-2" />
-                  Duplicate
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 {/* Manual Index Button */}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuickPrompts, useDeleteQuickPrompt, useCreateQuickPrompt } from '@/hooks/useQuickPrompts';
 import { toast } from '@/hooks/use-toast';
 import type { Prompt, PromptLibraryProps } from './promptLibraryTypes';

@@ -205,13 +205,13 @@ export const mockPrompts: Prompt[] = [
   },
   {
     id: '4',
-    name: 'Customer Support',
-    description: 'Empathetic support agent template',
+    name: 'Podcast Script',
+    description: 'Podcast episode script template',
     category: 'agent',
-    content: 'You are a customer support agent for {{company_name}}. Be empathetic, solution-focused, and always aim to resolve issues on first contact.',
-    agentIds: ['echo'],
+    content: 'You are a podcast scriptwriter for {{company_name}}. Write an engaging, well-paced episode script with a strong hook, clear segments, and a natural conversational tone ready for audio narration.',
+    agentIds: ['whisper'],
     isFavorite: false,
-    tags: ['support', 'customer'],
+    tags: ['podcast', 'audio', 'script'],
   },
   {
     id: '5',

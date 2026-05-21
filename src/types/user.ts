@@ -54,7 +54,7 @@ export interface UserPermissions {
   ai_can_access_nexus: boolean | null;
   ai_can_access_promptor: boolean | null;
   ai_can_access_osha: boolean | null;
-  ai_can_access_echo: boolean | null;
+  ai_can_access_whisper: boolean | null;
   ai_can_access_pulse: boolean | null;
   ai_can_access_muse: boolean | null;
   ai_can_access_pixel: boolean | null;

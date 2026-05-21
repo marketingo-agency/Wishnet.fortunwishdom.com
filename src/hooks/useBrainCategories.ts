@@ -7,7 +7,7 @@ export interface BrainCategory {
   name: string;
   description: string | null;
   icon: string;
-  color: string;
+  color: string | null;
   sort_order: number;
   is_active: boolean;
   created_at: string;

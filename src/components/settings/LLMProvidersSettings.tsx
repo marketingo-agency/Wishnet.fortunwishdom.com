@@ -28,11 +28,22 @@ import {
   GEMINI_TEXT_MODELS,
   GEMINI_IMAGE_MODELS,
   GEMINI_VIDEO_MODELS,
+  FAL_TEXT_MODELS,
+  FAL_IMAGE_MODELS,
+  FAL_VIDEO_MODELS,
 } from '@/hooks/useLLMSettings';
-import { useProviderKeyStatus } from '@/hooks/useProviderKeyStatus';
+import { useProviderKeyStatus, hasProviderKey } from '@/hooks/useProviderKeyStatus';
+import { useAuth } from '@/contexts/AuthContext';
 import { ProviderCard } from './ProviderCard';
 
 // Provider icons as SVG
+const FalIcon = () => (
+  <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none">
+    <rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" strokeWidth="1.5" fill="none" />
+    <path d="M8 8h8v2H10v2h4v2h-4v4H8V8z" fill="currentColor" />
+  </svg>
+);
+
 const OpenAIIcon = () => (
   <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
     <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z" />
@@ -61,10 +72,15 @@ export function LLMProvidersSettings() {
   const testConnection = useTestConnection();
   const { mutateAsync: sendAIChat } = useAIChat();
   const { data: keyStatus } = useProviderKeyStatus();
+  const { isAdmin } = useAuth();
+  const hasOpenAI = hasProviderKey(keyStatus?.openai);
+  const hasGemini = hasProviderKey(keyStatus?.gemini);
+  const hasFal = hasProviderKey(keyStatus?.fal);
 
   const [openaiStatus, setOpenaiStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [geminiStatus, setGeminiStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [testingProvider, setTestingProvider] = useState<'openai' | 'gemini' | null>(null);
+  const [falStatus, setFalStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [testingProvider, setTestingProvider] = useState<'openai' | 'gemini' | 'fal' | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const verifyAbortRef = useRef<AbortController | null>(null);
@@ -90,26 +106,24 @@ export function LLMProvidersSettings() {
     }
   };
 
-  const handleTestConnection = async (provider: 'openai' | 'gemini', apiKey: string) => {
+  const PROVIDER_LABELS: Record<string, string> = { openai: 'OpenAI', gemini: 'Gemini', fal: 'fal.ai' };
+
+  const handleTestConnection = async (provider: 'openai' | 'gemini' | 'fal', apiKey: string) => {
     setTestingProvider(provider);
-    
+
     try {
       await testConnection.mutateAsync({ provider, apiKey: apiKey || '' });
-      
-      if (provider === 'openai') {
-        setOpenaiStatus('success');
-      } else {
-        setGeminiStatus('success');
-      }
-      
-      toast.success(`${provider === 'openai' ? 'OpenAI' : 'Gemini'} connection verified!`);
+
+      if (provider === 'openai') setOpenaiStatus('success');
+      else if (provider === 'gemini') setGeminiStatus('success');
+      else setFalStatus('success');
+
+      toast.success(`${PROVIDER_LABELS[provider]} connection verified!`);
     } catch (error) {
-      if (provider === 'openai') {
-        setOpenaiStatus('error');
-      } else {
-        setGeminiStatus('error');
-      }
-      
+      if (provider === 'openai') setOpenaiStatus('error');
+      else if (provider === 'gemini') setGeminiStatus('error');
+      else setFalStatus('error');
+
       toast.error(error instanceof Error ? error.message : 'Connection test failed');
     } finally {
       setTestingProvider(null);
@@ -142,23 +156,23 @@ export function LLMProvidersSettings() {
     const textModel = textProvider === 'openai'
       ? (settings.openai_text_model || 'gpt-4o')
       : (settings.gemini_text_model || 'gemini-2.5-flash');
-    const hasTextKey = textProvider === 'openai' ? keyStatus?.openai : keyStatus?.gemini;
+    const hasTextKey = textProvider === 'openai' ? hasOpenAI : hasGemini;
 
     const imageProvider = settings.active_image_provider || 'openai';
     const imageModel = imageProvider === 'openai'
       ? (settings.openai_image_model || 'gpt-image-1')
       : (settings.gemini_image_model || 'gemini-2.5-flash-image');
-    const hasImageKey = imageProvider === 'openai' ? keyStatus?.openai : keyStatus?.gemini;
+    const hasImageKey = imageProvider === 'openai' ? hasOpenAI : hasGemini;
 
     const deepResearchProvider = settings.active_deep_research_provider || 'openai';
-    const hasDeepResearch = deepResearchProvider === 'openai' && !!keyStatus?.openai;
+    const hasDeepResearch = deepResearchProvider === 'openai' && hasOpenAI;
     const deepModel = settings.openai_deep_research_model || 'o3-deep-research';
 
     const videoProvider = settings.active_video_provider || 'openai';
     const videoModel = videoProvider === 'openai'
       ? (settings.openai_video_model || 'sora-2')
       : (settings.gemini_video_model || 'veo-3.1-generate-preview');
-    const hasVideoKey = videoProvider === 'openai' ? keyStatus?.openai : keyStatus?.gemini;
+    const hasVideoKey = videoProvider === 'openai' ? hasOpenAI : hasGemini;
 
     const initialSteps = [
       { capability: 'General Reasoning', provider: textProvider, model: textModel, status: 'pending' as const },
@@ -297,7 +311,9 @@ export function LLMProvidersSettings() {
           provider="openai"
           title="OpenAI"
           icon={<OpenAIIcon />}
-          isConnected={!!keyStatus?.openai}
+          isConnected={hasOpenAI}
+          keySource={keyStatus?.openai ?? 'none'}
+          isAdmin={isAdmin}
           textModel={settings?.openai_text_model || 'gpt-4o'}
           imageModel={settings?.openai_image_model || 'gpt-image-1'}
           textModels={OPENAI_TEXT_MODELS}
@@ -322,7 +338,9 @@ export function LLMProvidersSettings() {
           provider="gemini"
           title="Google Gemini"
           icon={<GeminiIcon />}
-          isConnected={!!keyStatus?.gemini}
+          isConnected={hasGemini}
+          keySource={keyStatus?.gemini ?? 'none'}
+          isAdmin={isAdmin}
           textModel={settings?.gemini_text_model || 'gemini-2.5-pro'}
           imageModel={settings?.gemini_image_model || 'gemini-2.5-flash-image'}
           textModels={GEMINI_TEXT_MODELS}
@@ -337,6 +355,30 @@ export function LLMProvidersSettings() {
           videoModel={settings?.gemini_video_model || 'veo-2'}
           videoModels={GEMINI_VIDEO_MODELS}
           onVideoModelChange={(model) => handleUpdateSetting('gemini_video_model', model)}
+        />
+
+        {/* fal.ai Card */}
+        <ProviderCard
+          provider="fal"
+          title="fal.ai"
+          icon={<FalIcon />}
+          isConnected={hasFal}
+          keySource={keyStatus?.fal ?? 'none'}
+          isAdmin={isAdmin}
+          textModel={settings?.fal_text_model || 'openrouter/router'}
+          imageModel={settings?.fal_image_model || 'fal-ai/flux-pro/v1.1-ultra'}
+          textModels={FAL_TEXT_MODELS}
+          imageModels={FAL_IMAGE_MODELS}
+          accentColor="border-purple-500/50"
+          onTextModelChange={(model) => handleUpdateSetting('fal_text_model', model)}
+          onImageModelChange={(model) => handleUpdateSetting('fal_image_model', model)}
+          onTestConnection={(apiKey) => handleTestConnection('fal', apiKey)}
+          isTestingConnection={testingProvider === 'fal'}
+          connectionStatus={falStatus}
+          showDeepResearch={false}
+          videoModel={settings?.fal_video_model || 'fal-ai/kling-video/v3/pro/text-to-video'}
+          videoModels={FAL_VIDEO_MODELS}
+          onVideoModelChange={(model) => handleUpdateSetting('fal_video_model', model)}
         />
 
         {/* Active Provider Selection - moved to right column */}
@@ -388,18 +430,15 @@ export function LLMProvidersSettings() {
                 <Select
                   value={settings?.active_text_provider || 'openai'}
                   onValueChange={(v) => handleUpdateSetting('active_text_provider', v)}
-                  disabled={!keyStatus?.openai && !keyStatus?.gemini}
+                  disabled={!hasOpenAI && !hasGemini && !hasFal}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="openai" disabled={!keyStatus?.openai}>
-                      OpenAI
-                    </SelectItem>
-                    <SelectItem value="gemini" disabled={!keyStatus?.gemini}>
-                      Google Gemini
-                    </SelectItem>
+                    <SelectItem value="openai" disabled={!hasOpenAI}>OpenAI</SelectItem>
+                    <SelectItem value="gemini" disabled={!hasGemini}>Google Gemini</SelectItem>
+                    <SelectItem value="fal" disabled={!hasFal}>fal.ai</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -409,13 +448,13 @@ export function LLMProvidersSettings() {
                 <Select
                   value={settings?.active_deep_research_provider || 'openai'}
                   onValueChange={(v) => handleUpdateSetting('active_deep_research_provider', v)}
-                  disabled={!keyStatus?.openai}
+                  disabled={!hasOpenAI}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="openai" disabled={!keyStatus?.openai}>
+                    <SelectItem value="openai" disabled={!hasOpenAI}>
                       OpenAI
                     </SelectItem>
                   </SelectContent>
@@ -428,18 +467,15 @@ export function LLMProvidersSettings() {
                 <Select
                   value={settings?.active_image_provider || 'openai'}
                   onValueChange={(v) => handleUpdateSetting('active_image_provider', v)}
-                  disabled={!keyStatus?.openai && !keyStatus?.gemini}
+                  disabled={!hasOpenAI && !hasGemini && !hasFal}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="openai" disabled={!keyStatus?.openai}>
-                      OpenAI
-                    </SelectItem>
-                    <SelectItem value="gemini" disabled={!keyStatus?.gemini}>
-                      Google Gemini
-                    </SelectItem>
+                    <SelectItem value="openai" disabled={!hasOpenAI}>OpenAI</SelectItem>
+                    <SelectItem value="gemini" disabled={!hasGemini}>Google Gemini</SelectItem>
+                    <SelectItem value="fal" disabled={!hasFal}>fal.ai</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -449,21 +485,18 @@ export function LLMProvidersSettings() {
                 <Select
                   value={settings?.active_video_provider || 'openai'}
                   onValueChange={(v) => handleUpdateSetting('active_video_provider', v)}
-                  disabled={!keyStatus?.openai && !keyStatus?.gemini}
+                  disabled={!hasOpenAI && !hasGemini && !hasFal}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="openai" disabled={!keyStatus?.openai}>
-                      OpenAI
-                    </SelectItem>
-                    <SelectItem value="gemini" disabled={!keyStatus?.gemini}>
-                      Google Gemini
-                    </SelectItem>
+                    <SelectItem value="openai" disabled={!hasOpenAI}>OpenAI</SelectItem>
+                    <SelectItem value="gemini" disabled={!hasGemini}>Google Gemini</SelectItem>
+                    <SelectItem value="fal" disabled={!hasFal}>fal.ai</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Requires paid API access (OpenAI Sora / Google Veo)</p>
+                <p className="text-xs text-muted-foreground">Requires paid API access (OpenAI Sora / Google Veo / fal.ai)</p>
               </div>
             </div>
 
@@ -479,7 +512,7 @@ export function LLMProvidersSettings() {
                   !isVerifying && verificationStatus === 'error' && "border-red-500 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
                 )}
                 onClick={isVerifying ? cancelVerification : handleVerifySettings}
-                disabled={!isVerifying && !keyStatus?.openai && !keyStatus?.gemini}
+                disabled={!isVerifying && !hasOpenAI && !hasGemini}
               >
                 {isVerifying ? (
                   <><X className="h-4 w-4 mr-2" />Cancel Verification</>

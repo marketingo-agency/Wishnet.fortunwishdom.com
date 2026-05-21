@@ -1,6 +1,5 @@
 "use client";
 
-import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Wand2, BrainCircuit, Database, Brain, Heart } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -11,9 +10,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useLLMSettings } from '@/hooks/useLLMSettings';
-import { useProviderKeyStatus } from '@/hooks/useProviderKeyStatus';
-
 interface PromptorHeaderProps {
   lastHeartChunks?: number;
   lastBrainChunks?: number;
@@ -22,10 +18,6 @@ interface PromptorHeaderProps {
 
 export function PromptorHeader({ lastHeartChunks, lastBrainChunks, isConnected = true }: PromptorHeaderProps) {
   const router = useRouter();
-  const { data: settings } = useLLMSettings();
-  const { data: keyStatus } = useProviderKeyStatus();
-  const hasOpenAI = !!keyStatus?.openai;
-  const hasGemini = !!keyStatus?.gemini;
   const hasRetrievalStats = lastHeartChunks !== undefined || lastBrainChunks !== undefined;
 
   return (
@@ -73,8 +65,8 @@ export function PromptorHeader({ lastHeartChunks, lastBrainChunks, isConnected =
           <Badge
             variant="outline"
             className={`text-xs sm:text-sm ${isConnected
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-400'
-              : 'bg-muted text-muted-foreground'
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-500/60'
+              : 'bg-muted text-muted-foreground border-border'
             }`}
           >
             <span className={`h-1.5 w-1.5 rounded-full mr-1 sm:mr-1.5 ${

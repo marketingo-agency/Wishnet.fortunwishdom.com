@@ -23,10 +23,8 @@ import {
   Zap,
   Target,
   Lightbulb,
-  Eye,
   Edit2,
   Trash2,
-  Bot,
   Database,
   Calendar,
   Clock,
@@ -118,13 +116,6 @@ export default function HeartRules() {
   
   // Ref to suppress card click when dropdown action is triggered
   const suppressNextCardClickRef = useRef(false);
-  const suppressNextCardClick = () => {
-    suppressNextCardClickRef.current = true;
-    requestAnimationFrame(() => {
-      suppressNextCardClickRef.current = false;
-    });
-  };
-  
   // Edit states for scope editing in sheet
   const [editIsGlobal, setEditIsGlobal] = useState(true);
   const [editSelectedAgents, setEditSelectedAgents] = useState<string[]>([]);

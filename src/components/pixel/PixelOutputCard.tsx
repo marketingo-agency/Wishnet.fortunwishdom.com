@@ -1,12 +1,13 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { useState, useRef, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import remarkGfm from 'remark-gfm';
+
+const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 import { Copy, Check, Trash2, X, Download, FileText, Image as ImageIcon, Layers, Palette, BrainCircuit, Maximize2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VideoPlayer } from '@/components/ui/video-player';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { toast } from 'sonner';
 import type { PixelMessage } from '@/hooks/usePixel';
 import { SavePixelToBrainDialog } from './SavePixelToBrainDialog';
 
@@ -151,7 +152,6 @@ export function PixelOutputCard({
 }: PixelOutputCardProps) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(false);
-  const [copiedImage, setCopiedImage] = useState(false);
   const [saveToBrainOpen, setSaveToBrainOpen] = useState(false);
   
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
@@ -163,9 +163,6 @@ export function PixelOutputCard({
   const timestamp = aiMessage.created_at ? format(new Date(aiMessage.created_at), 'h:mm a') : null;
   const markdownComponents = createMarkdownComponents(aiMessage.id);
   const userAttachments = (userMessage.attachments || []) as Array<{ name: string; type: string; size: number }>;
-
-  const hasBlueprint = aiMessage.content.includes('**Blueprint:**');
-  const hasQA = aiMessage.content.includes('**QA Status:**') || aiMessage.content.includes('QA Status:');
 
   const handleDownload = async () => {
     const url = aiMessage.video_url || aiMessage.image_url;
@@ -184,18 +181,6 @@ export function PixelOutputCard({
       URL.revokeObjectURL(blobUrl);
     } catch {
       window.open(url, '_blank');
-    }
-  };
-
-  const handleCopyImage = async () => {
-    try {
-      const res = await fetch(aiMessage.image_url!);
-      const blob = await res.blob();
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      setCopiedImage(true);
-      setTimeout(() => setCopiedImage(false), 2000);
-    } catch {
-      toast.error('Could not copy image — try right-clicking instead');
     }
   };
 

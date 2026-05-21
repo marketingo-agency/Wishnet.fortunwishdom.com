@@ -1,3 +1,6 @@
+// Sentry client-side initialization.
+// Required by @sentry/nextjs v8+ — replaces the legacy sentry.client.config.ts.
+// This file runs in the browser before any other app code.
 import * as Sentry from '@sentry/nextjs';
 
 Sentry.init({
@@ -21,3 +24,6 @@ Sentry.init({
   // Don't send PII
   sendDefaultPii: false,
 });
+
+// Required for router transition tracking
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

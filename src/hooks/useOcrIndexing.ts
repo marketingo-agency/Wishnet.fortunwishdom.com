@@ -14,6 +14,7 @@ import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { getAuthHeaders, edgeFunctionUrl } from '@/lib/apiHelpers';
+import * as Sentry from '@sentry/nextjs';
 
 // Worker is served as a static asset from /public so this file works in both
 // Vite (vite serves /public) and Next.js (next serves /public). Set the
@@ -358,7 +359,7 @@ export function useDocumentIndexStatus(documentId: string | undefined) {
         .eq('source_id', documentId);
 
       if (error) {
-        console.error('Error checking index status:', error);
+        Sentry.captureException(error instanceof Error ? error : new Error('Error checking index status'), { extra: { context: 'Error checking index status', documentId } });
         return { isIndexed: false, chunkCount: 0 };
       }
 
@@ -389,7 +390,7 @@ export function useRuleIndexStatus(ruleId: string | undefined) {
         .eq('source_id', ruleId);
 
       if (error) {
-        console.error('Error checking rule index status:', error);
+        Sentry.captureException(error instanceof Error ? error : new Error('Error checking rule index status'), { extra: { context: 'Error checking rule index status', ruleId } });
         return { isIndexed: false, chunkCount: 0 };
       }
 
@@ -420,7 +421,7 @@ export function useEntryIndexStatus(entryId: string | undefined) {
         .eq('source_id', entryId);
 
       if (error) {
-        console.error('Error checking entry index status:', error);
+        Sentry.captureException(error instanceof Error ? error : new Error('Error checking entry index status'), { extra: { context: 'Error checking entry index status', entryId } });
         return { isIndexed: false, chunkCount: 0 };
       }
 

@@ -3,7 +3,6 @@
  * Centralized route definitions for the application
  */
 
-import type { ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { 
   Brain, 
@@ -11,9 +10,9 @@ import {
   Heart,
   Wand2,
   Bot,
-  Headphones,
+  Mic,
   Share2,
-  
+
   Palette,
   Book,
   DoorOpen,
@@ -26,6 +25,7 @@ import {
   ListTodo,
   Nfc,
   Database,
+  Boxes,
 } from 'lucide-react';
 import type { ToolKey } from '@/config/permissions';
 
@@ -78,11 +78,20 @@ export const AI_AGENT_ROUTES: RouteConfig[] = [
     isComingSoon: true,
   },
   {
-    path: '/ai-agents/echo',
-    title: 'Echo',
-    description: 'Handles customer support via Gmail, tickets, and serves as an embeddable chatbot for your website.',
-    icon: Headphones,
+    path: '/ai-agents/whisper',
+    title: 'Whisper',
+    description: 'Generates podcast scripts with AI, then turns them into studio-quality audio narration using the ElevenLabs API.',
+    icon: Mic,
     iconColor: 'text-blue-500',
+    toolKey: 'ai_agents',
+    isComingSoon: true,
+  },
+  {
+    path: '/ai-agents/atlas',
+    title: 'ATLAS',
+    description: 'Structures, calculates, verifies and monitors Kickstarter operations across SKU data, factory quotes, QC, freight, 3PL, pledge manager, backer delivery and financial modeling — flagging risks, missing data, and recommended next actions for human review.',
+    icon: Boxes,
+    iconColor: 'text-teal-500',
     toolKey: 'ai_agents',
     isComingSoon: true,
   },

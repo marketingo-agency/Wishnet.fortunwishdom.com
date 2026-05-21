@@ -12,11 +12,12 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 import { z } from 'https://esm.sh/zod@3.23.8';
 import { chunkText } from '../_shared/chunker.ts';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+import { TOKEN_BUDGETS } from '../_shared/token-budgets.ts';
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { createRateLimiter } from '../_shared/rate-limit.ts';
+// SEC-003: CORS comes from the shared allowlist (computed per-request inside the handler).
+// SEC-004: 10 requests per minute per user — vision OCR is expensive (gpt-4o per page).
+const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 10 });
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -46,11 +47,19 @@ async function extractTextFromImage(
   imageBase64: string,
   mimeType: string,
   pageNumber: number,
-  openaiKey: string
+  openaiKey: string,
+  describeMode = false
 ): Promise<{ text: string; error?: string }> {
   try {
-    console.log(`Processing page ${pageNumber} with OpenAI Vision...`);
-    
+    console.log(`Processing page ${pageNumber} with OpenAI Vision (describe=${describeMode})...`);
+
+    // Standalone images (describeMode): produce a rich visual description PLUS any
+    // OCR text, so picture-only images become findable by semantic search.
+    // PDF pages (default): pure OCR, preserving document structure.
+    const promptText = describeMode
+      ? 'You are indexing an image for a searchable knowledge base. First write a detailed visual description: subject, scene, composition, style, colors, notable objects/characters, mood, and any logos or symbols. Then, on a new line starting with "TEXT:", transcribe ALL text visible in the image verbatim (write "TEXT: (none)" if there is no text). Be thorough and specific so the image can be retrieved by meaning.'
+      : 'Extract all text from this document page. Return only the extracted text content, preserving the structure and formatting as much as possible. If there are tables, format them clearly. If there is no text, return an empty string.';
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -64,7 +73,7 @@ async function extractTextFromImage(
           content: [
             {
               type: 'text',
-              text: 'Extract all text from this document page. Return only the extracted text content, preserving the structure and formatting as much as possible. If there are tables, format them clearly. If there is no text, return an empty string.'
+              text: promptText
             },
             {
               type: 'image_url',
@@ -75,14 +84,14 @@ async function extractTextFromImage(
             }
           ]
         }],
-        max_tokens: 4096,
+        max_tokens: TOKEN_BUDGETS.OCR_EXTRACTION,
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.json();
       console.error(`Vision API error for page ${pageNumber}:`, errorData);
-      return { text: '', error: errorData.error?.message || 'Vision API error' };
+      return { text: '', error: 'Vision processing failed' };
     }
 
     const data = await response.json();
@@ -92,7 +101,7 @@ async function extractTextFromImage(
     return { text };
   } catch (error) {
     console.error(`Error processing page ${pageNumber}:`, error);
-    return { text: '', error: error instanceof Error ? error.message : 'Unknown error' };
+    return { text: '', error: 'Internal error' };
   }
 }
 
@@ -136,6 +145,7 @@ async function generateEmbeddingsBatched(
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get('Origin'));
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -160,6 +170,13 @@ Deno.serve(async (req) => {
     if (userError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // SEC-004: rate limit (vision OCR is expensive)
+    if (rateLimiter.check(user.id)) {
+      return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please wait a minute and try again.' }), {
+        status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': '60' },
       });
     }
 
@@ -198,7 +215,7 @@ Deno.serve(async (req) => {
     // Get document info for metadata
     const { data: document, error: docError } = await supabase
       .from('brain_documents')
-      .select('name, category, section_id, restricted_agents')
+      .select('name, category, section_id, restricted_agents, mime_type, storage_path')
       .eq('id', document_id)
       .single();
 
@@ -210,6 +227,10 @@ Deno.serve(async (req) => {
       );
     }
 
+    // A standalone image document (vs. PDF pages rendered to images) gets the
+    // richer describe+OCR treatment so picture-only content is searchable.
+    const isStandaloneImage = (document.mime_type || '').startsWith('image/');
+
     // Process each page with Vision API sequentially
     const pageResults: PageResult[] = [];
     for (const page of page_images.sort((a, b) => a.page_number - b.page_number)) {
@@ -217,7 +238,8 @@ Deno.serve(async (req) => {
         page.image_base64,
         page.mime_type,
         page.page_number,
-        openaiKey
+        openaiKey,
+        isStandaloneImage
       );
       
       pageResults.push({
@@ -309,8 +331,13 @@ Deno.serve(async (req) => {
       category: document.category,
       section_id: document.section_id,
       restricted_agents: document.restricted_agents,
-      extraction_method: 'ocr_vision',
+      extraction_method: isStandaloneImage ? 'vision_describe' : 'ocr_vision',
       page_count: page_images.length,
+      // Multimodal: flag image docs and carry the storage path so retrieval can
+      // mint a signed URL and attach the actual image to vision-model calls.
+      is_image: isStandaloneImage,
+      mime_type: document.mime_type,
+      storage_path: document.storage_path,
     };
 
     const embeddingRecords = chunkResults.map((chunk, index) => ({
@@ -329,7 +356,7 @@ Deno.serve(async (req) => {
     if (insertError) {
       console.error('Error inserting embeddings:', insertError);
       return new Response(
-        JSON.stringify({ error: 'Failed to store embeddings', details: insertError.message }),
+        JSON.stringify({ error: 'Failed to store embeddings' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -356,7 +383,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('OCR processing error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: 'Internal error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

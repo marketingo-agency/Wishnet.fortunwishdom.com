@@ -458,7 +458,7 @@ export default function BrainSection() {
             {(brainCategories || []).map((cat) => {
               const Icon = getIconComponent(cat.icon);
               const isActive = activeCategory === cat.id;
-              const color = COLOR_MAP[cat.color] || 'text-muted-foreground';
+              const color = COLOR_MAP[cat.color ?? ''] || 'text-muted-foreground';
               const count = categoryCounts[cat.id] || 0;
               
               return (

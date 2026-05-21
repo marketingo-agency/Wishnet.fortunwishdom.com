@@ -206,8 +206,6 @@ export function UsersManagement() {
     );
   }
 
-  const formLoading = createUserMutation.isPending || deleteUserMutation.isPending;
-
   return (
     <div className="space-y-6">
       {/* Header */}

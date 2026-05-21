@@ -335,7 +335,7 @@ export function MasterMindSettings() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {brainCategories?.map((category) => {
                 const IconComponent = getIconComponent(category.icon);
-                const colorClass = getColorClass(category.color);
+                const colorClass = getColorClass(category.color ?? '');
                 return (
                   <div
                     key={category.id}
@@ -669,7 +669,7 @@ export function MasterMindSettings() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {wishpediaCategories?.map((category) => {
                 const IconComponent = getIconComponent(category.icon);
-                const colorClass = getColorClass(category.color);
+                const colorClass = getColorClass(category.color ?? '');
                 return (
                   <div
                     key={category.id}

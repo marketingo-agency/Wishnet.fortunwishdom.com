@@ -33,18 +33,28 @@ export function useClearPixelHistory() {
   return useMutation({
     mutationFn: async () => {
       const headers = await getAuthHeaders();
-      const res = await fetch(PIXEL_URL, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ action: 'clear-history' }),
-      });
-      if (!res.ok) throw new Error('Failed to clear history');
+      let res: Response;
+      try {
+        res = await fetch(PIXEL_URL, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ action: 'clear-history' }),
+        });
+      } catch {
+        // fetch threw before reaching the server — a dropped connection or a
+        // browser extension intercepting window.fetch (e.g. Similarweb)
+        throw new Error('Request was blocked before reaching the server — check your connection or disable browser extensions for this site, then try again.');
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Failed to clear history (${res.status})`);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pixel-messages', user?.id] });
       toast.success('Studio session cleared');
     },
-    onError: () => toast.error('Failed to clear history'),
+    onError: (error) => toast.error(error instanceof Error ? error.message : 'Failed to clear history'),
   });
 }
 

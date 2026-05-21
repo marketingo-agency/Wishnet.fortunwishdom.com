@@ -1,7 +1,6 @@
-import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { User, Mail, Pencil, Save, Loader2, X } from 'lucide-react';
+import { User, Mail, Save, Loader2, X, Clock } from 'lucide-react';
 
 interface ProfileInfoCardProps {
   fullName: string | null | undefined;
@@ -9,6 +8,7 @@ interface ProfileInfoCardProps {
   isEditingName: boolean;
   editNameValue: string;
   isSavingName: boolean;
+  pendingEmailChange?: boolean;
   onEditName: () => void;
   onCancelEditName: () => void;
   onChangeNameValue: (value: string) => void;
@@ -22,6 +22,7 @@ export default function ProfileInfoCard({
   isEditingName,
   editNameValue,
   isSavingName,
+  pendingEmailChange,
   onEditName,
   onCancelEditName,
   onChangeNameValue,
@@ -44,12 +45,13 @@ export default function ProfileInfoCard({
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <User className="h-4 w-4 text-muted-foreground shrink-0" />
             <div className="min-w-0 flex-1">
-              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+              <label htmlFor="profile-full-name" className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                 Full Name
               </label>
               {isEditingName ? (
                 <div className="flex gap-2 mt-1.5">
                   <Input
+                    id="profile-full-name"
                     value={editNameValue}
                     onChange={(e) => onChangeNameValue(e.target.value)}
                     placeholder="Your full name"
@@ -93,10 +95,16 @@ export default function ProfileInfoCard({
           <div className="flex items-center gap-3 min-w-0">
             <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
             <div className="min-w-0">
-              <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                 Email
-              </label>
+              </span>
               <p className="text-sm font-medium text-foreground truncate">{email || '—'}</p>
+              {pendingEmailChange && (
+                <div className="flex items-center gap-1 mt-1">
+                  <Clock className="h-3 w-3 text-amber-500" />
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400">Change pending — check your inbox</span>
+                </div>
+              )}
             </div>
           </div>
           <Button

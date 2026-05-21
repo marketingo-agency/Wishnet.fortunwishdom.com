@@ -1,24 +1,26 @@
-"use client";
-
 /**
  * Layout for the (protected) route group.
- * Wraps every authenticated page in:
- *   1. ProtectedRoute — redirects to /login if no user, shows spinner while loading
- *   2. MainLayout — sidebar + header + osha floating bubble shell
  *
- * Both components are reused unchanged from the Vite app.
+ * SEC-019 / UI-026: Server-side auth check runs BEFORE any client JS,
+ * eliminating the flash of protected content for unauthenticated users.
+ * The ProtectedShell (client) keeps a fallback guard for edge cases
+ * like expired sessions during client-side navigation.
  */
-import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { MainLayout } from "@/components/layout/MainLayout";
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+import { ProtectedShell } from './ProtectedShell';
 
-export default function ProtectedLayout({
+export default async function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <ProtectedRoute>
-      <MainLayout>{children}</MainLayout>
-    </ProtectedRoute>
-  );
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  return <ProtectedShell>{children}</ProtectedShell>;
 }
