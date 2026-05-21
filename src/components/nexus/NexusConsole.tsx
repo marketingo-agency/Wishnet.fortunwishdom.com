@@ -140,6 +140,13 @@ export function NexusConsole({ settings, initialPrompt, initialMode }: NexusCons
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-3" />
               <p className="text-sm text-muted-foreground">Loading conversation history...</p>
             </div>
+          ) : ctrl.providersLoading ? (
+            // UX-01: distinguish "still checking" from "none configured" to avoid
+            // a misleading "No AI providers configured" flash on load.
+            <div className="h-full flex flex-col items-center justify-center text-center p-6">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-3" />
+              <p className="text-sm text-muted-foreground">Checking AI providers…</p>
+            </div>
           ) : ctrl.isDisabled ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6">
               <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">

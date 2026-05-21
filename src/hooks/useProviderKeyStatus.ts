@@ -38,19 +38,21 @@ export function useProviderKeyStatus() {
   return useQuery({
     queryKey: PROVIDER_KEY_STATUS_QUERY_KEY,
     queryFn: async (): Promise<ProviderKeyStatus> => {
-      const headers = await getAuthHeaders();
-
-      const response = await fetch(SETTINGS_KEYS_ENDPOINT, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ action: 'check-keys' }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to check provider key status');
+      // CODE-03: degrade to a safe default on any failure (thrown fetch or !ok)
+      // rather than bubbling to an error boundary on load.
+      const fallback: ProviderKeyStatus = { openai: 'none', gemini: 'none', fal: 'none', pulse: 'none' };
+      try {
+        const headers = await getAuthHeaders();
+        const response = await fetch(SETTINGS_KEYS_ENDPOINT, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ action: 'check-keys' }),
+        });
+        if (!response.ok) return fallback;
+        return (await response.json()) as ProviderKeyStatus;
+      } catch {
+        return fallback;
       }
-
-      return response.json() as Promise<ProviderKeyStatus>;
     },
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     retry: 1,
