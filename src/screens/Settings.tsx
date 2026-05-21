@@ -37,7 +37,8 @@ export default function Settings() {
             <h1 className="text-xl sm:text-2xl font-bold">Settings</h1>
             <p className="text-sm text-muted-foreground">Manage your account and preferences</p>
 
-            <div className="overflow-x-auto scrollbar-hide -mx-4 sm:mx-0 px-4 sm:px-0 mt-4">
+            {/* UI-08: mobile-only right-edge fade hints the tab strip scrolls horizontally */}
+            <div className="overflow-x-auto scrollbar-hide -mx-4 sm:mx-0 px-4 sm:px-0 mt-4 [mask-image:linear-gradient(to_right,#000_92%,transparent)] sm:[mask-image:none]">
               <TabsList className="bg-muted/50 inline-flex min-w-max">
                 <TabsTrigger value="account" className="data-[state=active]:bg-background text-xs sm:text-sm shrink-0">
                   <SettingsIcon className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
