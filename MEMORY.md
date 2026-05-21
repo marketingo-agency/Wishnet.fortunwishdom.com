@@ -17,6 +17,9 @@ Executing the approved 8-phase audit remediation on branch `fix/audit-remediatio
 - Provisioned 2 temp audit users to drive the live app; all DELETED at close (baseline restored: 2 users, 33 rules, 1019 embeddings, no residue).
 - Edge deploys: `manage-users` shipped via Supabase MCP (nested-path bundling works). Remaining 6 deferred to a CLI batch — needs SUPABASE_ACCESS_TOKEN (not in env; credential-hunting correctly blocked). Until deployed, those 6 still run OLD wildcard-CORS code.
 
+## Latest fix (Pixel image display — committed + deployed + verified)
+Pixel-generated images couldn't be seen/downloaded/copied. Two root causes: (1) pixel-chat stored images in the PRIVATE `files` bucket but returned `getPublicUrl()` (403s) → switched to `createSignedUrl(24h)` like osha-chat (redeployed pixel-chat); (2) `PixelOutputCard` (the studio renderer) `<img>` had `loading="lazy"` + `display:none` → never loaded (same deadlock fixed in OshaMessageBubble) → removed lazy + added onError (also fixed PixelMessageBubble). Verified live: 1024×1024 image renders, signed URL 200, Download/Copy/Save-to-Brain present. Note: osha-chat's 24h signed URLs (and now pixel's) expire — historical images break after 24h; a durable fix would serve via serve-file on demand (not done — matches existing osha behavior).
+
 ## Current State
 All work on branch `fix/audit-remediation` (6 commits, NOT merged/pushed). main is untouched. Findings/plan docs + audit/screens committed. Production build green. The only LIVE prod changes so far: the Phase 5 DB migrations (applied) + manage-users edge fn (deployed). The other edge-fn fixes are committed in git but NOT yet live (pending the 6 deploys).
 
