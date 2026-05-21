@@ -9,7 +9,7 @@ Executing the approved 8-phase audit remediation on branch `fix/audit-remediatio
 - [DONE] Phase 4 — DATA-01 (Vector Store pagination, verified 1,019), CODE-01/02/03, UX-01. Committed.
 - [DONE] Phase 5 — SUP-02/03/05/06 migrations applied via MCP + mirrored to supabase/migrations/. Verified (anon EXECUTE revoked, RAG intact). Committed.
 - [PARTIAL] Phase 6 — A11Y-01 + UI-05 done/committed. UI-01/02/03/04/06–19 + UI-LB-01 remaining.
-- [NOT STARTED] Phase 3b — osha-chat/pixel-chat SEC-03/04/07 (large files; deploy needs token).
+- [DONE] Phase 3b — osha-chat (SEC-03 host-denylist + sanitize fetched URL; SEC-04 image cap) + pixel-chat (SEC-04) edited, committed, and **deployed byte-exact via CLI** (osha-chat v125 verify_jwt=false, pixel-chat v90 verify_jwt=true). Osha RAG smoke-tested live OK. SEC-07 (DB limiter) deferred.
 - [NOT STARTED] Phase 7 — backlog (CODE-04–09, SEC-08/10/11).
 - [DONE] Final QA partial — tsc clean, lint 0 errors, build passed, live smoke (Promptor render, per-agent gating, RAG, Vector count) all green.
 
@@ -21,7 +21,7 @@ Executing the approved 8-phase audit remediation on branch `fix/audit-remediatio
 All work on branch `fix/audit-remediation` (6 commits, NOT merged/pushed). main is untouched. Findings/plan docs + audit/screens committed. Production build green. The only LIVE prod changes so far: the Phase 5 DB migrations (applied) + manage-users edge fn (deployed). The other edge-fn fixes are committed in git but NOT yet live (pending the 6 deploys).
 
 ## Next Steps When Resuming
-1. **Phase 3b DEPLOY (code DONE + committed)** — osha-chat (SEC-03 host-denylist + sanitize fetched URL content; SEC-04 image-fetch cap) and pixel-chat (SEC-04 image-fetch cap) are edited on disk + committed but **NOT deployed**. Deploy byte-exact via CLI: `SUPABASE_ACCESS_TOKEN=… npx supabase functions deploy osha-chat pixel-chat`. (Do NOT hand-transcribe these 1,593/2,520-line files into the MCP deploy param — transcription-fidelity risk on the live main agent; CLI reads exact bytes.) SEC-07 (DB-backed limiter) deferred. After deploy: smoke-test Osha RAG + image-gen.
+1. **Phase 3b — DONE & deployed** (osha-chat v125, pixel-chat v90; Osha RAG smoke-tested). SEC-07 DB-backed limiter still deferred (optional). Nothing left here.
 2. **Phase 6 UI** — UI-01 (sidebar Collapse clipped behind corner badge, src/components/layout/), UI-02 (Pixel dark theme), UI-07 (disabled-button token in ui/button.tsx), UI-03/04/06 (remaining amber/badge contrast), UI-08–19, UI-LB-01. These are client-only (no deploy); verify each live with screenshots.
 3. **Manual (Supabase Dashboard):** SUP-01 (enable leaked-password protection) + SUP-04 (narrow public-bucket listing) — deferred (image-display risk).
 4. **Phase 7** backlog (CODE-04 file splits, CODE-05–09, SEC-08/10/11).

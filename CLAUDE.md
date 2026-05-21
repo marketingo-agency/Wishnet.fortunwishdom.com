@@ -117,8 +117,9 @@ Complete audit (4 lenses: security-auditor + code-reviewer static, Supabase MCP,
 
 **Edge deploys — DONE:** all 7 SEC-01 functions deployed via Supabase MCP and CORS-verified live (manage-users v130, update-bucket-settings v108, serve-file v103, storage-stats v111, search-knowledge v106, process-embeddings v113, wishpedia-generate v31). Preflight from `localhost:8000` returns the allowlisted origin; a non-allowlisted origin gets the safe default (no wildcard).
 
+**Phase 3b — DONE + deployed:** osha-chat SEC-03 (internal-host denylist in `fetchUrlContent` + `sanitizeForPrompt` on fetched page content, fenced as untrusted) + SEC-04 (image-result host validation + 20MB cap); pixel-chat SEC-04. Deployed **byte-exact via CLI** (osha-chat v125 `verify_jwt=false`, pixel-chat v90 `verify_jwt=true`) — MCP inline was deemed unsafe for these 1,593/2,520-line files (transcription-fidelity risk on the live main agent). Osha RAG smoke-tested live OK. SEC-07 (DB-backed limiter) deferred (optional; in-memory limiter is an acceptable first layer).
+
 **NOT done — remaining (see MEMORY.md):**
-- **Phase 3b** — osha-chat/pixel-chat SEC-03 (sanitize fetched-URL content), SEC-04 (image-fetch size cap), SEC-07 (DB-backed rate limiter) — not started (2,487/1,581-line files; deploy needs token).
 - **Phase 6 UI remaining** — UI-01 (sidebar Collapse clipped, every screen), UI-02 (Pixel dark theme), UI-03/04/06 (more amber/badge contrast), UI-07 (disabled-button token), UI-08–19, UI-LB-01.
 - **Phase 7** backlog (CODE-04 file splits, CODE-05–09, SEC-08/10/11).
 - **Manual (Supabase Dashboard):** SUP-01 enable leaked-password protection; SUP-04 narrow public-bucket listing policies (deferred — image-display risk).
