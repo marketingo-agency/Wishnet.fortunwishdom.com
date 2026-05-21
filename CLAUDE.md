@@ -102,6 +102,27 @@ The following agents are available globally at `~/.claude/agents/`:
 
 ## Audit History
 
+### Full functionality + UI/UX audit + remediation (2026-05-21)
+Complete audit (4 lenses: security-auditor + code-reviewer static, Supabase MCP, live Playwright across every route via 2 temporary provisioned audit users, ui-reviewer on 27 screenshots). Deliverables: [AUDIT_FINDINGS.md](AUDIT_FINDINGS.md) + [AUDIT_REMEDIATION_PLAN.md](AUDIT_REMEDIATION_PLAN.md) (8 phases), screenshots in `audit/screens/`. Remediation executed on branch **`fix/audit-remediation`** (not merged/pushed).
+
+**Done + verified (committed):**
+- **BUG-01 (High)** — Promptor Create froze on "Processing…" despite a 200 + persisted run. Root cause: the `useRef(true)` + cleanup-only mounted-guard left `mountedRef.current` stuck `false` after React StrictMode's dev mount→unmount→remount, so the success continuation early-returned before `setStep('done')`. Fix: reset the flag in the effect setup. Applied to [PromptorCreate.tsx](src/components/promptor/PromptorCreate.tsx), [PromptorOptimize.tsx](src/components/promptor/PromptorOptimize.tsx), [AuthContext.tsx](src/contexts/AuthContext.tsx). **Verified live.**
+- **PERM-01 (High)** — per-agent `ai_can_access_*` toggles were enforced nowhere. Added `agentKey` to [ToolProtectedRoute.tsx](src/components/ToolProtectedRoute.tsx) + wired osha/pixel/promptor/nexus routes. **Verified live** (Osha denied / Promptor allowed for a restricted user).
+- **DATA-01 (Med)** — Vector Store undercounted (1,000 vs 1,019). Real source `useVectorStoreStats`/`useIndexedItems` ([useVectorStoreManagement.ts](src/hooks/useVectorStoreManagement.ts)) used `.range(0,9999)` capped by PostgREST max-rows (1000). Added `fetchAllEmbeddings()` pagination. Also hardened `useEmbeddingStats` to use COUNT. **Verified live: 1,019 / 12 docs.**
+- **CODE-01/03** safe-defaults ([usePromptorSettings](src/hooks/promptor/usePromptorSettings.ts), [useProviderKeyStatus](src/hooks/useProviderKeyStatus.ts)); **CODE-02** Sentry+toast on [UploadDocumentDialog](src/components/brain/UploadDocumentDialog.tsx) silent catch; **UX-01** Nexus "Checking AI providers…" loading state.
+- **A11Y-01 + UI-05** — Heart RuleCard aria-labels + amber badge contrast (amber-800).
+- **Phase 5 DB (migrations applied via MCP + mirrored to `supabase/migrations/`):** SUP-02 (user_usage INSERT RLS → `auth.uid()=user_id`), SUP-03 (search_path on match_knowledge_hybrid/set_ef_search), SUP-05 (revoked anon EXECUTE on 8 SECURITY DEFINER fns; authenticated/service_role retained for RLS/RAG — **verified** anon=false, RAG live-tested OK), SUP-06 (3 FK indexes).
+- **Edge code (committed, SEC-01/02/05/06/09/12):** wildcard CORS → `getCorsHeaders` allowlist on 7 fns; manage-users rate limit; update-bucket-settings validation + dropped leaked dashboard URL; serve-file svg/html attachment; wishpedia-generate `is_admin` RPC + rate limit. **`manage-users` deployed (v130) via MCP.**
+- QA: `tsc` clean, `lint` 0 errors (36 known warnings), `npm run build` passed.
+
+**NOT done — remaining (see MEMORY.md):**
+- **6 edge deploys pending** (serve-file, storage-stats, update-bucket-settings, process-embeddings, search-knowledge, wishpedia-generate) — code committed but needs `npx supabase functions deploy` (CLI needs `SUPABASE_ACCESS_TOKEN`, absent this session; MCP deploy works but is context-heavy for large files). Until deployed, those 6 still run the OLD wildcard-CORS code.
+- **Phase 3b** — osha-chat/pixel-chat SEC-03 (sanitize fetched-URL content), SEC-04 (image-fetch size cap), SEC-07 (DB-backed rate limiter) — not started (2,487/1,581-line files; deploy needs token).
+- **Phase 6 UI remaining** — UI-01 (sidebar Collapse clipped, every screen), UI-02 (Pixel dark theme), UI-03/04/06 (more amber/badge contrast), UI-07 (disabled-button token), UI-08–19, UI-LB-01.
+- **Phase 7** backlog (CODE-04 file splits, CODE-05–09, SEC-08/10/11).
+- **Manual (Supabase Dashboard):** SUP-01 enable leaked-password protection; SUP-04 narrow public-bucket listing policies (deferred — image-display risk).
+- **Lessons:** never run `npm run build` while `npm run dev` is live (both write `.next`; disrupted HMR mid-audit). The `useRef(true)`+cleanup-only mounted-guard is a StrictMode footgun — always reset to `true` in the effect setup.
+
 ### Refactor — Wishpedia UI rebuilt to the app's card-framed pattern (2026-05-21)
 Replaced the off-pattern "cosmic-editorial" Wishpedia design (full-bleed nebula headers, masonry, dark-glass cards, cinematic black-overlay hero) with the standard card-framed pattern used by the AI Agents page. UI-only — hooks (`useWishpediaEntries/Categories/Images`, `useBulkWishpediaIndex`) and `wishpedia-generate` edge fn untouched.
 - **Index** [WishpediaIndex.tsx](src/screens/WishpediaIndex.tsx): standard shell (`bg-card rounded-2xl border`) → header (amber BookOpen icon-box + title + entry count) → standard `Input` search + `Button` category chips → responsive **grid** (2/3/4/5 cols, replaced masonry) in ScrollArea. All actions preserved (New Entry, Index All, Vector Store, Settings, back). Skeleton-grid loading + filtered/first-run empty states.
