@@ -117,9 +117,14 @@ export function PromptorOptimize({ settings, session, onUpdate, onOutputChange }
   const { toast } = useToast();
   const runPromptor = useRunPromptor();
 
-  // UI-029: mounted guard prevents setState after unmount
+  // UI-029: mounted guard prevents setState after unmount.
+  // BUG-01: reset to true on setup so React StrictMode's mount→unmount→remount
+  // (dev) doesn't leave the flag stuck false and blackhole the success path.
   const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const { outputType, blueprint, existingPrompt, context, output } = session;
 
