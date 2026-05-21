@@ -9,18 +9,11 @@
  * favour of `llm_settings` + inline defaults.
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { createRateLimiter } from '../_shared/rate-limit.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
+// SEC-12: rate-limit the cost-bearing image-generation endpoint.
+const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 15 });
 
 async function fetchReferenceUrls(
   supabaseAdmin: ReturnType<typeof createClient>,
@@ -225,6 +218,11 @@ async function saveMediaToStorage(
 }
 
 Deno.serve(async (req) => {
+  // SEC-01: per-request CORS from the shared allowlist (was wildcard '*').
+  const corsHeaders = getCorsHeaders(req.headers.get('Origin'));
+  const json = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -247,13 +245,12 @@ Deno.serve(async (req) => {
   if (userErr || !user) return json({ error: 'Unauthorized' }, 401);
   const userId = user.id;
 
-  const { data: roleData } = await supabaseAdmin
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', userId)
-    .eq('role', 'admin')
-    .maybeSingle();
-  if (!roleData) return json({ error: 'Admin access required' }, 403);
+  // SEC-12: standardize on the is_admin RPC (consistent with other privileged fns)
+  const { data: isAdmin } = await supabaseAdmin.rpc('is_admin', { _user_id: userId });
+  if (!isAdmin) return json({ error: 'Admin access required' }, 403);
+
+  // SEC-12: rate limit the cost-bearing generation endpoint
+  if (rateLimiter.check(userId)) return json({ error: 'Too many requests. Please slow down.' }, 429);
 
   let body: any;
   try { body = await req.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }

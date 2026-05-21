@@ -8,10 +8,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 import { z } from 'https://esm.sh/zod@3.23.8';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -59,6 +56,8 @@ async function generateQueryEmbedding(query: string, apiKey: string): Promise<nu
 }
 
 Deno.serve(async (req) => {
+  // SEC-01: per-request CORS from the shared allowlist (was wildcard '*').
+  const corsHeaders = getCorsHeaders(req.headers.get('Origin'));
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });

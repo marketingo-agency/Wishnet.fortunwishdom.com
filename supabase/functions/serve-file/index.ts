@@ -1,10 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.91.0";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, x-request-id",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 // MIME type mapping based on file extension
 const mimeTypes: Record<string, string> = {
@@ -35,18 +31,19 @@ function getMimeType(path: string): string {
   return mimeTypes[ext] || "application/octet-stream";
 }
 
-function errorResponse(
-  status: number,
-  message: string,
-  headers: Record<string, string> = {}
-): Response {
-  return new Response(JSON.stringify({ error: message }), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json", ...headers },
-  });
-}
-
 Deno.serve(async (req) => {
+  // SEC-01: per-request CORS from the shared allowlist (was wildcard '*').
+  const corsHeaders = getCorsHeaders(req.headers.get("Origin"));
+  const errorResponse = (
+    status: number,
+    message: string,
+    headers: Record<string, string> = {}
+  ): Response =>
+    new Response(JSON.stringify({ error: message }), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json", ...headers },
+    });
+
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -145,12 +142,17 @@ Deno.serve(async (req) => {
 
     console.log(`[serve-file] Serving file: ${displayName} (${mimeType}, ${fileData.size} bytes)`);
 
-    // Return file for inline viewing
+    // SEC-09: force download for script-capable types (SVG/HTML) so they can't
+    // execute as same-origin documents (stored-XSS); everything else stays inline.
+    const isScriptable = mimeType === "image/svg+xml" || mimeType === "text/html";
+    const disposition = isScriptable ? "attachment" : "inline";
+
+    // Return file
     return new Response(fileData, {
       headers: {
         ...corsHeaders,
         "Content-Type": mimeType,
-        "Content-Disposition": `inline; filename="${encodeURIComponent(displayName)}"`,
+        "Content-Disposition": `${disposition}; filename="${encodeURIComponent(displayName)}"`,
         "Cache-Control": "private, max-age=3600",
         "Content-Length": fileData.size.toString(),
       },

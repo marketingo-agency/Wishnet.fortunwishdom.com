@@ -34,7 +34,9 @@ export function getCorsHeaders(requestOrigin?: string | null): Record<string, st
 
   return {
     'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    // Superset of headers the supabase-js client may send (SEC-01: covers the
+    // functions previously using a wildcard with extended Allow-Headers).
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, x-request-id',
     'Vary': 'Origin',
   };
 }

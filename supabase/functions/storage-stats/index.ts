@@ -1,9 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 interface BucketStats {
   count: number;
@@ -31,6 +28,8 @@ interface StorageStatsResponse {
 }
 
 Deno.serve(async (req) => {
+  // SEC-01: per-request CORS from the shared allowlist (was wildcard '*').
+  const corsHeaders = getCorsHeaders(req.headers.get('Origin'));
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
