@@ -1436,8 +1436,11 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
           .upload(imagePath, imageBlob, { contentType: 'image/png', upsert: false });
 
         if (!uploadErr) {
-          const { data: publicData } = supabaseServiceClient.storage.from('files').getPublicUrl(imagePath);
-          permanentImageUrl = publicData.publicUrl;
+          // BUGFIX: the 'files' bucket is PRIVATE — getPublicUrl returns a URL that
+          // 403s, so the generated image couldn't be viewed/downloaded/copied.
+          // Mint a signed URL instead (mirrors osha-chat, 24h TTL).
+          const { data: signedData } = await supabaseServiceClient.storage.from('files').createSignedUrl(imagePath, 60 * 60 * 24);
+          permanentImageUrl = signedData?.signedUrl || '';
 
           const { data: sectors } = await supabase.from('sectors').select('id, name').eq('user_id', userId);
           let pixelSectorId = sectors?.find((s: any) => s.name === 'Pixel AI')?.id;
