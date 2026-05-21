@@ -115,8 +115,9 @@ Complete audit (4 lenses: security-auditor + code-reviewer static, Supabase MCP,
 - **Edge code (committed, SEC-01/02/05/06/09/12):** wildcard CORS → `getCorsHeaders` allowlist on 7 fns; manage-users rate limit; update-bucket-settings validation + dropped leaked dashboard URL; serve-file svg/html attachment; wishpedia-generate `is_admin` RPC + rate limit. **`manage-users` deployed (v130) via MCP.**
 - QA: `tsc` clean, `lint` 0 errors (36 known warnings), `npm run build` passed.
 
+**Edge deploys — DONE:** all 7 SEC-01 functions deployed via Supabase MCP and CORS-verified live (manage-users v130, update-bucket-settings v108, serve-file v103, storage-stats v111, search-knowledge v106, process-embeddings v113, wishpedia-generate v31). Preflight from `localhost:8000` returns the allowlisted origin; a non-allowlisted origin gets the safe default (no wildcard).
+
 **NOT done — remaining (see MEMORY.md):**
-- **6 edge deploys pending** (serve-file, storage-stats, update-bucket-settings, process-embeddings, search-knowledge, wishpedia-generate) — code committed but needs `npx supabase functions deploy` (CLI needs `SUPABASE_ACCESS_TOKEN`, absent this session; MCP deploy works but is context-heavy for large files). Until deployed, those 6 still run the OLD wildcard-CORS code.
 - **Phase 3b** — osha-chat/pixel-chat SEC-03 (sanitize fetched-URL content), SEC-04 (image-fetch size cap), SEC-07 (DB-backed rate limiter) — not started (2,487/1,581-line files; deploy needs token).
 - **Phase 6 UI remaining** — UI-01 (sidebar Collapse clipped, every screen), UI-02 (Pixel dark theme), UI-03/04/06 (more amber/badge contrast), UI-07 (disabled-button token), UI-08–19, UI-LB-01.
 - **Phase 7** backlog (CODE-04 file splits, CODE-05–09, SEC-08/10/11).

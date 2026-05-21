@@ -5,7 +5,7 @@ Executing the approved 8-phase audit remediation on branch `fix/audit-remediatio
 
 ## Plan Status
 - [DONE] Phase 1 — BUG-01 (Promptor StrictMode mounted-guard) + PERM-01 (per-agent gating). Verified live. Committed.
-- [DONE] Phase 2/3a — edge CORS allowlist (7 fns) + manage-users rate limit + update-bucket validation + serve-file svg attachment + wishpedia is_admin/RL. Committed. **manage-users deployed (v130); 6 deploys PENDING.**
+- [DONE] Phase 2/3a — edge CORS allowlist (7 fns) + manage-users rate limit + update-bucket validation + serve-file svg attachment + wishpedia is_admin/RL. Committed. **ALL 7 DEPLOYED via MCP + CORS-verified live** (manage-users v130, update-bucket-settings v108, serve-file v103, storage-stats v111, search-knowledge v106, process-embeddings v113, wishpedia-generate v31). Preflight: allowlisted origin OK, evil origin rejected (no wildcard).
 - [DONE] Phase 4 — DATA-01 (Vector Store pagination, verified 1,019), CODE-01/02/03, UX-01. Committed.
 - [DONE] Phase 5 — SUP-02/03/05/06 migrations applied via MCP + mirrored to supabase/migrations/. Verified (anon EXECUTE revoked, RAG intact). Committed.
 - [PARTIAL] Phase 6 — A11Y-01 + UI-05 done/committed. UI-01/02/03/04/06–19 + UI-LB-01 remaining.
@@ -21,8 +21,8 @@ Executing the approved 8-phase audit remediation on branch `fix/audit-remediatio
 All work on branch `fix/audit-remediation` (6 commits, NOT merged/pushed). main is untouched. Findings/plan docs + audit/screens committed. Production build green. The only LIVE prod changes so far: the Phase 5 DB migrations (applied) + manage-users edge fn (deployed). The other edge-fn fixes are committed in git but NOT yet live (pending the 6 deploys).
 
 ## Next Steps When Resuming
-1. **Deploy the 6 edge functions** — `SUPABASE_ACCESS_TOKEN=… npx supabase functions deploy serve-file storage-stats update-bucket-settings process-embeddings search-knowledge wishpedia-generate` (ask Sam for the token, or deploy each via Supabase MCP). Then live-smoke Files (storage-stats) + Settings→Users (manage-users) for CORS.
-2. **Phase 3b** — osha-chat/pixel-chat SEC-03/04/07, then deploy (token).
-3. **Phase 6 UI** — start with UI-01 (sidebar Collapse clipped, src/components/layout/) + the amber-contrast family + UI-07 disabled-button token.
-4. **Manual:** SUP-01 (enable leaked-password protection) + SUP-04 (bucket listing) in Supabase Dashboard.
+1. **Phase 3b** — osha-chat/pixel-chat SEC-03 (sanitize fetched-URL content), SEC-04 (image-fetch size cap), SEC-07 (DB-backed rate limiter). Large files (2,487/1,581 lines) — edit via Edit tool, then deploy via CLI (`SUPABASE_ACCESS_TOKEN=… npx supabase functions deploy osha-chat pixel-chat`); too large to inline through MCP.
+2. **Phase 6 UI** — UI-01 (sidebar Collapse clipped behind corner badge, src/components/layout/), UI-02 (Pixel dark theme), UI-07 (disabled-button token in ui/button.tsx), UI-03/04/06 (remaining amber/badge contrast), UI-08–19, UI-LB-01. These are client-only (no deploy); verify each live with screenshots.
+3. **Manual (Supabase Dashboard):** SUP-01 (enable leaked-password protection) + SUP-04 (narrow public-bucket listing) — deferred (image-display risk).
+4. **Phase 7** backlog (CODE-04 file splits, CODE-05–09, SEC-08/10/11).
 5. When all green: merge `fix/audit-remediation`, update CLAUDE.md final status, clear this file. REVOKE the temp Supabase token.
