@@ -151,17 +151,19 @@ export function RuleCard({
             </span>
           </div>
           <div className="flex items-center gap-1">
-            <Switch 
+            <Switch
               checked={rule.is_active}
               onCheckedChange={onToggle}
               onClick={(e) => e.stopPropagation()}
+              aria-label={rule.is_active ? 'Deactivate rule' : 'Activate rule'}
               className="scale-90"
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Rule actions"
                   className="h-8 w-8 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -277,8 +279,8 @@ export function RuleCard({
               variant="outline"
               className={`text-xs py-0.5 ${
                 indexStatus?.isIndexed
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-amber-50 text-amber-800 border-amber-200'
               }`}
             >
               {indexStatus?.isIndexed ? (
