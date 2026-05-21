@@ -11,6 +11,27 @@ import { processEmbedding } from './useKnowledgeEmbeddings';
 import { toast } from 'sonner';
 import * as Sentry from '@sentry/nextjs';
 
+/**
+ * DATA-01: fetch ALL knowledge_embeddings rows in pages.
+ * `.range(0, 9999)` was silently capped by PostgREST's server max-rows (1000),
+ * undercounting stats and dropping sources once the corpus exceeded 1000 chunks.
+ */
+const EMBEDDINGS_PAGE = 1000;
+async function fetchAllEmbeddings<T>(columns: string): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += EMBEDDINGS_PAGE) {
+    const { data, error } = await supabase
+      .from('knowledge_embeddings')
+      .select(columns)
+      .range(from, from + EMBEDDINGS_PAGE - 1);
+    if (error) throw error;
+    const batch = (data ?? []) as T[];
+    rows.push(...batch);
+    if (batch.length < EMBEDDINGS_PAGE) break;
+  }
+  return rows;
+}
+
 export interface IndexedItem {
   source_id: string;
   source_type: 'brain_document' | 'heart_rule' | 'wishpedia_entry';
@@ -42,11 +63,8 @@ export function useIndexedItems() {
     queryKey: ['vector-store', 'indexed-items'],
     queryFn: async () => {
       // Fetch embeddings, brain sections, brain documents, AND wishpedia entries in parallel
-      const [embeddingsResult, sectionsResult, documentsResult, entriesResult] = await Promise.all([
-        supabase
-          .from('knowledge_embeddings')
-          .select('source_id, source_type, metadata, created_at')
-          .range(0, 9999),
+      const [embeddingsData, sectionsResult, documentsResult, entriesResult] = await Promise.all([
+        fetchAllEmbeddings<{ source_id: string; source_type: IndexedItem['source_type']; metadata: Record<string, unknown> | null; created_at: string }>('source_id, source_type, metadata, created_at'),
         supabase
           .from('brain_sections')
           .select('id, agent_id, type'),
@@ -57,8 +75,7 @@ export function useIndexedItems() {
           .from('wishpedia_entries')
           .select('id, name'),
       ]);
-      
-      if (embeddingsResult.error) throw embeddingsResult.error;
+
       if (sectionsResult.error) throw sectionsResult.error;
       if (documentsResult.error) throw documentsResult.error;
       if (entriesResult.error) throw entriesResult.error;
@@ -87,7 +104,7 @@ export function useIndexedItems() {
       // Group by source_id and aggregate
       const grouped = new Map<string, IndexedItem>();
       
-      for (const row of embeddingsResult.data || []) {
+      for (const row of embeddingsData) {
         const key = `${row.source_type}-${row.source_id}`;
         const existing = grouped.get(key);
         const metadata = row.metadata as Record<string, unknown> | null;
@@ -164,15 +181,10 @@ export function useVectorStoreStats() {
   return useQuery({
     queryKey: ['vector-store', 'stats'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('knowledge_embeddings')
-        .select('source_id, source_type')
-        .range(0, 9999);
-      
-      if (error) throw error;
-      
+      const data = await fetchAllEmbeddings<{ source_id: string; source_type: string }>('source_id, source_type');
+
       const stats: VectorStoreStats = {
-        total_chunks: data?.length || 0,
+        total_chunks: data.length,
         document_count: 0,
         rule_count: 0,
         entry_count: 0,
