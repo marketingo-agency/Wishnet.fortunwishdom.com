@@ -4,14 +4,15 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Radio, CheckCircle2, XCircle, Users, Globe, Share2, Wifi } from 'lucide-react';
+import { Loader2, Radio, CheckCircle2, XCircle, Globe, Wifi } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ApiKeyEditor } from './ApiKeyEditor';
+import { PulseQueueSettings } from './PulseQueueSettings';
+import { PulseConnectedProfiles } from './PulseConnectedProfiles';
 import { useProviderKeyStatus, hasProviderKey } from '@/hooks/useProviderKeyStatus';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   usePulseTestConnection,
-  usePulseAccounts,
   usePulsePlatforms,
   type PulseConnectionStatus,
 } from '@/hooks/usePulseSettings';
@@ -27,7 +28,6 @@ export function PulseSettings() {
 
   const isConnected = connectionStatus?.connected === true;
 
-  const { data: accounts, isLoading: loadingAccounts } = usePulseAccounts(isConnected);
   const { data: platforms, isLoading: loadingPlatforms } = usePulsePlatforms(isConnected);
 
   const handleTestConnection = async () => {
@@ -112,50 +112,8 @@ export function PulseSettings() {
         </CardContent>
       </Card>
 
-      {/* Connected Accounts */}
-      <Card className="border shadow-sm">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-rose-500" />
-            <CardTitle className="text-sm">Connected Profiles</CardTitle>
-          </div>
-          <CardDescription className="text-xs">
-            Social media profiles managed through upload-post.com
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!isConnected ? (
-            <p className="text-xs text-muted-foreground py-4 text-center">
-              Connect your API key and test the connection to view profiles.
-            </p>
-          ) : loadingAccounts ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : accounts && Array.isArray(accounts) && accounts.length > 0 ? (
-            <div className="space-y-2">
-              {accounts.map((account, i) => (
-                <div key={account.username ?? i} className="flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-2.5">
-                  <Share2 className="h-4 w-4 text-rose-500 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{account.username}</p>
-                    {account.platforms && account.platforms.length > 0 && (
-                      <p className="text-[10px] text-muted-foreground">
-                        {account.platforms.join(', ')}
-                      </p>
-                    )}
-                  </div>
-                  <Badge variant="outline" className="text-[10px] shrink-0">Active</Badge>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground py-4 text-center">
-              No profiles found. Connect accounts in your upload-post.com dashboard.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      {/* Connected Profiles (pictures, handles, per-platform analytics) */}
+      <PulseConnectedProfiles enabled={isConnected} />
 
       {/* Connected Platforms */}
       <Card className="border shadow-sm">
@@ -180,23 +138,23 @@ export function PulseSettings() {
           ) : platforms ? (
             <div className="space-y-3">
               {/* Facebook Pages */}
-              {platforms.facebook && (platforms.facebook as { pages?: unknown[] }).pages && (
+              {platforms.facebook && platforms.facebook.length > 0 && (
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Facebook Pages</p>
-                  {((platforms.facebook as { pages: Array<{ page_id: string; page_name: string }> }).pages).map((page) => (
-                    <div key={page.page_id} className="flex items-center gap-2 rounded-md bg-muted/30 px-2.5 py-1.5 mb-1">
-                      <span className="text-xs">{page.page_name}</span>
+                  {platforms.facebook.map((page, i) => (
+                    <div key={page.id ?? i} className="flex items-center gap-2 rounded-md bg-muted/30 px-2.5 py-1.5 mb-1">
+                      <span className="text-xs">{page.name}</span>
                     </div>
                   ))}
                 </div>
               )}
 
               {/* LinkedIn Orgs */}
-              {platforms.linkedin && (platforms.linkedin as { orgs?: unknown[] }).orgs && (
+              {platforms.linkedin && platforms.linkedin.length > 0 && (
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">LinkedIn Organizations</p>
-                  {((platforms.linkedin as { orgs: Array<{ urn: string; name: string }> }).orgs).map((org) => (
-                    <div key={org.urn} className="flex items-center gap-2 rounded-md bg-muted/30 px-2.5 py-1.5 mb-1">
+                  {platforms.linkedin.map((org, i) => (
+                    <div key={org.id ?? i} className="flex items-center gap-2 rounded-md bg-muted/30 px-2.5 py-1.5 mb-1">
                       <span className="text-xs">{org.name}</span>
                     </div>
                   ))}
@@ -204,18 +162,20 @@ export function PulseSettings() {
               )}
 
               {/* Pinterest Boards */}
-              {platforms.pinterest && (platforms.pinterest as { boards?: unknown[] }).boards && (
+              {platforms.pinterest && platforms.pinterest.length > 0 && (
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Pinterest Boards</p>
-                  {((platforms.pinterest as { boards: Array<{ board_id: string; name: string }> }).boards).map((board) => (
-                    <div key={board.board_id} className="flex items-center gap-2 rounded-md bg-muted/30 px-2.5 py-1.5 mb-1">
+                  {platforms.pinterest.map((board, i) => (
+                    <div key={board.id ?? i} className="flex items-center gap-2 rounded-md bg-muted/30 px-2.5 py-1.5 mb-1">
                       <span className="text-xs">{board.name}</span>
                     </div>
                   ))}
                 </div>
               )}
 
-              {!platforms.facebook && !platforms.linkedin && !platforms.pinterest && (
+              {(!platforms.facebook || platforms.facebook.length === 0) &&
+               (!platforms.linkedin || platforms.linkedin.length === 0) &&
+               (!platforms.pinterest || platforms.pinterest.length === 0) && (
                 <p className="text-xs text-muted-foreground py-2 text-center">No platform pages found.</p>
               )}
             </div>
@@ -224,6 +184,9 @@ export function PulseSettings() {
           )}
         </CardContent>
       </Card>
+
+      {/* Posting Schedule (queue settings) */}
+      <PulseQueueSettings enabled={isConnected} />
 
       {/* API Info */}
       <Card className="border shadow-sm">

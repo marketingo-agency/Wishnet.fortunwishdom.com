@@ -71,11 +71,11 @@ export const AI_AGENT_ROUTES: RouteConfig[] = [
   {
     path: '/ai-agents/pulse',
     title: 'Pulse',
-    description: 'Manages social media interactions, replies to comments and messages, and schedules posts across platforms.',
+    description: 'Plan, generate, schedule, and publish posts across platforms, then manage comments and DMs with AI replies — your social operations hub.',
     icon: Share2,
     iconColor: 'text-pink-500',
     toolKey: 'ai_agents',
-    isComingSoon: true,
+    isComingSoon: false,
   },
   {
     path: '/ai-agents/whisper',
