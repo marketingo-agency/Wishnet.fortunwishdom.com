@@ -1,30 +1,13 @@
 # MEMORY — Working Memory
 
-## Current Task
-Building the **Whisper** AI agent (AI Podcast Generator) at `/ai-agents/whisper` — 10-phase plan, Sam approved "go for all phases". Concept: topic OR Brain/Wishpedia source → AI script (solo/two-host/interview/explainer) → ElevenLabs audio → show notes/cover → distribute. Tabs: Overview · Studio · Episodes · Shows · Voices · Settings. Blue/indigo identity.
+No active task. Ready for next assignment.
 
-## Plan Status
-- [DONE] Phase 0 — Foundations: 4 admin-only RLS tables (whisper_shows/episodes/voices/settings, migration 20260522160000) + private `whisper-audio` bucket; agent flipped active (agents.ts/routeConfig/page.tsx → WhisperAgent + ai_can_access_whisper gate); WhisperAgent shell (6 tabs, placeholders); types/whisper.ts; lib/whisperApi.ts + WHISPER_API_ENDPOINT; whisper-api edge **v1** (admin-gated, shared ElevenLabs key from pulse_connections.elevenlabs) with list-voices. tsc/lint clean.
-- [DONE] Phase 1 — Settings & Voices. Hand-added 4 whisper tables to types.ts. useWhisperSettings (whisper_settings single-row, direct client) + useWhisperVoices (useElevenLabsVoices via list-voices; useWhisperVoicePresets/save/delete on whisper_voices). WhisperSettingsTab (ElevenLabs connection REUSES PulseConnectionRow + usePulseConnectionsStatus for provider 'elevenlabs' + generation defaults: script provider/model, tts model, format, language) + WhisperVoicesTab (preset chips + searchable voice library with audio preview + Save preset). Wired into tabs. No edge redeploy (list-voices already in v1). tsc/lint clean.
-- [DONE] Phase 2 — Script Studio. whisper-api v2 adds generate-script (script model + Heart rules + format/length/tone/language → JSON {title, segments}; safe https-only URL fetch w/ SSRF denylist; eleven_v3 audio-tag guidance). Hooks: useGenerateScript, useWhisperEpisodes (CRUD). WhisperStudioTab (components/whisper/studio/): format/length/language/tone + source modes (Topic/Paste/URL) → generate → editable segment list (speaker+text, reorder/add/remove, title) → Save as draft (status 'scripted'). Wired into Studio tab. tsc/lint clean. (Brain/Wishpedia source pickers deferred — Topic/Paste/URL working.)
-- [DONE] Phase 3 — Voice Casting. whisper-api v3 adds preview-line (TTS one line via ttsLine helper → base64 data URL; toBase64 chunked). usePreviewLine hook. WhisperCastPanel (components/whisper/studio/): distinct speakers → voice Select (presets group ★ + ElevenLabs library group) + per-speaker Preview (plays sample). Integrated into Studio Script card; assignVoice sets voice_id on all of a speaker's segments → persisted on Save. tsc/lint clean.
-- [DONE] Phase 4 — Audio Production. whisper-api v4 adds render-episode (merges consecutive same-voice lines → ttsLine each → concat mp3 → upload to whisper-audio bucket → audio_path + duration estimate; status rendering→rendered/failed; ttsLine helper). Hooks: useRenderEpisode + useWhisperAudioUrl (client signs whisper-audio path) + useWhisperEpisode(id) single. WhisperEpisodeView dialog (components/whisper/episodes/): script readonly + missing-voice warning + Render/Re-render + <audio> player; opens from Studio after Save. whisperStatus.ts (badge meta + formatDuration). tsc/lint clean. NOTE: render is synchronous in-request — long episodes may approach edge time limits (future: queue / Text-to-Dialogue single-call). Raw mp3 concat (pragmatic).
-- [DONE] Phase 5 — Episodes library + show notes + LONG-EPISODE FIX. whisper-api v5: render-episode now ASYNC via EdgeRuntime.waitUntil background task (returns {status:'rendering'} immediately, no request timeout; falls back to inline if no edge runtime) — client polls via useWhisperEpisode refetchInterval(4s while rendering). Added generate-shownotes (title/description/chapters[{time,label}]/tags → stored on episode). WhisperEpisodesTab (list/filter/open/delete). WhisperEpisodeView gained a Show Notes section. useGenerateShowNotes hook. tsc/lint clean.
-- [DONE] Phase 6 — Shows/series. useWhisperShows (CRUD, direct client). WhisperShowDialog (name/desc/language + default-cast rows: speaker→voice from presets/library). WhisperShowsTab (grid + edit/delete). Studio gained an optional Show select → sets show_id, prefills language, and auto-applies the show's default_cast to matching speakers after generation. tsc/lint clean. No edge change.
-- [DONE] Phase 7 — Distribution. whisper-api v6 adds generate-cover (OpenAI images → upload covers/{id}.png to whisper-audio → cover_path; fromBase64 helper). useGenerateCover hook. WhisperEpisodeView Distribution section: Download MP3 (signed url), Copy transcript, Generate/Regenerate cover (+ <img> preview), Send to Pulse (reuses useCreatePulseDraft → pulse_drafts row caption=title+description). tsc/lint clean. RSS deferred.
-- [ACTIVE] Phase 8 — Overview dashboard: WhisperOverviewTab — recent episodes, drafts count, rendered count, ElevenLabs connection health, quick "New episode" (onNavigate to studio). No edge.
-- [ ] Phase 9 — QA (security-auditor mandatory) + CLAUDE.md + commit.
+## Recently shipped (2026-05-22, branch `fix/audit-remediation`, NOT pushed/merged)
+- **Pulse** — Social Media Command Center (commits 210f8ea + e3aa529, pulse-api v9, security PASS).
+- **Whisper** — AI Podcast Generator (commit fcdf287, whisper-api v7, security PASS). Full record in CLAUDE.md.
 
-## Key Decisions
-- ElevenLabs key SHARED with Pulse (pulse_connections.provider='elevenlabs') — no new secret store. whisper-api reads it (service role).
-- All whisper tables admin-only RLS (matches admin-gated edge + Pulse precedent). Audio in private whisper-audio bucket (signed URLs).
-- TTS: eleven_v3 (expressive, 70+ langs, audio tags) default; multilingual_v2 / flash_v2_5 selectable. Multi-speaker via Text-to-Dialogue.
-- Edge deploy pattern: full-file re-inline via MCP + bundle _shared/ as `<name>/index.ts` layout. recharts NOT installed (use SVG).
-
-## Current State
-Phase 0 shipped + live on dev :8000 (/ai-agents/whisper renders shell, Settings/etc placeholders). whisper-api v1 live. NOT committed yet (will commit at Phase 9, like Pulse). Pulse build already committed on this branch (fix/audit-remediation), not pushed.
-
-## Next Steps When Resuming
-1. Phase 1: hand-add 4 whisper tables to types.ts; build Settings + Voices tabs + useWhisperVoices/useWhisperSettings hooks.
-2. Continue per "go for all" — checkpoint each phase, QA-gate, deploy edge as actions are added.
-3. Sam supplies ElevenLabs key (Settings → same as Pulse) for live voice/audio testing.
+**Sam's pending live-verification (not blocking — needs runtime credentials):**
+- Both: set the **ElevenLabs key** in Settings (shared by Pulse voiceover + all Whisper audio); an **OpenAI key** in llm_settings powers script/show-notes/cover (likely already set).
+- Whisper: ElevenLabs `eleven_v3` access is account-dependent — falls back to `eleven_multilingual_v2`.
+- Pulse: connect an upload-post profile (publish), Meta app + OAuth (engagement), Canva.
+- Run `npm run build` once the dev server is down. Both branches not yet merged/pushed.
