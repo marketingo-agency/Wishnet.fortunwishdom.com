@@ -1,9 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 interface UpdateBucketSettingsRequest {
   max_file_size_mb: number;
@@ -12,7 +8,30 @@ interface UpdateBucketSettingsRequest {
   auto_delete_trash_days: number | null;
 }
 
+// SEC-05: validate numeric/array body fields (range + type) before they reach
+// storage.updateBucket / file_settings.
+function validateSettings(body: Partial<UpdateBucketSettingsRequest>): string | null {
+  const { max_file_size_mb, total_storage_quota_gb, allowed_file_types, auto_delete_trash_days } = body;
+  if (typeof max_file_size_mb !== 'number' || !Number.isFinite(max_file_size_mb) || max_file_size_mb <= 0 || max_file_size_mb > 5120) {
+    return 'max_file_size_mb must be a number between 1 and 5120';
+  }
+  if (typeof total_storage_quota_gb !== 'number' || !Number.isFinite(total_storage_quota_gb) || total_storage_quota_gb <= 0 || total_storage_quota_gb > 10240) {
+    return 'total_storage_quota_gb must be a number between 1 and 10240';
+  }
+  if (allowed_file_types !== null && !(Array.isArray(allowed_file_types) && allowed_file_types.every((t) => typeof t === 'string'))) {
+    return 'allowed_file_types must be an array of strings or null';
+  }
+  if (auto_delete_trash_days !== null && auto_delete_trash_days !== undefined &&
+      (typeof auto_delete_trash_days !== 'number' || !Number.isInteger(auto_delete_trash_days) || auto_delete_trash_days < 0 || auto_delete_trash_days > 365)) {
+    return 'auto_delete_trash_days must be an integer between 0 and 365, or null';
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
+  // SEC-01: per-request CORS from the shared allowlist (was wildcard '*').
+  const corsHeaders = getCorsHeaders(req.headers.get('Origin'));
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -60,6 +79,16 @@ Deno.serve(async (req) => {
     }
 
     const body: UpdateBucketSettingsRequest = await req.json();
+
+    // SEC-05: reject malformed/out-of-range input before it touches storage config.
+    const validationError = validateSettings(body);
+    if (validationError) {
+      return new Response(
+        JSON.stringify({ error: validationError }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
     const { max_file_size_mb, total_storage_quota_gb, allowed_file_types, auto_delete_trash_days } = body;
 
     const requestedMB = max_file_size_mb;
@@ -82,9 +111,8 @@ Deno.serve(async (req) => {
         JSON.stringify({ 
           error: 'global_limit_exceeded',
           message: `Cannot set ${requestedMB}MB limit. Your Supabase Global file size limit is lower.`,
-          instructions: 'Go to Supabase Dashboard → Storage → Settings → increase "Global file size limit" first.',
+          instructions: 'Increase the project Storage "Global file size limit" in the Supabase Dashboard first.',
           requested_limit_mb: requestedMB,
-          dashboard_url: 'https://supabase.com/dashboard/project/zlmideilxfnokemzkavm/storage/settings',
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );

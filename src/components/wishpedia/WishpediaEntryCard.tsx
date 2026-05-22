@@ -72,7 +72,7 @@ export function WishpediaEntryCard({ entry, category }: Props) {
           {category && (
             <Badge
               variant="outline"
-              className="self-start gap-1.5 bg-amber-50 text-[10px] text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
+              className="self-start gap-1.5 bg-amber-50 text-[10px] text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
             >
               <span className="h-1 w-1 rounded-full bg-amber-500" />
               {category.name}

@@ -66,7 +66,7 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
   const deleteFile = useDeleteFile();
 
   // ── Derived ────────────────────────────────────────────────────────────
-  const { data: keyStatus } = useProviderKeyStatus();
+  const { data: keyStatus, isLoading: providersLoading } = useProviderKeyStatus();
   const hasOpenAIKey = hasProviderKey(keyStatus?.openai);
   const hasGeminiKey = hasProviderKey(keyStatus?.gemini);
   const availableProviders = [
@@ -370,6 +370,7 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
     systemPrompt, setSystemPrompt, researchProgress,
     savingImageId, selectionMode, setSelectionMode, selectedIds,
     isPending, isResearching, isStreaming, messagesLoading, isDisabled,
+    providersLoading,
     availableProviders, currentModels,
 
     // Refs

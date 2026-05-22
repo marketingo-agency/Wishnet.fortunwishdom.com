@@ -170,6 +170,17 @@ export function useUpdateUserPermissions() {
   });
 }
 
+// Per-agent boolean access flags (PERM-01: enforced at the route level)
+export type AgentAccessKey =
+  | 'ai_can_access_nexus'
+  | 'ai_can_access_promptor'
+  | 'ai_can_access_osha'
+  | 'ai_can_access_pixel'
+  | 'ai_can_access_pulse'
+  | 'ai_can_access_whisper'
+  | 'ai_can_access_muse'
+  | 'ai_can_access_atlas';
+
 // Map URL paths to permission keys
 export type ToolPermissionKey = 'files_manager' | 'mastermind' | 'taskforce' | 'ai_agents' | 'wishdom' | 'marketing_hub';
 

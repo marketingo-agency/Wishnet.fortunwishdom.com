@@ -2,13 +2,12 @@
 
 No active task. Ready for next assignment.
 
-## Recently shipped (2026-05-21, all deployed/verified)
-- Multimodal Brain RAG + true image-to-image recreation (Osha + Pixel): see/recreate/combine Brain images, selected image model, no copyright refusal.
-- Security fixes: match_knowledge restricted_agents enforcement (migration), process-ocr CORS allowlist, Brain sanitizeForPrompt, save-to-brain dest validation.
-- Wishpedia full UI refactor → card-framed pattern (index, card, detail/view, entry edit mode de-cosmiced). ui-reviewer B+; critical (lightbox focus rings) + contrast/skeleton fixed. tsc/lint/build clean.
+## Recently shipped (2026-05-22, branch `fix/audit-remediation`, NOT pushed/merged)
+- **Pulse** — Social Media Command Center (commits 210f8ea + e3aa529, pulse-api v9, security PASS).
+- **Whisper** — AI Podcast Generator (commit fcdf287, whisper-api v7, security PASS). Full record in CLAUDE.md.
 
-## DONE this round (deployed): LOW security — generated-image TTL 7d→24h (osha), per-image 5MB byte caps on source-image fetches (osha+pixel), process-ocr rate limiter (10/min). UI polish — CharacterView dropped max-w-6xl + aligned hero aspect to edit mode; EntryCard count badge bg-black/50→bg-foreground/70. tsc/lint clean, edge fns deployed.
-
-## Only open follow-up
-1. **REVOKE the temp Supabase token** — https://supabase.com/dashboard/account/tokens.
-- Lightbox keeps bg-black/95 (intentional for a fullscreen image viewer). Dev server: localhost:8000.
+**Sam's pending live-verification (not blocking — needs runtime credentials):**
+- Both: set the **ElevenLabs key** in Settings (shared by Pulse voiceover + all Whisper audio); an **OpenAI key** in llm_settings powers script/show-notes/cover (likely already set).
+- Whisper: ElevenLabs `eleven_v3` access is account-dependent — falls back to `eleven_multilingual_v2`.
+- Pulse: connect an upload-post profile (publish), Meta app + OAuth (engagement), Canva.
+- Run `npm run build` once the dev server is down. Both branches not yet merged/pushed.

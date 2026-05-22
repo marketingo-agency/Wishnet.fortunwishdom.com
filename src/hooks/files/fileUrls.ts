@@ -82,6 +82,20 @@ export async function fetchSecureFile(
   return res.blob();
 }
 
+/**
+ * Extract the `files`-bucket storage path from a stored image reference.
+ * Handles signed/public/authenticated Supabase storage URLs (`/object/sign/files/<path>?token=…`)
+ * and bare paths. Returns null for non-`files` external URLs (use as-is).
+ * Used to re-sign AI-generated image references that would otherwise break when
+ * the originally-stored signed URL expires.
+ */
+export function extractFilesStoragePath(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (!value.includes('://')) return value; // already a bare storage path
+  const m = value.match(/\/(?:sign|public|authenticated)\/files\/([^?#]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
 // Brain documents bucket URL helper
 export function getBrainDocumentUrl(storagePath: string) {
   const { data } = supabase.storage.from('brain-documents').getPublicUrl(storagePath);

@@ -50,9 +50,17 @@ export function usePulseTestConnection() {
 
 // ─── Connected Accounts ───────────────────────────────
 
+export interface PulseSocialAccount {
+  platform: string;
+  displayName: string;
+  image: string;
+  handle: string;
+}
+
 export interface PulseAccount {
   username: string;
-  platforms?: string[];
+  createdAt?: string | null;
+  accounts?: PulseSocialAccount[];
 }
 
 export function usePulseAccounts(enabled: boolean) {
@@ -65,10 +73,49 @@ export function usePulseAccounts(enabled: boolean) {
   });
 }
 
+// ─── Per-profile Analytics ────────────────────────────────
+
+export interface PulsePlatformAnalytics {
+  followers?: number;
+  reach?: number;
+  views?: number;
+  impressions?: number;
+  profileViews?: number;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  saves?: number;
+  metric_type?: string;
+  reach_timeseries?: Array<{ date: string; value: number }>;
+}
+
+/** Keyed by platform name (e.g. instagram, youtube). */
+export type PulseProfileAnalytics = Record<string, PulsePlatformAnalytics>;
+
+export function usePulseProfileAnalytics(
+  username: string | null,
+  platforms: string[],
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: ['pulse-profile-analytics', username, platforms],
+    queryFn: () =>
+      callPulseApi<PulseProfileAnalytics>('get-profile-analytics', { username, platforms }),
+    enabled: enabled && !!username && platforms.length > 0,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+}
+
 // ─── Queue Settings ───────────────────────────────────
 
+export interface PulseTimeSlot {
+  hour: number;
+  minute: number;
+}
+
 export interface PulseQueueSettings {
-  slots?: number[];
+  slots?: PulseTimeSlot[];
   days?: number[];
   timezone?: string;
 }
@@ -87,8 +134,8 @@ export function useUpdatePulseQueueSettings() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (settings: { slots?: number; days?: number[]; timezone?: string }) =>
-      callPulseApi('update-queue-settings', settings),
+    mutationFn: (settings: PulseQueueSettings) =>
+      callPulseApi('update-queue-settings', { ...settings }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pulse-queue-settings'] });
       toast.success('Queue settings updated');
@@ -103,10 +150,15 @@ export function useUpdatePulseQueueSettings() {
 
 // ─── Platform Pages ───────────────────────────────────
 
+export interface PulsePlatformItem {
+  id: string;
+  name: string;
+}
+
 export interface PulsePlatformPages {
-  facebook?: { pages?: Array<{ page_id: string; page_name: string; profile?: string }> };
-  linkedin?: { orgs?: Array<{ urn: string; name: string; vanity_url?: string }> };
-  pinterest?: { boards?: Array<{ board_id: string; name: string; account?: string }> };
+  facebook?: PulsePlatformItem[];
+  linkedin?: PulsePlatformItem[];
+  pinterest?: PulsePlatformItem[];
 }
 
 export function usePulsePlatforms(enabled: boolean) {

@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: 'Osha | Fortun Wishnet' };
 
 export default function Page() {
   return (
-    <ToolProtectedRoute toolKey="ai_agents">
+    <ToolProtectedRoute toolKey="ai_agents" agentKey="ai_can_access_osha">
       <OshaAgent />
     </ToolProtectedRoute>
   );

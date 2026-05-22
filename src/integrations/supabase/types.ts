@@ -1408,6 +1408,219 @@ export type Database = {
         }
         Relationships: []
       }
+      pulse_connections: {
+        Row: {
+          id: string
+          provider: string
+          api_key: string | null
+          meta_app_id: string | null
+          meta_app_secret: string | null
+          meta_page_tokens: Json
+          config: Json
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          provider: string
+          api_key?: string | null
+          meta_app_id?: string | null
+          meta_app_secret?: string | null
+          meta_page_tokens?: Json
+          config?: Json
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          provider?: string
+          api_key?: string | null
+          meta_app_id?: string | null
+          meta_app_secret?: string | null
+          meta_page_tokens?: Json
+          config?: Json
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pulse_drafts: {
+        Row: {
+          id: string
+          profile_username: string | null
+          platforms: string[]
+          post_type: string
+          title: string | null
+          caption: string | null
+          media_refs: Json
+          status: string
+          scheduled_date: string | null
+          timezone: string | null
+          job_id: string | null
+          request_id: string | null
+          external_post_ids: Json
+          generated_by: string | null
+          campaign_id: string | null
+          error: string | null
+          approved_by: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          profile_username?: string | null
+          platforms?: string[]
+          post_type?: string
+          title?: string | null
+          caption?: string | null
+          media_refs?: Json
+          status?: string
+          scheduled_date?: string | null
+          timezone?: string | null
+          job_id?: string | null
+          request_id?: string | null
+          external_post_ids?: Json
+          generated_by?: string | null
+          campaign_id?: string | null
+          error?: string | null
+          approved_by?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          profile_username?: string | null
+          platforms?: string[]
+          post_type?: string
+          title?: string | null
+          caption?: string | null
+          media_refs?: Json
+          status?: string
+          scheduled_date?: string | null
+          timezone?: string | null
+          job_id?: string | null
+          request_id?: string | null
+          external_post_ids?: Json
+          generated_by?: string | null
+          campaign_id?: string | null
+          error?: string | null
+          approved_by?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pulse_reply_queue: {
+        Row: {
+          id: string
+          source: string
+          platform: string
+          profile_username: string | null
+          external_id: string | null
+          thread_id: string | null
+          author_handle: string | null
+          author_id: string | null
+          incoming_text: string | null
+          ai_draft: string | null
+          model_used: string | null
+          sentiment: string | null
+          status: string
+          reply_mode: string | null
+          sent_at: string | null
+          error: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          source: string
+          platform: string
+          profile_username?: string | null
+          external_id?: string | null
+          thread_id?: string | null
+          author_handle?: string | null
+          author_id?: string | null
+          incoming_text?: string | null
+          ai_draft?: string | null
+          model_used?: string | null
+          sentiment?: string | null
+          status?: string
+          reply_mode?: string | null
+          sent_at?: string | null
+          error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          source?: string
+          platform?: string
+          profile_username?: string | null
+          external_id?: string | null
+          thread_id?: string | null
+          author_handle?: string | null
+          author_id?: string | null
+          incoming_text?: string | null
+          ai_draft?: string | null
+          model_used?: string | null
+          sentiment?: string | null
+          status?: string
+          reply_mode?: string | null
+          sent_at?: string | null
+          error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pulse_settings: {
+        Row: {
+          id: string
+          reply_provider: string
+          reply_model: string
+          reply_temperature: number
+          reply_mode: string
+          reply_mode_overrides: Json
+          reply_persona: string | null
+          daily_dm_cap: number
+          autodm_rules: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          reply_provider?: string
+          reply_model?: string
+          reply_temperature?: number
+          reply_mode?: string
+          reply_mode_overrides?: Json
+          reply_persona?: string | null
+          daily_dm_cap?: number
+          autodm_rules?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          reply_provider?: string
+          reply_model?: string
+          reply_temperature?: number
+          reply_mode?: string
+          reply_mode_overrides?: Json
+          reply_persona?: string | null
+          daily_dm_cap?: number
+          autodm_rules?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       quick_prompts: {
         Row: {
           created_at: string | null
@@ -1657,6 +1870,180 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      whisper_episodes: {
+        Row: {
+          id: string
+          show_id: string | null
+          title: string | null
+          status: string
+          format: string
+          language: string
+          source_refs: Json
+          script: Json
+          audio_path: string | null
+          transcript: string | null
+          show_notes: Json
+          duration: number | null
+          cover_path: string | null
+          generated_by: string | null
+          error: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          show_id?: string | null
+          title?: string | null
+          status?: string
+          format?: string
+          language?: string
+          source_refs?: Json
+          script?: Json
+          audio_path?: string | null
+          transcript?: string | null
+          show_notes?: Json
+          duration?: number | null
+          cover_path?: string | null
+          generated_by?: string | null
+          error?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          show_id?: string | null
+          title?: string | null
+          status?: string
+          format?: string
+          language?: string
+          source_refs?: Json
+          script?: Json
+          audio_path?: string | null
+          transcript?: string | null
+          show_notes?: Json
+          duration?: number | null
+          cover_path?: string | null
+          generated_by?: string | null
+          error?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      whisper_settings: {
+        Row: {
+          id: string
+          script_provider: string
+          script_model: string
+          tts_model: string
+          default_format: string
+          default_language: string
+          default_cast: Json
+          music_refs: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          script_provider?: string
+          script_model?: string
+          tts_model?: string
+          default_format?: string
+          default_language?: string
+          default_cast?: Json
+          music_refs?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          script_provider?: string
+          script_model?: string
+          tts_model?: string
+          default_format?: string
+          default_language?: string
+          default_cast?: Json
+          music_refs?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      whisper_shows: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          default_cast: Json
+          intro_audio_path: string | null
+          outro_audio_path: string | null
+          cover_style: string | null
+          language: string
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          default_cast?: Json
+          intro_audio_path?: string | null
+          outro_audio_path?: string | null
+          cover_style?: string | null
+          language?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          default_cast?: Json
+          intro_audio_path?: string | null
+          outro_audio_path?: string | null
+          cover_style?: string | null
+          language?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      whisper_voices: {
+        Row: {
+          id: string
+          name: string
+          elevenlabs_voice_id: string
+          settings: Json
+          preview_url: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          elevenlabs_voice_id: string
+          settings?: Json
+          preview_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          elevenlabs_voice_id?: string
+          settings?: Json
+          preview_url?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }

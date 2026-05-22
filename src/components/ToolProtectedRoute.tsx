@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { useCurrentUserPermissions, ToolPermissionKey } from '@/hooks/useUserPermissions';
+import { useCurrentUserPermissions, ToolPermissionKey, AgentAccessKey } from '@/hooks/useUserPermissions';
 import type { PermissionLevel } from '@/types/user';
 import { Loader2, ShieldX } from 'lucide-react';
 
@@ -9,6 +9,9 @@ interface ToolProtectedRouteProps {
   children: React.ReactNode;
   toolKey: ToolPermissionKey;
   requiredLevel?: PermissionLevel;
+  // PERM-01: optional per-agent gate. When set, the matching boolean
+  // ai_can_access_* flag must not be explicitly false (DB default is true).
+  agentKey?: AgentAccessKey;
 }
 
 // Check if user's permission level meets the required level
@@ -19,10 +22,11 @@ function meetsPermissionLevel(userLevel: PermissionLevel, requiredLevel: Permiss
   return userIndex >= requiredIndex;
 }
 
-export function ToolProtectedRoute({ 
-  children, 
-  toolKey, 
-  requiredLevel = 'view' 
+export function ToolProtectedRoute({
+  children,
+  toolKey,
+  requiredLevel = 'view',
+  agentKey,
 }: ToolProtectedRouteProps) {
   const { permissions, isLoading } = useCurrentUserPermissions();
 
@@ -35,7 +39,10 @@ export function ToolProtectedRoute({
   }
 
   const userLevel = permissions?.[toolKey] || 'none';
-  const hasAccess = meetsPermissionLevel(userLevel, requiredLevel);
+  // PERM-01: per-agent gate — deny only when the flag is explicitly false.
+  // (Admins get an all-true permissions object from useCurrentUserPermissions.)
+  const agentDenied = agentKey ? permissions?.[agentKey] === false : false;
+  const hasAccess = meetsPermissionLevel(userLevel, requiredLevel) && !agentDenied;
 
   if (!hasAccess) {
     return (

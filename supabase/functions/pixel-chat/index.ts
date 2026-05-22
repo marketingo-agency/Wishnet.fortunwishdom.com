@@ -1404,7 +1404,18 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
         const imageResult = imageData.data?.[0];
         if (!imageResult) throw new Error('No image returned');
         if (imageResult.url) {
-          imageBlob = await fetch(imageResult.url).then(r => r.blob());
+          // SEC-04: validate host + cap size before buffering the upstream image
+          const u = new URL(imageResult.url);
+          if (u.protocol !== 'https:' || !(u.hostname === 'api.openai.com' || u.hostname.endsWith('.blob.core.windows.net') || u.hostname.endsWith('.oaiusercontent.com'))) {
+            throw new Error('Unexpected image result host');
+          }
+          const imgResp = await fetch(imageResult.url);
+          if (!imgResp.ok) throw new Error('Failed to fetch generated image');
+          const cl = Number(imgResp.headers.get('content-length') || '0');
+          if (cl && cl > 20 * 1024 * 1024) throw new Error('Generated image too large');
+          const ab = await imgResp.arrayBuffer();
+          if (ab.byteLength > 20 * 1024 * 1024) throw new Error('Generated image too large');
+          imageBlob = new Blob([ab], { type: imgResp.headers.get('content-type') || 'image/png' });
         } else if (imageResult.b64_json) {
           const binary = atob(imageResult.b64_json);
           const bytes = new Uint8Array(binary.length);
@@ -1425,8 +1436,11 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
           .upload(imagePath, imageBlob, { contentType: 'image/png', upsert: false });
 
         if (!uploadErr) {
-          const { data: publicData } = supabaseServiceClient.storage.from('files').getPublicUrl(imagePath);
-          permanentImageUrl = publicData.publicUrl;
+          // BUGFIX: the 'files' bucket is PRIVATE — getPublicUrl returns a URL that
+          // 403s, so the generated image couldn't be viewed/downloaded/copied.
+          // Mint a signed URL instead (mirrors osha-chat, 24h TTL).
+          const { data: signedData } = await supabaseServiceClient.storage.from('files').createSignedUrl(imagePath, 60 * 60 * 24);
+          permanentImageUrl = signedData?.signedUrl || '';
 
           const { data: sectors } = await supabase.from('sectors').select('id, name').eq('user_id', userId);
           let pixelSectorId = sectors?.find((s: any) => s.name === 'Pixel AI')?.id;

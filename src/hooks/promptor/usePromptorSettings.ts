@@ -25,9 +25,15 @@ export function usePromptorSettings() {
   return useQuery({
     queryKey: ['promptor-settings'],
     queryFn: async (): Promise<PrompterSettings> => {
-      const data = await callPromptor({ action: 'get-settings' });
-      const result = data as unknown as { settings: PrompterSettings | null };
-      return result.settings || DEFAULT_SETTINGS;
+      // CODE-01: degrade to defaults on a thrown fetch (network/extension failure)
+      // instead of surfacing a crash on load — matches useOshaSettings/usePixelSettings.
+      try {
+        const data = await callPromptor({ action: 'get-settings' });
+        const result = data as unknown as { settings: PrompterSettings | null };
+        return result.settings || DEFAULT_SETTINGS;
+      } catch {
+        return DEFAULT_SETTINGS;
+      }
     },
     staleTime: 5 * 60 * 1000,
   });

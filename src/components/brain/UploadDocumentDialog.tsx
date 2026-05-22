@@ -216,6 +216,11 @@ export function UploadDocumentDialog({
       }
       setIsUploading(false);
       setUploadProgress(0);
+      // CODE-02: surface the failure instead of silently resetting.
+      Sentry.captureException(error instanceof Error ? error : new Error('Brain document upload failed'), { extra: { context: 'UploadDocumentDialog upload' } });
+      toast.error('Upload failed', {
+        description: error instanceof Error ? error.message : 'Could not upload the document. Please try again.',
+      });
     }
   };
 

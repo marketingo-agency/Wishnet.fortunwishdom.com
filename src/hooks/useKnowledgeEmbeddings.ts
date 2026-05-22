@@ -282,19 +282,21 @@ export function useEmbeddingStats() {
   return useQuery({
     queryKey: ['vector-store', 'embedding-stats'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('knowledge_embeddings')
-        .select('source_type, id', { count: 'exact' });
+      // DATA-01: use exact COUNT (head: true) per type instead of fetching rows
+      // and calling data.length — the row fetch was silently capped at PostgREST's
+      // default 1000-row limit, undercounting once the corpus exceeded 1000 chunks.
+      const [total, docs, rules] = await Promise.all([
+        supabase.from('knowledge_embeddings').select('id', { count: 'exact', head: true }),
+        supabase.from('knowledge_embeddings').select('id', { count: 'exact', head: true }).eq('source_type', 'brain_document'),
+        supabase.from('knowledge_embeddings').select('id', { count: 'exact', head: true }).eq('source_type', 'heart_rule'),
+      ]);
 
-      if (error) throw error;
-
-      const documentCount = data?.filter(e => e.source_type === 'brain_document').length || 0;
-      const ruleCount = data?.filter(e => e.source_type === 'heart_rule').length || 0;
+      if (total.error) throw total.error;
 
       return {
-        totalChunks: data?.length || 0,
-        documentChunks: documentCount,
-        ruleChunks: ruleCount,
+        totalChunks: total.count ?? 0,
+        documentChunks: docs.count ?? 0,
+        ruleChunks: rules.count ?? 0,
       };
     },
     staleTime: 30_000,

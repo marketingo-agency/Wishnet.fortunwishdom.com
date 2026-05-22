@@ -215,12 +215,15 @@ export function AccountSettings() {
                   {getInitials(fullName || profile?.full_name)}
                 </AvatarFallback>
               </Avatar>
+              {/* UI-13: small corner button so the initials avatar stays visible
+                  (was a full-cover overlay that hid the avatar on mobile, looking broken) */}
               <button
                 onClick={() => setShowAvatarPicker(true)}
-                className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-pointer"
+                aria-label="Change profile picture"
+                className="absolute -bottom-1 -right-1 flex items-center justify-center w-8 h-8 bg-primary text-primary-foreground rounded-full shadow-md ring-2 ring-card hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-50"
                 disabled={isLoading}
               >
-                <Camera className="h-6 w-6 text-white" />
+                <Camera className="h-4 w-4" />
               </button>
               {/* Red X button to remove avatar */}
               {avatarUrl && (
@@ -242,8 +245,8 @@ export function AccountSettings() {
                 variant="secondary" 
                 className={`mt-2 ${
                   role === 'admin'
-                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300'
-                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
+                    : 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
                 }`}
               >
                 {role === 'admin' ? (
