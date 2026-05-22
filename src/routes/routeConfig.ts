@@ -80,11 +80,11 @@ export const AI_AGENT_ROUTES: RouteConfig[] = [
   {
     path: '/ai-agents/whisper',
     title: 'Whisper',
-    description: 'Generates podcast scripts with AI, then turns them into studio-quality audio narration using the ElevenLabs API.',
+    description: 'Turns a topic or your Brain/Wishpedia sources into a fully scripted, multi-voice podcast episode with ElevenLabs audio.',
     icon: Mic,
     iconColor: 'text-blue-500',
     toolKey: 'ai_agents',
-    isComingSoon: true,
+    isComingSoon: false,
   },
   {
     path: '/ai-agents/atlas',

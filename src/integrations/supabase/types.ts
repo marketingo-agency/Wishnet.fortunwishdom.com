@@ -1873,6 +1873,180 @@ export type Database = {
         }
         Relationships: []
       }
+      whisper_episodes: {
+        Row: {
+          id: string
+          show_id: string | null
+          title: string | null
+          status: string
+          format: string
+          language: string
+          source_refs: Json
+          script: Json
+          audio_path: string | null
+          transcript: string | null
+          show_notes: Json
+          duration: number | null
+          cover_path: string | null
+          generated_by: string | null
+          error: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          show_id?: string | null
+          title?: string | null
+          status?: string
+          format?: string
+          language?: string
+          source_refs?: Json
+          script?: Json
+          audio_path?: string | null
+          transcript?: string | null
+          show_notes?: Json
+          duration?: number | null
+          cover_path?: string | null
+          generated_by?: string | null
+          error?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          show_id?: string | null
+          title?: string | null
+          status?: string
+          format?: string
+          language?: string
+          source_refs?: Json
+          script?: Json
+          audio_path?: string | null
+          transcript?: string | null
+          show_notes?: Json
+          duration?: number | null
+          cover_path?: string | null
+          generated_by?: string | null
+          error?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      whisper_settings: {
+        Row: {
+          id: string
+          script_provider: string
+          script_model: string
+          tts_model: string
+          default_format: string
+          default_language: string
+          default_cast: Json
+          music_refs: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          script_provider?: string
+          script_model?: string
+          tts_model?: string
+          default_format?: string
+          default_language?: string
+          default_cast?: Json
+          music_refs?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          script_provider?: string
+          script_model?: string
+          tts_model?: string
+          default_format?: string
+          default_language?: string
+          default_cast?: Json
+          music_refs?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      whisper_shows: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          default_cast: Json
+          intro_audio_path: string | null
+          outro_audio_path: string | null
+          cover_style: string | null
+          language: string
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          default_cast?: Json
+          intro_audio_path?: string | null
+          outro_audio_path?: string | null
+          cover_style?: string | null
+          language?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          default_cast?: Json
+          intro_audio_path?: string | null
+          outro_audio_path?: string | null
+          cover_style?: string | null
+          language?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      whisper_voices: {
+        Row: {
+          id: string
+          name: string
+          elevenlabs_voice_id: string
+          settings: Json
+          preview_url: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          elevenlabs_voice_id: string
+          settings?: Json
+          preview_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          elevenlabs_voice_id?: string
+          settings?: Json
+          preview_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       wishpedia_categories: {
         Row: {
           color: string

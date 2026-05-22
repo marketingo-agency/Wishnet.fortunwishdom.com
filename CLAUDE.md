@@ -102,6 +102,21 @@ The following agents are available globally at `~/.claude/agents/`:
 
 ## Audit History
 
+### Feature — Whisper AI agent: full AI Podcast Generator (2026-05-22)
+Built Whisper from a coming-soon stub into a full agent at `/ai-agents/whisper` (10-phase plan, "go for all"). Source (topic / paste / URL) → AI script → ElevenLabs voices → stitched MP3 → show notes + cover → distribute. Mirrors the Pulse architecture (admin-gated edge, admin-only RLS, secure key pattern).
+
+**DB (migration 20260522160000):** 4 admin-only RLS tables — `whisper_shows`, `whisper_episodes`, `whisper_voices`, `whisper_settings` — + a **private `whisper-audio`** storage bucket (admin-only RLS; audio/cover served via 1h signed URLs). `ai_can_access_whisper` already existed. Types hand-added to [types.ts](src/integrations/supabase/types.ts).
+
+**Edge — `whisper-api` v7** (admin-gated + 30/min rate limit; ElevenLabs key SHARED with Pulse via `pulse_connections.provider='elevenlabs'`; OpenAI/Gemini from `llm_settings`): `list-voices`; `generate-script` (script model + Heart rules + format/length/tone/language → JSON segments; SSRF-hardened URL source fetch); `preview-line` (TTS one line → data URL); **`render-episode`** (merges consecutive same-voice lines → ElevenLabs TTS each → concat MP3 → upload → audio_path/duration; runs as an **async background task via `EdgeRuntime.waitUntil`** so long episodes never hit the request timeout — client polls status); `generate-shownotes` (title/description/chapters/tags); `generate-cover` (OpenAI image → cover_path).
+
+**Workspace** [WhisperAgent.tsx](src/screens/WhisperAgent.tsx) — blue/indigo, 6 URL-synced tabs: **Overview** (stats + recent + connection health), **Studio** (Single create: source → generate → editable script → **cast panel** w/ voice preview → save; optional **Show** to inherit cast/language), **Episodes** (library + the episode view: render, audio player, show notes, **Distribution**: download MP3 / copy transcript / generate cover / send to Pulse), **Shows** (series CRUD w/ default cast), **Voices** (ElevenLabs library + preview + presets), **Settings** (ElevenLabs connection reusing Pulse's row + script/tts model + defaults).
+
+**Components** under [src/components/whisper/](src/components/whisper/); **hooks** useWhisperSettings/Voices/Episodes/Shows, useGenerateScript/ShowNotes/Cover, usePreviewLine, useRenderEpisode (+ useWhisperAudioUrl), shared [lib/whisperApi.ts](src/lib/whisperApi.ts).
+
+**Long-episode timeout fix:** render is async (background task + 4s client polling) + consecutive same-voice line merging + an 80MB render cap → no request-timeout risk regardless of length.
+
+**QA:** `tsc` clean; `npm run lint` 0 errors (36 known warnings); **security-auditor: PASS** (0 Critical/2 High/3 Med/3 Low) — all High+Med fixed + redeployed **v7**: SSRF-hardened `safeFetch` (https-only, `Deno.resolveDns` private-IP denylist incl. v4-mapped v6 / octal-hex, `redirect:'manual'`, 8MB cap) for both the URL source and the cover-image fetch; render 80MB cap; show-notes untrusted-content clause; `audio_path`/`duration`/`cover_path` removed from the client episode-update input (edge-only). **NOT done:** `npm run build` (dev live :8000), live ElevenLabs verification (needs Sam's key — same as Pulse). **Lesson:** eleven_v3 TTS model availability is account-dependent; default preview/render falls back to eleven_multilingual_v2.
+
 ### Feature — Pulse AI agent: full Social Media Command Center (2026-05-22)
 Built Pulse from a Settings tab into a full agent workspace at `/ai-agents/pulse` (10-phase plan, Sam approved "go for all"). Concept: Pulse orchestrates the other agents (Pixel/Promptor/Heart/Brain) over upload-post.com (publish/schedule/analytics) + Meta Graph (engagement). Scope decisions: NO Asana, Google Calendar, Freepik, subtitles; engagement backbone = Meta Graph (FB+IG); reply model selected separately from llm_settings; reply modes switchable.
 

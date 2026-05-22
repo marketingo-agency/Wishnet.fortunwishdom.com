@@ -28,6 +28,7 @@ export const AI_CHAT_ENDPOINT = `${EDGE_FUNCTIONS_URL}/ai-chat`;
 export const MANAGE_USERS_ENDPOINT = `${EDGE_FUNCTIONS_URL}/manage-users`;
 export const SETTINGS_KEYS_ENDPOINT = `${EDGE_FUNCTIONS_URL}/settings-keys`;
 export const PULSE_API_ENDPOINT = `${EDGE_FUNCTIONS_URL}/pulse-api`;
+export const WHISPER_API_ENDPOINT = `${EDGE_FUNCTIONS_URL}/whisper-api`;
 
 // Storage
 export const STORAGE_URL = `${SUPABASE_URL}/storage/v1`;
