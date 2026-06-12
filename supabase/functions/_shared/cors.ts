@@ -11,14 +11,16 @@ const DEFAULT_ORIGINS = [
   'http://localhost:8000', // LOCKED_PORT for this project (see CLAUDE.md Runtime Config)
   'http://localhost:8080',
   'https://wishnet.fortunwishdom.com',
+  'https://fortunwishnet.vercel.app', // Vercel production domain
 ];
 
 function getAllowedOrigins(): string[] {
+  // Union, not override: the ALLOWED_ORIGINS secret ADDS origins on top of
+  // the defaults. The old override semantics silently dropped any default
+  // missing from the secret (the port-8000 outage was exactly that footgun).
   const envOrigins = Deno.env.get('ALLOWED_ORIGINS');
-  if (envOrigins) {
-    return envOrigins.split(',').map(o => o.trim()).filter(Boolean);
-  }
-  return DEFAULT_ORIGINS;
+  const fromEnv = envOrigins ? envOrigins.split(',').map(o => o.trim()).filter(Boolean) : [];
+  return [...new Set([...fromEnv, ...DEFAULT_ORIGINS])];
 }
 
 /**
