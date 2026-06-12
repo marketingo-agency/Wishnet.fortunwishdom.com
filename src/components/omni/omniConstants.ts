@@ -40,7 +40,7 @@ export const OMNI_TRACKS: OmniTrackDef[] = [
     icon: Lightbulb,
     gradient: 'from-amber-400 to-orange-500',
     glow: 'bg-amber-500/25',
-    availability: 'in_development',
+    availability: 'available',
   },
   {
     id: 'images',
@@ -89,8 +89,8 @@ export const OMNI_IMAGE_MODES: OmniModeDef[] = [
     description: 'Discuss and develop an image idea, then lock it and continue in the right mode.',
     icon: Lightbulb,
     accent: 'text-amber-400',
-    available: false,
-    availabilityNote: 'Arrives with the Brainstorming phase',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'omni_images',

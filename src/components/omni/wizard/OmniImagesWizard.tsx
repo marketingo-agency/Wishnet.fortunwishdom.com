@@ -103,10 +103,10 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
   // Step 7 is the handoff boundary: transform and repurposing runs do not own
   // steps 1-5 of THIS wizard (their early steps live elsewhere or nowhere), so
   // backing below 7 would drop them into foreign text-to-image semantics.
-  // surprise_me runs DO own them: they start at step 1 with a prefilled
-  // objective and walk the full sequence.
+  // surprise_me and locked brainstorming runs DO own them: they start at
+  // step 1 with a prefilled objective and walk the full sequence.
   const runMode = run.data?.mode;
-  const ownsEarlySteps = runMode == null || runMode === 'omni_images' || runMode === 'surprise_me';
+  const ownsEarlySteps = runMode == null || runMode === 'omni_images' || runMode === 'surprise_me' || runMode === 'brainstorming';
   const backTarget = step === 7 && !ownsEarlySteps ? undefined : BACK_TARGET[step];
 
   const goBack = () => {

@@ -7,3 +7,4 @@ export * from './useOmniDescriptions';
 export * from './useGenerationRunner';
 export * from './useTransform';
 export * from './useSurpriseIdeas';
+export * from './useBrainstorm';

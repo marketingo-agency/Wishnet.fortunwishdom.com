@@ -19,8 +19,9 @@ import { createRateLimiter } from '../_shared/rate-limit.ts';
 import { fetchFalCatalog, findFalModel, isFalCapability } from './fal-catalog.ts';
 import { FalUserError, falResult, falStatus, falSubmit } from './fal-runner.ts';
 import { persistFalImage, registerInFilesManager, signStoragePath } from './storage.ts';
-import { analyzeImage } from './analysis.ts';
+import { analyzeImage, retrieveKnowledge } from './analysis.ts';
 import { mineSurpriseIdeas } from './surprise.ts';
+import { chatBrainstorm, lockIdea, type BrainstormAttachment, type BrainstormMessageInput } from './brainstorm.ts';
 
 // 60/min: the generation workspace polls in-flight variants every ~3s.
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 60 });
@@ -668,6 +669,97 @@ Deno.serve(async (req: Request) => {
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Idea generation failed';
         console.error('Omni: surprise-ideas error:', message);
+        return jsonResponse({ error: message }, 502);
+      }
+    }
+
+    // ── brainstorm-chat / brainstorm-lock (Mode 6: RAG-grounded creative chat) ─
+    if (action === 'brainstorm-chat' || action === 'brainstorm-lock') {
+      const runId = body.run_id;
+      if (typeof runId !== 'string') return jsonResponse({ error: 'run_id is required' }, 400);
+      const { data: run } = await supabaseAdmin
+        .from('omni_runs')
+        .select('id')
+        .eq('id', runId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!run) return jsonResponse({ error: 'Run not found' }, 404);
+
+      const rawMessages = Array.isArray(body.messages) ? body.messages.slice(-16) : [];
+      const messages: BrainstormMessageInput[] = rawMessages
+        .filter((m: Record<string, unknown>) =>
+          (m?.role === 'user' || m?.role === 'assistant') && typeof m?.content === 'string' && (m.content as string).length > 0)
+        .map((m: Record<string, unknown>) => ({ role: m.role as 'user' | 'assistant', content: (m.content as string).slice(0, 8000) }));
+      if (messages.length === 0) return jsonResponse({ error: 'At least one message is required' }, 400);
+
+      const ATTACHMENT_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+      const rawAttachments = Array.isArray(body.attachments) ? body.attachments.slice(0, 3) : [];
+      const attachments: BrainstormAttachment[] = rawAttachments
+        .filter((a: Record<string, unknown>) =>
+          typeof a?.mime === 'string' && ATTACHMENT_MIMES.has(a.mime as string)
+          && typeof a?.data === 'string' && (a.data as string).length <= 4_400_000)
+        .map((a: Record<string, unknown>) => ({ mime: a.mime as string, data: a.data as string }));
+
+      const { data: llm } = await supabaseAdmin
+        .from('llm_settings')
+        .select('openai_api_key, gemini_api_key, openai_text_model, gemini_text_model')
+        .single();
+      const openaiKey = ((llm?.openai_api_key as string | null) || Deno.env.get('OPENAI_API_KEY') || '').trim();
+      const geminiKey = ((llm?.gemini_api_key as string | null) || Deno.env.get('GEMINI_API_KEY') || '').trim();
+      if (!openaiKey && !geminiKey) {
+        return jsonResponse({ error: 'An OpenAI or Gemini API key is required for brainstorming. Configure one in Settings > LLM Providers.' }, 503);
+      }
+
+      // Per-message picker: provider/model from the request, validated against
+      // available keys; falls back to the configured text model defaults.
+      const requestedProvider = body.provider === 'gemini' || body.provider === 'openai' ? body.provider : null;
+      const provider = requestedProvider === 'gemini' && geminiKey ? 'gemini'
+        : requestedProvider === 'openai' && openaiKey ? 'openai'
+        : openaiKey ? 'openai' : 'gemini';
+      const requestedModel = typeof body.model === 'string' && body.model.length <= 200 ? body.model : null;
+      const model = requestedModel || (provider === 'gemini'
+        ? ((llm?.gemini_text_model as string | null) || 'gemini-2.5-flash')
+        : ((llm?.openai_text_model as string | null) || 'gpt-4o'));
+
+      if (action === 'brainstorm-lock') {
+        try {
+          const result = await lockIdea({ provider, model, keys: { openaiKey, geminiKey }, messages });
+          return jsonResponse(result);
+        } catch (e) {
+          const message = e instanceof Error ? e.message : 'Lock failed';
+          console.error('Omni: brainstorm-lock error:', message);
+          return jsonResponse({ error: message }, 502);
+        }
+      }
+
+      let heartRules;
+      try {
+        heartRules = await fetchHeartRules(supabaseAdmin);
+      } catch (e) {
+        return jsonResponse({ error: e instanceof Error ? e.message : 'Heart rules unavailable' }, 503);
+      }
+
+      // Embeddings need OpenAI; without that key the chat degrades honestly
+      // to Heart-only grounding (the system prompt states it).
+      const ragAvailable = openaiKey.length > 0;
+      const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+      const knowledge = ragAvailable && lastUser
+        ? await retrieveKnowledge(supabaseAdmin, openaiKey, lastUser.content)
+        : [];
+
+      try {
+        const reply = await chatBrainstorm({
+          provider, model, keys: { openaiKey, geminiKey },
+          heartRules, knowledge, ragAvailable, messages, attachments,
+        });
+        return jsonResponse({
+          reply,
+          rag_available: ragAvailable,
+          retrieval: { brain_chunks: knowledge.length, heart_rules: heartRules.length },
+        });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Brainstorm reply failed';
+        console.error('Omni: brainstorm-chat error:', message);
         return jsonResponse({ error: message }, 502);
       }
     }

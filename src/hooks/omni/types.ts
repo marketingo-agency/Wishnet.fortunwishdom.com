@@ -124,6 +124,25 @@ export interface OmniImagesState {
   /** High-water mark: the furthest step this run ever reached (History keeps
    *  later steps resumable even after a backwards jump rewrites current_step). */
   max_step_reached?: number;
+  // Brainstorming (Mode 6) extras, persisted in the same engine state
+  messages?: OmniChatMessage[];
+  idea_locked?: boolean;
+}
+
+// ── Brainstorming (Mode 6) ───────────────────────────────────────────────────
+
+export interface OmniChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  /** Names of images sent with this message (bytes are never persisted). */
+  attachment_names?: string[];
+  created_at: string;
+}
+
+export interface BrainstormReply {
+  reply: string;
+  rag_available: boolean;
+  retrieval: { brain_chunks: number; heart_rules: number };
 }
 
 // ── Surprise Me (Mode 5) ─────────────────────────────────────────────────────

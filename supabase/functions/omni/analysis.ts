@@ -51,8 +51,9 @@ async function generateEmbedding(text: string, openaiKey: string): Promise<numbe
   }
 }
 
-/** Hybrid retrieval over the full vector store (brain + wishpedia), sanitized. */
-async function retrieveKnowledge(
+/** Hybrid retrieval over the full vector store (brain + wishpedia), sanitized.
+ *  Exported for reuse by the Brainstorming chat (Mode 6). */
+export async function retrieveKnowledge(
   supabaseAdmin: AdminClient,
   openaiKey: string,
   query: string,

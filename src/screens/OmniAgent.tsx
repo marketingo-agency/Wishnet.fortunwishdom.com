@@ -27,14 +27,15 @@ import { TransformWizard } from '@/components/omni/transform/TransformWizard';
 import { RepurposeModeWizard } from '@/components/omni/repurpose-mode/RepurposeModeWizard';
 import { HistoryView } from '@/components/omni/history/HistoryView';
 import { SurpriseMeView } from '@/components/omni/surprise/SurpriseMeView';
-import { resolveSurfaceForStep } from '@/components/omni/history/historyRouting';
+import { BrainstormView } from '@/components/omni/brainstorm/BrainstormView';
+import { resolveSurfaceForRun } from '@/components/omni/history/historyRouting';
 import { OMNI_TRACKS } from '@/components/omni/omniConstants';
 
 type OmniTheme = 'light' | 'dark';
 type OmniView = 'home' | OmniTrack;
-type ImagesMode = 'hub' | 'omni_images' | 'transform_upscale' | 'repurposing' | 'history' | 'surprise_me';
+type ImagesMode = 'hub' | 'omni_images' | 'transform_upscale' | 'repurposing' | 'history' | 'surprise_me' | 'brainstorming';
 
-const IMAGES_MODE_IDS: ImagesMode[] = ['omni_images', 'transform_upscale', 'repurposing', 'history', 'surprise_me'];
+const IMAGES_MODE_IDS: ImagesMode[] = ['omni_images', 'transform_upscale', 'repurposing', 'history', 'surprise_me', 'brainstorming'];
 
 const TRACK_IDS = OMNI_TRACKS.map((t) => t.id) as string[];
 
@@ -70,7 +71,13 @@ export default function OmniAgent() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const track = params.get('track');
-    if (track && TRACK_IDS.includes(track)) setView(track as OmniTrack);
+    // The brainstorming track is an alias for the Images-hub chat surface.
+    if (track === 'brainstorming') {
+      setView('images');
+      setImagesMode('brainstorming');
+    } else if (track && TRACK_IDS.includes(track)) {
+      setView(track as OmniTrack);
+    }
     const mode = params.get('mode');
     if (mode && (IMAGES_MODE_IDS as string[]).includes(mode)) setImagesMode(mode as ImagesMode);
     const run = params.get('run');
@@ -89,18 +96,25 @@ export default function OmniAgent() {
     window.history.replaceState({}, '', url);
   }, []);
 
-  const selectView = useCallback((next: OmniView) => {
-    setView(next);
-    setImagesMode('hub');
-    setWizardRunId(null);
-    syncUrl(next, 'hub', null);
-  }, [syncUrl]);
-
   const openImagesMode = useCallback((mode: Exclude<ImagesMode, 'hub'>) => {
+    setView('images');
     setImagesMode(mode);
     setWizardRunId(null);
     syncUrl('images', mode, null);
   }, [syncUrl]);
+
+  const selectView = useCallback((next: OmniView) => {
+    // The Brainstorming track tile opens the same chat surface as the
+    // Images-hub mode card, so the run id stays URL-addressable.
+    if (next === 'brainstorming') {
+      openImagesMode('brainstorming');
+      return;
+    }
+    setView(next);
+    setImagesMode('hub');
+    setWizardRunId(null);
+    syncUrl(next, 'hub', null);
+  }, [openImagesMode, syncUrl]);
 
   const handleRunCreated = useCallback((mode: Exclude<ImagesMode, 'hub'>) => (runId: string) => {
     setWizardRunId(runId);
@@ -127,8 +141,9 @@ export default function OmniAgent() {
     // step 5's restore undercount and resubmit paid generations.
     void queryClient.invalidateQueries({ queryKey: ['omni-run', run.id] });
     void queryClient.invalidateQueries({ queryKey: ['omni-assets', run.id] });
-    const surface = resolveSurfaceForStep(run.mode, run.current_step);
+    const surface = resolveSurfaceForRun(run);
     setWizardRunId(run.id);
+    setView('images');
     setImagesMode(surface);
     syncUrl('images', surface, run.id);
   }, [queryClient, syncUrl]);
@@ -219,15 +234,13 @@ export default function OmniAgent() {
                 />
               )}
 
-              {view === 'brainstorming' && (
-                <OmniComingSoon
-                  icon={trackDef('brainstorming').icon}
-                  gradient={trackDef('brainstorming').gradient}
-                  title="Brainstorming is on its way"
-                  description="Develop ideas with Omni in a grounded chat, then lock them and continue in the right creation mode with everything prefilled. This surface lands in an upcoming phase."
-                  badgeLabel="In Development"
-                  badgeClassName="border-amber-500/40 bg-amber-500/10 text-amber-400"
-                  onBack={goHome}
+              {view === 'images' && imagesMode === 'brainstorming' && (
+                <BrainstormView
+                  runId={wizardRunId}
+                  onRunCreated={handleRunCreated('brainstorming')}
+                  onLocked={handleHistoryOpenRun}
+                  onSwitchToSurprise={() => openImagesMode('surprise_me')}
+                  onExit={() => selectView('images')}
                 />
               )}
 

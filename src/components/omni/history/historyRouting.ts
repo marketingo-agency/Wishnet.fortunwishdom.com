@@ -9,7 +9,7 @@ import { TRANSFORM_STEP_TITLES } from '../transform/TransformChrome';
 import { WIZARD_STEP_TITLES } from '../wizard/WizardChrome';
 import type { OmniImagesState, OmniMode, OmniRun } from '@/hooks/omni';
 
-export type WizardSurface = 'omni_images' | 'transform_upscale' | 'repurposing';
+export type WizardSurface = 'omni_images' | 'transform_upscale' | 'repurposing' | 'brainstorming';
 
 const OMNI_IMAGES_SEQUENCE = [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12];
 const TRANSFORM_SEQUENCE = [1, 2, 3, 4, 5, 6];
@@ -20,6 +20,18 @@ export function resolveSurfaceForStep(mode: OmniMode, step: number): WizardSurfa
   // A persisted repurposing run always starts at step 7 (the gathering screen
   // is pre-persist), so it is rendered by the Omni Images wizard.
   return 'omni_images';
+}
+
+/**
+ * Run-aware resolver: a brainstorming run lives in the chat surface until its
+ * idea is locked (or it has advanced past step 1), then in the wizard.
+ */
+export function resolveSurfaceForRun(run: OmniRun): WizardSurface {
+  if (run.mode === 'brainstorming') {
+    const locked = (run.step_state as OmniImagesState)?.idea_locked === true;
+    return locked || run.current_step > 1 ? 'omni_images' : 'brainstorming';
+  }
+  return resolveSurfaceForStep(run.mode, run.current_step);
 }
 
 export interface ResumableStep {

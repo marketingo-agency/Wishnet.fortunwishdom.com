@@ -40,6 +40,12 @@ export const TOKEN_BUDGETS = {
   /** Omni Surprise Me: knowledge-mined creation idea batch (4-6 structured ideas) */
   OMNI_SURPRISE_IDEAS: 2048,
 
+  /** Omni Brainstorming: one conversational chat turn */
+  OMNI_BRAINSTORM_CHAT: 2048,
+
+  /** Omni Brainstorming: distill the conversation into the final brief */
+  OMNI_BRAINSTORM_LOCK: 1024,
+
   /** General-purpose default when no specific budget applies */
   DEFAULT: 2048,
 } as const;
