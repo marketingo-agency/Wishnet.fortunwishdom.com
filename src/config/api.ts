@@ -29,6 +29,8 @@ export const MANAGE_USERS_ENDPOINT = `${EDGE_FUNCTIONS_URL}/manage-users`;
 export const SETTINGS_KEYS_ENDPOINT = `${EDGE_FUNCTIONS_URL}/settings-keys`;
 export const PULSE_API_ENDPOINT = `${EDGE_FUNCTIONS_URL}/pulse-api`;
 export const WHISPER_API_ENDPOINT = `${EDGE_FUNCTIONS_URL}/whisper-api`;
+export const OMNI_API_ENDPOINT = `${EDGE_FUNCTIONS_URL}/omni`;
+export const CONTENT_LIBRARY_ENDPOINT = `${EDGE_FUNCTIONS_URL}/content-library`;
 
 // Storage
 export const STORAGE_URL = `${SUPABASE_URL}/storage/v1`;

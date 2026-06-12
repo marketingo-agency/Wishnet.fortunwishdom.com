@@ -33,16 +33,17 @@ Do not upgrade dependencies without discussion.
 - **Supabase client (browser):** `src/integrations/supabase/client.ts` — uses `createBrowserClient` from `@supabase/ssr`, reads `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - **Supabase client (server):** `src/lib/supabase/server.ts`, `src/lib/supabase/middleware.ts`
 - **Supabase types:** `src/integrations/supabase/types.ts` (generated)
-- **Edge functions:** `supabase/functions/` — 12 functions (all deployed)
-- **Migrations:** `supabase/migrations/` — 53 files
+- **Edge functions:** `supabase/functions/` — 14 functions (all deployed)
+- **Migrations:** `supabase/migrations/` — 56 files
 
 ## Supabase Backend
 - **Project:** Fortun Wishnet (`zlmideilxfnokemzkavm`)
 - **Region:** us-west-1
 - **Postgres:** 17.6.1 + pgvector 0.8 (HNSW, 1536-dim, cosine)
-- **Tables:** 33 in `public` schema — all with RLS enabled
-- **Edge functions (12):** manage-users, ai-chat, storage-stats, update-bucket-settings, serve-file, process-embeddings, search-knowledge, process-ocr, promptor, osha-chat, pixel-chat, wishpedia-generate
-- **Storage buckets:** brain-documents, files, wishpedia-media, profile-pictures
+- **Tables:** 38 in `public` schema — all with RLS enabled
+- **Edge functions (14):** manage-users, ai-chat, storage-stats, update-bucket-settings, serve-file, process-embeddings, search-knowledge, process-ocr, promptor, osha-chat, pixel-chat, wishpedia-generate, omni, content-library
+- **Storage buckets:** brain-documents, files, wishpedia-media, profile-pictures, whisper-audio
+- **pg_cron jobs:** content-library-dispatch (*/5, posts dispatch-due to content-library via pg_net with a DB-seeded secret)
 
 ## Domain Areas
 - **Auth / users:** profiles, user_roles, user_permissions
@@ -50,7 +51,8 @@ Do not upgrade dependencies without discussion.
 - **RAG / Knowledge:** brain_sections, brain_documents, brain_categories, knowledge_embeddings, embedding_jobs
 - **Rules:** heart_rules, heart_categories
 - **Promptor:** promptor_settings, promptor_runs, quick_prompts
-- **Agents:** agent_settings, osha_*, muse_*, pixel_*
+- **Agents:** agent_settings, osha_*, muse_*, pixel_*, omni_* (settings/runs/assets)
+- **Content Library (Pulse):** content_library_items, content_library_posts
 - **Wishpedia:** wishpedia_categories, wishpedia_entries, wishpedia_entry_images
 - **Branding / config:** branding_settings, llm_settings, sectors, console_messages
 
@@ -101,6 +103,23 @@ The following agents are available globally at `~/.claude/agents/`:
 - QA phase → Security Auditor
 
 ## Audit History
+
+### Feature — Omni agent: full Multimodal Creation AI (2026-06-12)
+Built Omni end-to-end at `/ai-agents/omni` in 8 approved phases on branch `feat/omni`. Canonical spec: [OMNI_SPEC.md](OMNI_SPEC.md); final report: [OMNI_BUILD_REPORT.md](OMNI_BUILD_REPORT.md). Four-tile entry (Brainstorming, Images, Audios/Videos coming-soon w/ reserved seams), the complete Images track (six modes), full fal.ai integration, and the new Pulse Content Library with scheduled posting.
+
+**Edge — `omni` v10** (verify_jwt + in-function bearer auth, 60/min): settings; dynamic fal catalog (live `api.fal.ai/v1/models` + curated fallback; new models appear with zero code changes); generic queue runner (submit at the FULL model path, status/result at the first-2-segment app id — empirically verified); per-variant engine (`variant-submit` w/ i2i shaping: upscalers `image_url` singular/no prompt, edit families `image_urls`; batched `variants-poll` persisting outputs to storage); `analyze-image` (vision + hybrid match_knowledge w/ query_text over brain+wishpedia + priority-ordered Heart, fenced untrusted); `surprise-ideas` (random-window sampling, no embeddings needed); `brainstorm-chat`/`brainstorm-lock`; idempotent `finalize-run` (re-finalizing a completed run returns the existing item). One clean `fetchHeartRules` (agent key "omni", error-surfaced, rank critical>high>medium>low + sort_order).
+
+**Edge — `content-library` v2** (verify_jwt=false, SEC-006): admin path (JWT+is_admin+30/min) for post-now/schedule/unschedule/connections/`library-asset-urls`; cron path authed by a DB-seeded secret (pulse_connections provider `omni_dispatch`, constant-time compare) fired by **pg_cron job `content-library-dispatch`** (*/5) via pg_net (migration 20260612120000). 60s atomic dispatch-overlap guard (config.last_dispatch_at claim) prevents cron-vs-manual double-publish. Connectors: Meta Graph v21.0 FB/IG real (params in form body; activates on `pulse_connections` meta row w/ `meta_page_tokens`, `config.ig_user_id`), X/TikTok honest credential-gated stubs → posts park as `queued`. NO pulse-api changes (spec rule).
+
+**DB (migrations 20260612100000/101000/120000):** `ai_can_access_omni`; `omni_settings`/`omni_runs`/`omni_assets` owner-scoped RLS (+admin SELECT on assets); `content_library_items`/`content_library_posts` admin-only; agent_settings seed. **Workflow engine:** every run is an omni_runs row (mode, current_step, step_state snapshots incl. `max_step_reached` high-water + brainstorm `messages`); every variant an omni_assets row (storage path, model, parent run/image lineage). Storage: private `files` bucket `{userId}/omni-images/{runId}/`, signed URLs only, "Omni AI" sector.
+
+**Client:** [OmniAgent.tsx](src/screens/OmniAgent.tsx) (URL-synced track/mode/run, data-omni-theme local dark mode, fullscreen); [src/components/omni/](src/components/omni/) wizard/ (12-step Omni Images), transform/ (6-step + handoff), repurpose-mode/, surprise/, brainstorm/, history/; [src/hooks/omni/](src/hooks/omni/). Pulse gained ONLY the Library tab ([src/components/pulse/library/](src/components/pulse/library/)). Promptor reused everywhere via useOptimizeDraft. History: resume-at-any-step (surface resolver: transform ≤6 → TransformWizard, ≥7 → Omni Images; unlocked brainstorm → chat), retake-as-clone, selective+clear-all delete (spares files referenced by other runs; completed/archived runs protected → Archive). Brainstorm lock updates the SAME run (title/objective/idea_locked) → wizard step 1.
+
+**QA (Phase 8):** security-auditor **PASS Low (0C/0H/3M/5L)** — all 3 Mediums fixed in content-library v2; ui-reviewer **B- (3 criticals fixed:** History row wrap at 375px, brainstorm composer width vs Osha FAB, catalog badge contrast via `[[data-omni-theme=dark]_&]:` variant — `dark:` does NOT track Omni's page-local theme). 19-agent adversarial review in Phase 5 confirmed+fixed 16 findings (incl. step-10 paid-output persistence, back-from-7 mode gating, delete sparing cross-run references). `npm run build` green, tsc clean, lint 0 errors (39-warning baseline). QA admin claude.qa@wishnet.internal deleted with all test data (one orphaned PNG noted in the report for dashboard deletion).
+
+**REQUIRES HUMAN:** osha-chat redeploy for the Omni registry line (`npx supabase login && npx supabase functions deploy osha-chat --project-ref zlmideilxfnokemzkavm` — MCP transcription of the 2,195-line live agent ruled out); Meta app+page OAuth (+ig_user_id), X paid-tier keys, TikTok Content Posting approval for live publishing.
+
+**Lessons:** fal queue status/result URLs drop model subpaths; MCP edge deploys need the FULL file set re-inlined each time (`<name>/index.ts` + sibling `_shared/`); `order by random()` is not expressible via supabase-js (use random-offset windows); SSR auth tokens live in chunked `sb-*-auth-token` cookies (base64- prefix), not localStorage; storage.objects rows are trigger-protected from direct SQL deletes; Tailwind `dark:` variants do not track `data-omni-theme` (use `[[data-omni-theme=dark]_&]:`); TanStack `isLoading` is false on stale cache — gate restore-sensitive mounts on `isFetching` too; PowerShell here-strings with embedded quotes can fail — use `git commit -F file`.
 
 ### Feature — Whisper AI agent: full AI Podcast Generator (2026-05-22)
 Built Whisper from a coming-soon stub into a full agent at `/ai-agents/whisper` (10-phase plan, "go for all"). Source (topic / paste / URL) → AI script → ElevenLabs voices → stitched MP3 → show notes + cover → distribute. Mirrors the Pulse architecture (admin-gated edge, admin-only RLS, secure key pattern).

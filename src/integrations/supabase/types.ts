@@ -257,6 +257,116 @@ export type Database = {
         }
         Relationships: []
       }
+      content_library_items: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          metadata: Json
+          networks: string[]
+          source_run_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json
+          networks?: string[]
+          source_run_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json
+          networks?: string[]
+          source_run_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_library_items_source_run_id_fkey"
+            columns: ["source_run_id"]
+            isOneToOne: false
+            referencedRelation: "omni_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_library_posts: {
+        Row: {
+          asset_id: string | null
+          caption: string | null
+          created_at: string
+          created_by: string | null
+          error: string | null
+          external_post_id: string | null
+          id: string
+          item_id: string
+          network: string
+          posted_at: string | null
+          scheduled_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          asset_id?: string | null
+          caption?: string | null
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          external_post_id?: string | null
+          id?: string
+          item_id: string
+          network: string
+          posted_at?: string | null
+          scheduled_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          asset_id?: string | null
+          caption?: string | null
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          external_post_id?: string | null
+          id?: string
+          item_id?: string
+          network?: string
+          posted_at?: string | null
+          scheduled_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_library_posts_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "omni_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_library_posts_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "content_library_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       embedding_jobs: {
         Row: {
           created_at: string | null
@@ -761,6 +871,147 @@ export type Database = {
           refusal_style?: string
           retrieval_depth?: string
           safety_guard_mode?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      omni_assets: {
+        Row: {
+          created_at: string
+          error: string | null
+          height: number | null
+          id: string
+          kind: string
+          metadata: Json
+          mime_type: string | null
+          model_id: string | null
+          parent_asset_id: string | null
+          prompt: string | null
+          run_id: string
+          status: string
+          storage_path: string | null
+          updated_at: string
+          user_id: string
+          width: number | null
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          height?: number | null
+          id?: string
+          kind?: string
+          metadata?: Json
+          mime_type?: string | null
+          model_id?: string | null
+          parent_asset_id?: string | null
+          prompt?: string | null
+          run_id: string
+          status?: string
+          storage_path?: string | null
+          updated_at?: string
+          user_id: string
+          width?: number | null
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          height?: number | null
+          id?: string
+          kind?: string
+          metadata?: Json
+          mime_type?: string | null
+          model_id?: string | null
+          parent_asset_id?: string | null
+          prompt?: string | null
+          run_id?: string
+          status?: string
+          storage_path?: string | null
+          updated_at?: string
+          user_id?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_assets_parent_asset_id_fkey"
+            columns: ["parent_asset_id"]
+            isOneToOne: false
+            referencedRelation: "omni_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_assets_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "omni_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_runs: {
+        Row: {
+          created_at: string
+          current_step: number
+          id: string
+          mode: string
+          status: string
+          step_state: Json
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_step?: number
+          id?: string
+          mode: string
+          status?: string
+          step_state?: Json
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_step?: number
+          id?: string
+          mode?: string
+          status?: string
+          step_state?: Json
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      omni_settings: {
+        Row: {
+          analysis_model: string | null
+          analysis_provider: string
+          created_at: string
+          default_variants: number
+          defaults: Json
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          analysis_model?: string | null
+          analysis_provider?: string
+          created_at?: string
+          default_variants?: number
+          defaults?: Json
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          analysis_model?: string | null
+          analysis_provider?: string
+          created_at?: string
+          default_variants?: number
+          defaults?: Json
+          id?: string
           updated_at?: string
           user_id?: string
         }
@@ -1724,6 +1975,7 @@ export type Database = {
           ai_can_access_whisper: boolean | null
           ai_can_access_muse: boolean | null
           ai_can_access_nexus: boolean | null
+          ai_can_access_omni: boolean | null
           ai_can_access_osha: boolean | null
           ai_can_access_pixel: boolean | null
           ai_can_access_promptor: boolean | null
@@ -1768,6 +2020,7 @@ export type Database = {
           ai_can_access_whisper?: boolean | null
           ai_can_access_muse?: boolean | null
           ai_can_access_nexus?: boolean | null
+          ai_can_access_omni?: boolean | null
           ai_can_access_osha?: boolean | null
           ai_can_access_pixel?: boolean | null
           ai_can_access_promptor?: boolean | null
@@ -1812,6 +2065,7 @@ export type Database = {
           ai_can_access_whisper?: boolean | null
           ai_can_access_muse?: boolean | null
           ai_can_access_nexus?: boolean | null
+          ai_can_access_omni?: boolean | null
           ai_can_access_osha?: boolean | null
           ai_can_access_pixel?: boolean | null
           ai_can_access_promptor?: boolean | null

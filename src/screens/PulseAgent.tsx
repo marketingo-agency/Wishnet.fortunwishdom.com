@@ -3,7 +3,7 @@
 /**
  * PulseAgent — the Social Media Command Center workspace.
  * Standard app shell (flex h-full p-0 → bg-card rounded-2xl border → header + body),
- * mirroring the other AI-agent pages, with a 7-tab top strip. Each tab's surface
+ * mirroring the other AI-agent pages, with an 8-tab top strip. Each tab's surface
  * ships phase-by-phase; Settings reuses the existing PulseSettings component.
  */
 
@@ -14,6 +14,7 @@ import {
   PenSquare,
   CalendarDays,
   LayoutGrid,
+  Library,
   MessagesSquare,
   BarChart3,
   Settings2,
@@ -27,12 +28,14 @@ import { PulseCalendarTab } from '@/components/pulse/calendar/PulseCalendarTab';
 import { PulseEngagementTab } from '@/components/pulse/engagement/PulseEngagementTab';
 import { PulseAnalyticsTab } from '@/components/pulse/analytics/PulseAnalyticsTab';
 import { PulseOverviewTab } from '@/components/pulse/overview/PulseOverviewTab';
+import { PulseLibraryTab } from '@/components/pulse/library/PulseLibraryTab';
 
 type PulseTabId =
   | 'overview'
   | 'create'
   | 'calendar'
   | 'posts'
+  | 'library'
   | 'engagement'
   | 'analytics'
   | 'settings';
@@ -48,6 +51,7 @@ const TABS: PulseTab[] = [
   { id: 'create', label: 'Create', icon: PenSquare },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
   { id: 'posts', label: 'Posts', icon: LayoutGrid },
+  { id: 'library', label: 'Library', icon: Library },
   { id: 'engagement', label: 'Engagement', icon: MessagesSquare },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'settings', label: 'Settings', icon: Settings2 },
@@ -83,6 +87,8 @@ export default function PulseAgent() {
         return <PulseCalendarTab />;
       case 'posts':
         return <PulsePostsTab />;
+      case 'library':
+        return <PulseLibraryTab />;
       case 'engagement':
         return <PulseEngagementTab />;
       case 'analytics':

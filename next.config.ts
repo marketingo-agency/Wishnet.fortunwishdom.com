@@ -25,7 +25,9 @@ const securityHeaders = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com https://avatars.githubusercontent.com",
+      // fal.media + the two fal GCS gallery paths: model-catalog thumbnails and
+      // generated previews rendered by the Omni agent (render-only image sources).
+      "img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com https://avatars.githubusercontent.com https://fal.media https://*.fal.media https://storage.googleapis.com/falserverless/ https://storage.googleapis.com/fal_cdn/",
       "font-src 'self' data:",
       `connect-src 'self' https://${SUPABASE_HOSTNAME} wss://${SUPABASE_HOSTNAME} https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io https://va.vercel-scripts.com`,
       "worker-src 'self' blob:",

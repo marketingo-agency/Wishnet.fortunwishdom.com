@@ -59,6 +59,7 @@ export interface UserPermissions {
   ai_can_access_muse: boolean | null;
   ai_can_access_pixel: boolean | null;
   ai_can_access_atlas: boolean | null;
+  ai_can_access_omni: boolean | null;
   
   // Wishdom granular permissions
   wishdom_can_access_main: boolean | null;

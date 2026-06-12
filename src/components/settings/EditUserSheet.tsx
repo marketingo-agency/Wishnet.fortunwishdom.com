@@ -42,6 +42,7 @@ import {
   PersonStanding,
   Spade,
   Package,
+  Orbit,
 } from 'lucide-react';
 
 interface UserData {
@@ -99,6 +100,7 @@ const toolConfigs = [
       { key: 'ai_can_access_pulse', label: 'Pulse (Social)', icon: Share2 },
       { key: 'ai_can_access_pixel', label: 'Pixel (Visuals)', icon: Palette },
       { key: 'ai_can_access_atlas', label: 'ATLAS (Operations)', icon: Boxes },
+      { key: 'ai_can_access_omni', label: 'Omni (Creation)', icon: Orbit },
     ]
   },
   { 
@@ -165,6 +167,7 @@ export function EditUserSheet({ open, onOpenChange, user, onSave }: EditUserShee
     ai_can_access_pulse: true,
     ai_can_access_pixel: true,
     ai_can_access_atlas: true,
+    ai_can_access_omni: true,
     // Wishdom
     wishdom_can_access_main: true,
     wishdom_can_access_plushes: true,
@@ -214,6 +217,7 @@ export function EditUserSheet({ open, onOpenChange, user, onSave }: EditUserShee
         ai_can_access_pulse: userPermissions.ai_can_access_pulse,
         ai_can_access_pixel: userPermissions.ai_can_access_pixel,
         ai_can_access_atlas: userPermissions.ai_can_access_atlas,
+        ai_can_access_omni: userPermissions.ai_can_access_omni,
         // Wishdom
         wishdom_can_access_main: userPermissions.wishdom_can_access_main,
         wishdom_can_access_plushes: userPermissions.wishdom_can_access_plushes,
