@@ -79,6 +79,51 @@ export interface FalTestResult {
   elapsed_ms: number;
 }
 
+// ── Omni Images wizard state (persisted per step into omni_runs.step_state) ──
+
+export interface OmniModelSelection {
+  model_id: string;
+  name: string;
+  variants: number;
+}
+
+export interface OmniRepurposedRef {
+  asset_id: string;
+  source_asset_id: string;
+  network: string;
+  preset_id: string;
+  mode: 'crop' | 'ai';
+}
+
+export interface OmniImagesState {
+  objective?: string;
+  optimized_prompt?: string;
+  locked_prompt?: string;
+  model_selections?: OmniModelSelection[];
+  generated_asset_ids?: string[];
+  selected_asset_ids?: string[];
+  descriptions?: string[];
+  chosen_description?: string;
+  description_locked?: boolean;
+  networks?: string[];
+  preset_selections?: Record<string, string[]>;
+  repurposed?: OmniRepurposedRef[];
+  approved_asset_ids?: string[];
+  title?: string;
+}
+
+export type VariantPollStatus = 'generating' | 'done' | 'failed' | 'discarded';
+
+export interface VariantPollResult {
+  id: string;
+  status: VariantPollStatus;
+  url?: string | null;
+  width?: number | null;
+  height?: number | null;
+  error?: string;
+  queue_position?: number | null;
+}
+
 export interface OmniAsset {
   id: string;
   user_id: string;

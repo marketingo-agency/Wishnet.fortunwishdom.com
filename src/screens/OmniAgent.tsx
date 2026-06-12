@@ -21,10 +21,12 @@ import { OmniTopBar } from '@/components/omni/OmniTopBar';
 import { OmniEntryTiles } from '@/components/omni/OmniEntryTiles';
 import { OmniImagesHub } from '@/components/omni/OmniImagesHub';
 import { OmniComingSoon } from '@/components/omni/OmniComingSoon';
+import { OmniImagesWizard } from '@/components/omni/wizard/OmniImagesWizard';
 import { OMNI_TRACKS } from '@/components/omni/omniConstants';
 
 type OmniTheme = 'light' | 'dark';
 type OmniView = 'home' | OmniTrack;
+type ImagesMode = 'hub' | 'omni_images';
 
 const TRACK_IDS = OMNI_TRACKS.map((t) => t.id) as string[];
 
@@ -54,20 +56,47 @@ export default function OmniAgent() {
 
   // Start on 'home' for SSR/hydration parity, then sync from the URL after mount.
   const [view, setView] = useState<OmniView>('home');
+  const [imagesMode, setImagesMode] = useState<ImagesMode>('hub');
+  const [wizardRunId, setWizardRunId] = useState<string | null>(null);
+
   useEffect(() => {
-    const param = new URLSearchParams(window.location.search).get('track');
-    if (param && TRACK_IDS.includes(param)) setView(param as OmniTrack);
+    const params = new URLSearchParams(window.location.search);
+    const track = params.get('track');
+    if (track && TRACK_IDS.includes(track)) setView(track as OmniTrack);
+    if (params.get('mode') === 'omni_images') setImagesMode('omni_images');
+    const run = params.get('run');
+    if (run) setWizardRunId(run);
+  }, []);
+
+  const syncUrl = useCallback((next: OmniView, mode: ImagesMode, runId: string | null) => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (next === 'home') url.searchParams.delete('track');
+    else url.searchParams.set('track', next);
+    if (mode === 'omni_images' && next === 'images') url.searchParams.set('mode', mode);
+    else url.searchParams.delete('mode');
+    if (runId && mode === 'omni_images') url.searchParams.set('run', runId);
+    else url.searchParams.delete('run');
+    window.history.replaceState({}, '', url);
   }, []);
 
   const selectView = useCallback((next: OmniView) => {
     setView(next);
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      if (next === 'home') url.searchParams.delete('track');
-      else url.searchParams.set('track', next);
-      window.history.replaceState({}, '', url);
-    }
-  }, []);
+    setImagesMode('hub');
+    setWizardRunId(null);
+    syncUrl(next, 'hub', null);
+  }, [syncUrl]);
+
+  const openWizard = useCallback(() => {
+    setImagesMode('omni_images');
+    setWizardRunId(null);
+    syncUrl('images', 'omni_images', null);
+  }, [syncUrl]);
+
+  const handleRunCreated = useCallback((runId: string) => {
+    setWizardRunId(runId);
+    syncUrl('images', 'omni_images', runId);
+  }, [syncUrl]);
 
   const { data: agentSettings, isLoading: loadingAgentSettings } = useAgentSettings('omni');
   const isInactive = !loadingAgentSettings && agentSettings && !agentSettings.is_active;
@@ -107,12 +136,21 @@ export default function OmniAgent() {
             >
               {view === 'home' && <OmniEntryTiles onSelectTrack={(track) => selectView(track)} />}
 
-              {view === 'images' && (
+              {view === 'images' && imagesMode === 'hub' && (
                 <OmniImagesHub
                   onBack={goHome}
-                  onSelectMode={() => {
-                    // Mode surfaces ship phase by phase; cards are disabled until then.
+                  onSelectMode={(mode) => {
+                    if (mode === 'omni_images') openWizard();
+                    // Remaining mode surfaces ship phase by phase.
                   }}
+                />
+              )}
+
+              {view === 'images' && imagesMode === 'omni_images' && (
+                <OmniImagesWizard
+                  runId={wizardRunId}
+                  onRunCreated={handleRunCreated}
+                  onExit={() => selectView('images')}
                 />
               )}
 

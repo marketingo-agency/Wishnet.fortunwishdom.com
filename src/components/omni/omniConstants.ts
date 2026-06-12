@@ -98,8 +98,8 @@ export const OMNI_IMAGE_MODES: OmniModeDef[] = [
     description: 'The full creation wizard: prompt, models, variants, live generation, descriptions, networks, repurposing.',
     icon: Sparkles,
     accent: 'text-cyan-400',
-    available: false,
-    availabilityNote: 'Arrives with the Omni Images phase',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'surprise_me',

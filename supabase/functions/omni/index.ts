@@ -7,7 +7,7 @@
  *
  * Security baseline (per OMNI_SPEC.md):
  * - Bearer auth + getUser validation on every request
- * - Per-user rate limit 30/min (client polling in later phases needs headroom)
+ * - Per-user rate limit (client polling needs headroom)
  * - Service-role client for DB work, scoped manually by user_id
  * - sanitizeForPrompt on all retrieved content before prompt interpolation
  * - Signed URLs only for private-bucket outputs, never getPublicUrl
@@ -18,8 +18,10 @@ import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
 import { fetchFalCatalog, findFalModel, isFalCapability } from './fal-catalog.ts';
 import { FalUserError, falResult, falStatus, falSubmit } from './fal-runner.ts';
+import { persistFalImage, registerInFilesManager, signStoragePath } from './storage.ts';
 
-const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 30 });
+// 60/min: the generation workspace polls in-flight variants every ~3s.
+const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 60 });
 
 let corsHeaders: Record<string, string> = getCorsHeaders(null);
 
@@ -128,6 +130,7 @@ async function getFalKey(supabaseAdmin: ReturnType<typeof createClient>): Promis
 
 const FAL_NOT_CONFIGURED = 'fal.ai is not configured. Add a fal.ai API key in Settings > LLM Providers.';
 const TEST_MODEL_ID = 'fal-ai/flux/schnell';
+const NETWORKS = new Set(['facebook', 'instagram', 'x', 'tiktok']);
 
 /**
  * Download a fal CDN image and return it as a data URI.
@@ -338,6 +341,271 @@ Deno.serve(async (req: Request) => {
         }
       }
       return jsonResponse({ error: 'Test generation timed out after 60 seconds.' }, 504);
+    }
+
+    // ── variant-submit (one fal job per variant; supports regenerate lineage) ─
+    if (action === 'variant-submit') {
+      const falKey = await getFalKey(supabaseAdmin);
+      if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
+
+      const runId = body.run_id;
+      const modelId = body.model_id;
+      const prompt = body.prompt;
+      const parentAssetId = typeof body.parent_asset_id === 'string' ? body.parent_asset_id : null;
+      const sourceAssetId = typeof body.source_asset_id === 'string' ? body.source_asset_id : null;
+      if (typeof runId !== 'string' || typeof modelId !== 'string' || typeof prompt !== 'string' || prompt.trim().length === 0) {
+        return jsonResponse({ error: 'run_id, model_id and prompt are required' }, 400);
+      }
+      if (prompt.length > 8000) return jsonResponse({ error: 'Prompt is too long (8000 char cap)' }, 400);
+
+      const { data: run } = await supabaseAdmin
+        .from('omni_runs')
+        .select('id')
+        .eq('id', runId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!run) return jsonResponse({ error: 'Run not found' }, 404);
+
+      const model = await findFalModel(modelId, falKey);
+      if (!model) return jsonResponse({ error: `Model "${modelId}" is not in the fal catalog.` }, 400);
+
+      const input: Record<string, unknown> = { prompt: prompt.trim(), num_images: 1 };
+      // Image-to-image source: resolved server-side to a short-lived signed URL
+      // of the caller's own asset (the client never supplies arbitrary URLs).
+      // image_urls matches the nano-banana edit family used for AI extension;
+      // aspect_ratio steers the extended canvas (exact pixels are cropped
+      // client-side afterwards).
+      if (sourceAssetId) {
+        const { data: sourceAsset } = await supabaseAdmin
+          .from('omni_assets')
+          .select('storage_path')
+          .eq('id', sourceAssetId)
+          .eq('user_id', userId)
+          .maybeSingle();
+        const sourcePath = (sourceAsset as { storage_path: string | null } | null)?.storage_path;
+        if (!sourcePath) return jsonResponse({ error: 'Source asset not found or not persisted yet' }, 400);
+        const sourceUrl = await signStoragePath(supabaseAdmin, sourcePath, 60 * 60);
+        if (!sourceUrl) return jsonResponse({ error: 'Could not sign the source image' }, 500);
+        input.image_urls = [sourceUrl];
+        const aspectRatio = typeof body.aspect_ratio === 'string' && /^\d{1,2}:\d{1,2}$/.test(body.aspect_ratio)
+          ? body.aspect_ratio
+          : null;
+        if (aspectRatio) input.aspect_ratio = aspectRatio;
+      }
+
+      const { data: asset, error: assetError } = await supabaseAdmin
+        .from('omni_assets')
+        .insert({
+          user_id: userId,
+          run_id: runId,
+          parent_asset_id: parentAssetId,
+          kind: 'image',
+          model_id: modelId,
+          prompt: prompt.trim(),
+          status: 'generating',
+          metadata: { source_asset_id: sourceAssetId },
+        })
+        .select('id')
+        .single();
+      if (assetError || !asset) {
+        console.error('Omni: asset insert error:', assetError?.message);
+        return jsonResponse({ error: 'Failed to create the variant record' }, 500);
+      }
+      const assetId = (asset as { id: string }).id;
+
+      try {
+        const submission = await falSubmit(falKey, modelId, input);
+        await supabaseAdmin
+          .from('omni_assets')
+          .update({ metadata: { source_asset_id: sourceAssetId, fal_request_id: submission.requestId } })
+          .eq('id', assetId);
+        return jsonResponse({ asset_id: assetId, request_id: submission.requestId, queue_position: submission.queuePosition });
+      } catch (e) {
+        const message = e instanceof FalUserError ? e.message : 'Generation could not be submitted';
+        await supabaseAdmin
+          .from('omni_assets')
+          .update({ status: 'failed', error: message })
+          .eq('id', assetId);
+        if (e instanceof FalUserError) return jsonResponse({ asset_id: assetId, error: message }, 400);
+        throw e;
+      }
+    }
+
+    // ── variants-poll (batched; persists completed images, idempotent) ────────
+    if (action === 'variants-poll') {
+      const falKey = await getFalKey(supabaseAdmin);
+      if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
+
+      const assetIds = Array.isArray(body.asset_ids) ? body.asset_ids.filter((x: unknown) => typeof x === 'string').slice(0, 12) : [];
+      if (assetIds.length === 0) return jsonResponse({ error: 'asset_ids is required' }, 400);
+
+      const { data: assets } = await supabaseAdmin
+        .from('omni_assets')
+        .select('id, run_id, model_id, status, storage_path, error, metadata, width, height')
+        .in('id', assetIds)
+        .eq('user_id', userId);
+
+      const results = await Promise.all(((assets as Record<string, unknown>[] | null) ?? []).map(async (a) => {
+        const id = a.id as string;
+        const status = a.status as string;
+        const meta = (a.metadata ?? {}) as Record<string, unknown>;
+
+        if (status === 'done' && a.storage_path) {
+          const url = await signStoragePath(supabaseAdmin, a.storage_path as string);
+          return { id, status: 'done', url, width: a.width, height: a.height };
+        }
+        if (status === 'failed') return { id, status: 'failed', error: a.error ?? 'Generation failed' };
+        if (status === 'discarded') return { id, status: 'discarded' };
+
+        const requestId = meta.fal_request_id;
+        const modelId = a.model_id as string | null;
+        if (typeof requestId !== 'string' || !modelId) {
+          return { id, status: 'failed', error: 'Missing generation reference' };
+        }
+
+        try {
+          const jobStatus = await falStatus(falKey, modelId, requestId);
+          if (jobStatus.status !== 'COMPLETED') {
+            return { id, status: 'generating', queue_position: jobStatus.queuePosition };
+          }
+          const result = await falResult(falKey, modelId, requestId);
+          const image = result.images[0];
+          const persisted = await persistFalImage(supabaseAdmin, userId, a.run_id as string, id, image.url, image.contentType);
+          await supabaseAdmin
+            .from('omni_assets')
+            .update({
+              status: 'done',
+              storage_path: persisted.storagePath,
+              mime_type: persisted.mimeType,
+              width: image.width,
+              height: image.height,
+              metadata: { ...meta, byte_size: persisted.byteSize, seed: result.seed },
+            })
+            .eq('id', id);
+          const url = await signStoragePath(supabaseAdmin, persisted.storagePath);
+          return { id, status: 'done', url, width: image.width, height: image.height };
+        } catch (e) {
+          const message = e instanceof FalUserError ? e.message : 'Generation failed';
+          console.error('Omni: variant poll error:', e instanceof Error ? e.message : e);
+          await supabaseAdmin.from('omni_assets').update({ status: 'failed', error: message }).eq('id', id);
+          return { id, status: 'failed', error: message };
+        }
+      }));
+
+      return jsonResponse({ results });
+    }
+
+    // ── asset-url (fresh signed URL for an owned, persisted asset) ────────────
+    if (action === 'asset-url') {
+      const assetId = body.asset_id;
+      if (typeof assetId !== 'string') return jsonResponse({ error: 'asset_id is required' }, 400);
+      const { data: asset } = await supabaseAdmin
+        .from('omni_assets')
+        .select('storage_path')
+        .eq('id', assetId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      const path = (asset as { storage_path: string | null } | null)?.storage_path;
+      if (!path) return jsonResponse({ error: 'Asset not found or not persisted' }, 404);
+      const url = await signStoragePath(supabaseAdmin, path);
+      return jsonResponse({ url });
+    }
+
+    // ── save-asset-to-files (register in Files Manager / Omni AI sector) ──────
+    if (action === 'save-asset-to-files') {
+      const assetId = body.asset_id;
+      if (typeof assetId !== 'string') return jsonResponse({ error: 'asset_id is required' }, 400);
+
+      const { data: asset } = await supabaseAdmin
+        .from('omni_assets')
+        .select('id, storage_path, mime_type, metadata')
+        .eq('id', assetId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      const record = asset as { storage_path: string | null; mime_type: string | null; metadata: Record<string, unknown> } | null;
+      if (!record?.storage_path) return jsonResponse({ error: 'Asset not found or not persisted yet' }, 404);
+
+      const ext = record.storage_path.split('.').pop() ?? 'png';
+      const ok = await registerInFilesManager(supabaseAdmin, userId, `omni-${assetId.slice(0, 8)}.${ext}`, {
+        storagePath: record.storage_path,
+        mimeType: record.mime_type ?? 'image/png',
+        byteSize: typeof record.metadata?.byte_size === 'number' ? (record.metadata.byte_size as number) : 0,
+      });
+      if (!ok) return jsonResponse({ error: 'Could not register the file in the Files Manager' }, 500);
+      return jsonResponse({ success: true });
+    }
+
+    // ── finalize-run (save the approved set into the Pulse Content Library) ───
+    if (action === 'finalize-run') {
+      const runId = body.run_id;
+      const title = typeof body.title === 'string' ? body.title.trim().slice(0, 200) : '';
+      const description = typeof body.description === 'string' ? body.description.slice(0, 4000) : '';
+      const networks = Array.isArray(body.networks) ? body.networks.filter((n: unknown) => typeof n === 'string' && NETWORKS.has(n)) : [];
+      const posts = Array.isArray(body.posts) ? body.posts.slice(0, 100) : [];
+      if (typeof runId !== 'string' || !title) return jsonResponse({ error: 'run_id and title are required' }, 400);
+      if (networks.length === 0 || posts.length === 0) return jsonResponse({ error: 'At least one network and one post are required' }, 400);
+
+      const { data: run } = await supabaseAdmin
+        .from('omni_runs')
+        .select('id, step_state')
+        .eq('id', runId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!run) return jsonResponse({ error: 'Run not found' }, 404);
+
+      // Every referenced asset must belong to the caller.
+      const assetIds = [...new Set(posts.map((p: Record<string, unknown>) => p.asset_id).filter((x: unknown) => typeof x === 'string'))] as string[];
+      const { data: ownedAssets } = await supabaseAdmin
+        .from('omni_assets')
+        .select('id')
+        .in('id', assetIds)
+        .eq('user_id', userId);
+      const ownedIds = new Set(((ownedAssets as { id: string }[] | null) ?? []).map((a) => a.id));
+      if (assetIds.some((id) => !ownedIds.has(id))) {
+        return jsonResponse({ error: 'One or more assets do not belong to this run owner' }, 403);
+      }
+
+      const { data: item, error: itemError } = await supabaseAdmin
+        .from('content_library_items')
+        .insert({
+          title,
+          description: description || null,
+          source_run_id: runId,
+          networks,
+          status: 'ready',
+          metadata: { mode: 'omni_images' },
+          created_by: userId,
+        })
+        .select('id')
+        .single();
+      if (itemError || !item) {
+        console.error('Omni: library item insert error:', itemError?.message);
+        return jsonResponse({ error: 'Failed to create the Content Library item' }, 500);
+      }
+      const itemId = (item as { id: string }).id;
+
+      const postRows = posts
+        .filter((p: Record<string, unknown>) => typeof p.network === 'string' && NETWORKS.has(p.network as string) && typeof p.asset_id === 'string')
+        .map((p: Record<string, unknown>) => ({
+          item_id: itemId,
+          network: p.network as string,
+          asset_id: p.asset_id as string,
+          caption: typeof p.caption === 'string' ? p.caption.slice(0, 4000) : description || null,
+          status: 'draft',
+          created_by: userId,
+        }));
+      const { error: postsError } = await supabaseAdmin.from('content_library_posts').insert(postRows);
+      if (postsError) {
+        console.error('Omni: library posts insert error:', postsError.message);
+        return jsonResponse({ error: 'Failed to create the Content Library posts' }, 500);
+      }
+
+      await supabaseAdmin
+        .from('omni_runs')
+        .update({ status: 'completed', current_step: 12 })
+        .eq('id', runId);
+
+      return jsonResponse({ item_id: itemId, posts_created: postRows.length });
     }
 
     return jsonResponse({ error: 'Invalid action' }, 400);
