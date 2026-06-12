@@ -65,7 +65,9 @@ export function BrainstormComposer({ disabled, onSend }: BrainstormComposerProps
   };
 
   return (
-    <div className="shrink-0 border-t border-border px-4 py-3 sm:px-6">
+    // Inner content is capped to the message column width, which also keeps
+    // the send button clear of the global Osha assistant button bottom-right.
+    <div className="shrink-0 border-t border-border px-4 py-3 sm:px-6 [&>*]:mx-auto [&>*]:w-full [&>*]:max-w-2xl">
       {attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachments.map((a, i) => (

@@ -59,10 +59,13 @@ const facebookConnector: Connector = {
   async publish(input, connections) {
     const page = metaPage(connections);
     if (!page) throw new NotConnectedError('Facebook is not connected: Meta page credentials are missing.');
+    // Params travel in the form body, never the URL: long captions would blow
+    // request-line limits and land in upstream access logs.
     const params = new URLSearchParams({ url: input.imageUrl, message: input.caption });
-    const res = await fetch(`${GRAPH_BASE}/${page.pageId}/photos?${params.toString()}`, {
+    const res = await fetch(`${GRAPH_BASE}/${page.pageId}/photos`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${page.token}` },
+      headers: { Authorization: `Bearer ${page.token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params,
       signal: AbortSignal.timeout(30_000),
     });
     const data = await res.json().catch(() => ({}));
@@ -93,9 +96,10 @@ const instagramConnector: Connector = {
       throw new NotConnectedError('Instagram is not connected: Meta credentials with an IG business account are missing.');
     }
     const containerParams = new URLSearchParams({ image_url: input.imageUrl, caption: input.caption });
-    const containerRes = await fetch(`${GRAPH_BASE}/${igUserId}/media?${containerParams.toString()}`, {
+    const containerRes = await fetch(`${GRAPH_BASE}/${igUserId}/media`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${page.token}` },
+      headers: { Authorization: `Bearer ${page.token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: containerParams,
       signal: AbortSignal.timeout(30_000),
     });
     const container = await containerRes.json().catch(() => ({}));
@@ -104,9 +108,10 @@ const instagramConnector: Connector = {
       throw new Error(`Instagram container failed: ${msg}`);
     }
     const publishParams = new URLSearchParams({ creation_id: (container as { id: string }).id });
-    const publishRes = await fetch(`${GRAPH_BASE}/${igUserId}/media_publish?${publishParams.toString()}`, {
+    const publishRes = await fetch(`${GRAPH_BASE}/${igUserId}/media_publish`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${page.token}` },
+      headers: { Authorization: `Bearer ${page.token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: publishParams,
       signal: AbortSignal.timeout(30_000),
     });
     const published = await publishRes.json().catch(() => ({}));

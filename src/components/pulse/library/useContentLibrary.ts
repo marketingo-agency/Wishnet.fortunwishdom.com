@@ -149,10 +149,14 @@ export function useRunDispatch() {
   const invalidate = useInvalidateLibrary();
   return useMutation({
     mutationFn: () =>
-      callContentLibrary<{ posted: number; queued: number; failed: number }>('dispatch-due'),
+      callContentLibrary<{ posted: number; queued: number; failed: number; skipped?: boolean }>('dispatch-due'),
     onSuccess: (res) => {
       invalidate();
-      toast.success(`Dispatch finished: ${res.posted} posted, ${res.queued} queued, ${res.failed} failed.`);
+      if (res.skipped) {
+        toast.info('Another dispatch ran within the last minute; skipped to avoid double-posting.');
+      } else {
+        toast.success(`Dispatch finished: ${res.posted} posted, ${res.queued} queued, ${res.failed} failed.`);
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });

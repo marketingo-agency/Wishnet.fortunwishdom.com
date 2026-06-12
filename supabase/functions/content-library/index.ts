@@ -31,6 +31,42 @@ function jsonResponse(payload: unknown, status = 200): Response {
 
 type AdminClient = ReturnType<typeof createClient>;
 
+/** Constant-time secret comparison: digesting both sides first makes the
+ *  byte-by-byte compare independent of any matching prefix. */
+async function secretsMatch(a: string, b: string): Promise<boolean> {
+  const enc = new TextEncoder();
+  const [da, db] = await Promise.all([
+    crypto.subtle.digest('SHA-256', enc.encode(a)),
+    crypto.subtle.digest('SHA-256', enc.encode(b)),
+  ]);
+  const xa = new Uint8Array(da);
+  const xb = new Uint8Array(db);
+  let diff = 0;
+  for (let i = 0; i < xa.length; i++) diff |= xa[i] ^ xb[i];
+  return diff === 0;
+}
+
+/**
+ * Overlap guard: the cron fires every 5 minutes and admins can click
+ * "Run dispatch now"; two concurrent dispatchers would both publish the same
+ * due posts. One atomic conditional UPDATE on the omni_dispatch row claims a
+ * 60-second window; the loser skips instead of double-posting.
+ */
+async function claimDispatchWindow(supabaseAdmin: AdminClient): Promise<boolean> {
+  const cutoff = new Date(Date.now() - 60_000).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from('pulse_connections')
+    .update({ config: { last_dispatch_at: new Date().toISOString() } })
+    .eq('provider', 'omni_dispatch')
+    .or(`config->>last_dispatch_at.is.null,config->>last_dispatch_at.lt.${cutoff}`)
+    .select('id');
+  if (error) {
+    console.error('Content Library: dispatch claim error:', error.message);
+    return false;
+  }
+  return (data ?? []).length > 0;
+}
+
 async function loadConnections(supabaseAdmin: AdminClient): Promise<ConnectionsMap> {
   const { data } = await supabaseAdmin
     .from('pulse_connections')
@@ -123,7 +159,10 @@ async function dispatchPost(supabaseAdmin: AdminClient, post: PostRow, connectio
 }
 
 /** Find and dispatch everything due: scheduled posts past their time, plus parked queued posts. */
-async function dispatchDue(supabaseAdmin: AdminClient): Promise<Record<string, number>> {
+async function dispatchDue(supabaseAdmin: AdminClient): Promise<Record<string, number | boolean>> {
+  if (!(await claimDispatchWindow(supabaseAdmin))) {
+    return { posted: 0, queued: 0, failed: 0, skipped: true };
+  }
   const nowIso = new Date().toISOString();
   const { data: scheduled } = await supabaseAdmin
     .from('content_library_posts')
@@ -139,7 +178,7 @@ async function dispatchDue(supabaseAdmin: AdminClient): Promise<Record<string, n
 
   const posts = [...((scheduled as PostRow[] | null) ?? []), ...((queued as PostRow[] | null) ?? [])];
   const summary: Record<string, number> = { posted: 0, queued: 0, failed: 0 };
-  if (posts.length === 0) return summary;
+  if (posts.length === 0) return summary as Record<string, number | boolean>;
 
   const connections = await loadConnections(supabaseAdmin);
   for (const post of posts) {
@@ -172,7 +211,7 @@ Deno.serve(async (req: Request) => {
         .eq('provider', 'omni_dispatch')
         .maybeSingle();
       const expected = (secretRow as { api_key: string | null } | null)?.api_key;
-      if (!expected || body.cron_secret !== expected) {
+      if (!expected || !(await secretsMatch(body.cron_secret, expected))) {
         return jsonResponse({ error: 'Unauthorized' }, 401);
       }
       const summary = await dispatchDue(supabaseAdmin);

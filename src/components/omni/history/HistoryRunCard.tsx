@@ -62,7 +62,9 @@ export function HistoryRunCard({ run, coverUrl, selected, onToggleSelect, onOpen
         selected && 'border-cyan-500/60 ring-1 ring-cyan-500/40',
       )}
     >
-      <div className="flex items-center gap-3 p-3">
+      {/* Wraps on narrow screens: the action cluster drops to its own row
+          instead of crushing the title column. */}
+      <div className="flex flex-wrap items-center gap-3 p-3">
         <Checkbox
           checked={selected}
           onCheckedChange={onToggleSelect}
@@ -80,7 +82,7 @@ export function HistoryRunCard({ run, coverUrl, selected, onToggleSelect, onOpen
           )}
         </div>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-44">
           <p className="truncate text-sm font-medium">{run.title || 'Untitled run'}</p>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <Badge className={cn('border-0 px-1.5 py-0 text-[10px] font-semibold', modeMeta.badge)}>{modeMeta.label}</Badge>
@@ -91,7 +93,7 @@ export function HistoryRunCard({ run, coverUrl, selected, onToggleSelect, onOpen
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           <Button
             size="sm"
             onClick={() => onOpen(run)}

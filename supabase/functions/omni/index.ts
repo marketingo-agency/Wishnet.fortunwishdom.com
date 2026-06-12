@@ -784,11 +784,26 @@ Deno.serve(async (req: Request) => {
 
       const { data: run } = await supabaseAdmin
         .from('omni_runs')
-        .select('id, step_state')
+        .select('id, status, step_state')
         .eq('id', runId)
         .eq('user_id', userId)
         .maybeSingle();
       if (!run) return jsonResponse({ error: 'Run not found' }, 404);
+
+      // Idempotency: finalize is the only path to 'completed'. Re-finalizing
+      // a completed run (resume at step 12, double click) returns the
+      // existing library item instead of inserting a duplicate.
+      if ((run as { status?: string }).status === 'completed') {
+        const { data: existingItem } = await supabaseAdmin
+          .from('content_library_items')
+          .select('id')
+          .eq('source_run_id', runId)
+          .limit(1)
+          .maybeSingle();
+        if (existingItem) {
+          return jsonResponse({ item_id: (existingItem as { id: string }).id, posts_created: 0, already_finalized: true });
+        }
+      }
 
       // Every referenced asset must belong to the caller.
       const assetIds = itemOnly

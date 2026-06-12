@@ -69,9 +69,11 @@ export function OmniFalHealthCard() {
             <span
               className={cn(
                 'rounded-full border px-2.5 py-0.5 text-[11px] font-medium',
+                // Omni theming is page-local (data-omni-theme), so the contrast
+                // variant keys off that attribute, not the global dark class.
                 catalog.data?.source === 'live'
-                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
-                  : 'border-amber-500/40 bg-amber-500/10 text-amber-400',
+                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-400'
+                  : 'border-amber-500/40 bg-amber-500/10 text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400',
               )}
             >
               {catalog.data?.source === 'live' ? 'Live catalog' : 'Fallback catalog'}
