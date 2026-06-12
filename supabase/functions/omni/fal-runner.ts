@@ -2,9 +2,10 @@
  * Generic fal.ai invocation runner for Omni.
  *
  * One transport for ANY catalog model through the fal queue REST API:
- *   submit:  POST https://queue.fal.run/{modelId}
- *   status:  GET  https://queue.fal.run/{modelId}/requests/{requestId}/status
- *   result:  GET  https://queue.fal.run/{modelId}/requests/{requestId}
+ *   submit:  POST https://queue.fal.run/{modelId}            (full path incl. subpath)
+ *   status:  GET  https://queue.fal.run/{appId}/requests/{requestId}/status
+ *   result:  GET  https://queue.fal.run/{appId}/requests/{requestId}
+ * where appId is the first two segments of the model id (queue routes drop subpaths).
  * URLs are reconstructed server-side from validated ids (never taken from the
  * client) so the edge function cannot be steered to arbitrary hosts.
  *
@@ -32,6 +33,17 @@ export function assertValidRequestId(requestId: unknown): asserts requestId is s
   if (typeof requestId !== 'string' || !REQUEST_ID_RE.test(requestId)) {
     throw new FalUserError('Invalid fal request id.');
   }
+}
+
+/**
+ * Queue request URLs (status/result) live under the BASE app id (owner/alias);
+ * model subpaths are dropped. Verified empirically 2026-06-12: for the model
+ * fal-ai/flux/schnell, GET queue.fal.run/fal-ai/flux/requests/{id}/status is
+ * routed (401 with a bogus key) while the full nested path returns 405.
+ * Submission keeps the full model path.
+ */
+function queueAppId(modelId: string): string {
+  return modelId.split('/').slice(0, 2).join('/');
 }
 
 interface FalValidationIssue {
@@ -121,7 +133,7 @@ export async function falStatus(
   assertValidModelId(modelId);
   assertValidRequestId(requestId);
 
-  const res = await fetch(`${QUEUE_BASE}/${modelId}/requests/${requestId}/status`, {
+  const res = await fetch(`${QUEUE_BASE}/${queueAppId(modelId)}/requests/${requestId}/status`, {
     headers: { Authorization: `Key ${falKey}` },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
@@ -205,7 +217,7 @@ export async function falResult(
   assertValidModelId(modelId);
   assertValidRequestId(requestId);
 
-  const res = await fetch(`${QUEUE_BASE}/${modelId}/requests/${requestId}`, {
+  const res = await fetch(`${QUEUE_BASE}/${queueAppId(modelId)}/requests/${requestId}`, {
     headers: { Authorization: `Key ${falKey}` },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });

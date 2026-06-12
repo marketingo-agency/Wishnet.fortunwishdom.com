@@ -129,6 +129,33 @@ async function getFalKey(supabaseAdmin: ReturnType<typeof createClient>): Promis
 const FAL_NOT_CONFIGURED = 'fal.ai is not configured. Add a fal.ai API key in Settings > LLM Providers.';
 const TEST_MODEL_ID = 'fal-ai/flux/schnell';
 
+/**
+ * Download a fal CDN image and return it as a data URI.
+ * Used by the health check only: the app CSP allowlists data: but not
+ * fal.media, and user-facing renders go through Supabase storage signed URLs.
+ */
+async function falImageToDataUri(url: string, contentType: string | null): Promise<string | null> {
+  try {
+    const host = new URL(url).hostname;
+    if (host !== 'fal.media' && !host.endsWith('.fal.media')) return null;
+    const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    if (buf.byteLength > 10 * 1024 * 1024) return null;
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+    }
+    const mime = contentType || res.headers.get('content-type') || 'image/jpeg';
+    return `data:${mime};base64,${btoa(binary)}`;
+  } catch (e) {
+    console.error('Omni: test image data-uri conversion failed:', e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 // ── Server ───────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -298,10 +325,14 @@ Deno.serve(async (req: Request) => {
         const status = await falStatus(falKey, TEST_MODEL_ID, submission.requestId);
         if (status.status === 'COMPLETED') {
           const result = await falResult(falKey, TEST_MODEL_ID, submission.requestId);
+          const images = await Promise.all(result.images.map(async (img) => ({
+            ...img,
+            url: (await falImageToDataUri(img.url, img.contentType)) ?? img.url,
+          })));
           return jsonResponse({
             success: true,
             model: TEST_MODEL_ID,
-            images: result.images,
+            images,
             elapsed_ms: Date.now() - startedAt,
           });
         }
