@@ -37,6 +37,9 @@ export const TOKEN_BUDGETS = {
   /** Omni analysis pass: universe-relation conclusion + improvement suggestions */
   OMNI_ANALYSIS: 2048,
 
+  /** Omni Surprise Me: knowledge-mined creation idea batch (4-6 structured ideas) */
+  OMNI_SURPRISE_IDEAS: 2048,
+
   /** General-purpose default when no specific budget applies */
   DEFAULT: 2048,
 } as const;

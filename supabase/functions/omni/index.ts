@@ -20,6 +20,7 @@ import { fetchFalCatalog, findFalModel, isFalCapability } from './fal-catalog.ts
 import { FalUserError, falResult, falStatus, falSubmit } from './fal-runner.ts';
 import { persistFalImage, registerInFilesManager, signStoragePath } from './storage.ts';
 import { analyzeImage } from './analysis.ts';
+import { mineSurpriseIdeas } from './surprise.ts';
 
 // 60/min: the generation workspace polls in-flight variants every ~3s.
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 60 });
@@ -620,6 +621,55 @@ Deno.serve(async (req: Request) => {
         imageMime: record.mime_type ?? 'image/png',
       });
       return jsonResponse(result);
+    }
+
+    // ── surprise-ideas (mine the knowledge base for creation ideas) ───────────
+    if (action === 'surprise-ideas') {
+      const { data: omniSettings } = await supabaseAdmin
+        .from('omni_settings')
+        .select('analysis_provider, analysis_model')
+        .eq('user_id', userId)
+        .maybeSingle();
+      const { data: llm } = await supabaseAdmin
+        .from('llm_settings')
+        .select('openai_api_key, gemini_api_key, openai_text_model, gemini_text_model')
+        .single();
+
+      const openaiKey = ((llm?.openai_api_key as string | null) || Deno.env.get('OPENAI_API_KEY') || '').trim();
+      const geminiKey = ((llm?.gemini_api_key as string | null) || Deno.env.get('GEMINI_API_KEY') || '').trim();
+      // No embeddings here (sampling, not similarity search), so either provider works.
+      if (!openaiKey && !geminiKey) {
+        return jsonResponse({ error: 'An OpenAI or Gemini API key is required for idea generation. Configure one in Settings > LLM Providers.' }, 503);
+      }
+
+      const settingsProvider = (omniSettings as { analysis_provider?: string } | null)?.analysis_provider;
+      const provider = settingsProvider === 'gemini' && geminiKey ? 'gemini' : openaiKey ? 'openai' : 'gemini';
+      const settingsModel = (omniSettings as { analysis_model?: string | null } | null)?.analysis_model;
+      const model = settingsModel || (provider === 'gemini'
+        ? ((llm?.gemini_text_model as string | null) || 'gemini-2.5-flash')
+        : ((llm?.openai_text_model as string | null) || 'gpt-4o'));
+
+      let heartRules;
+      try {
+        heartRules = await fetchHeartRules(supabaseAdmin);
+      } catch (e) {
+        return jsonResponse({ error: e instanceof Error ? e.message : 'Heart rules unavailable' }, 503);
+      }
+
+      try {
+        const result = await mineSurpriseIdeas({
+          supabaseAdmin,
+          keys: { openaiKey, geminiKey },
+          provider,
+          model,
+          heartRules,
+        });
+        return jsonResponse(result);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Idea generation failed';
+        console.error('Omni: surprise-ideas error:', message);
+        return jsonResponse({ error: message }, 502);
+      }
     }
 
     // ── finalize-run (save the approved set into the Pulse Content Library) ───

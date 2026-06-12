@@ -107,8 +107,8 @@ export const OMNI_IMAGE_MODES: OmniModeDef[] = [
     description: 'Omni mines the knowledge base and proposes concrete creation ideas to run with.',
     icon: Dices,
     accent: 'text-fuchsia-400',
-    available: false,
-    availabilityNote: 'Arrives with the Surprise Me phase',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'transform_upscale',

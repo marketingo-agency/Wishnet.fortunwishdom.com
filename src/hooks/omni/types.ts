@@ -126,6 +126,20 @@ export interface OmniImagesState {
   max_step_reached?: number;
 }
 
+// ── Surprise Me (Mode 5) ─────────────────────────────────────────────────────
+
+export interface SurpriseIdea {
+  title: string;
+  summary: string;
+  objective: string;
+  grounding: string;
+}
+
+export interface SurpriseResult {
+  ideas: SurpriseIdea[];
+  retrieval: { brain_chunks: number; wishpedia_chunks: number; heart_rules: number };
+}
+
 export type VariantPollStatus = 'generating' | 'done' | 'failed' | 'discarded';
 
 export interface VariantPollResult {

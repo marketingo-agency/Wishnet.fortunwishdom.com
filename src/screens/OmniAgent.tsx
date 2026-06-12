@@ -26,14 +26,15 @@ import { OmniImagesWizard } from '@/components/omni/wizard/OmniImagesWizard';
 import { TransformWizard } from '@/components/omni/transform/TransformWizard';
 import { RepurposeModeWizard } from '@/components/omni/repurpose-mode/RepurposeModeWizard';
 import { HistoryView } from '@/components/omni/history/HistoryView';
+import { SurpriseMeView } from '@/components/omni/surprise/SurpriseMeView';
 import { resolveSurfaceForStep } from '@/components/omni/history/historyRouting';
 import { OMNI_TRACKS } from '@/components/omni/omniConstants';
 
 type OmniTheme = 'light' | 'dark';
 type OmniView = 'home' | OmniTrack;
-type ImagesMode = 'hub' | 'omni_images' | 'transform_upscale' | 'repurposing' | 'history';
+type ImagesMode = 'hub' | 'omni_images' | 'transform_upscale' | 'repurposing' | 'history' | 'surprise_me';
 
-const IMAGES_MODE_IDS: ImagesMode[] = ['omni_images', 'transform_upscale', 'repurposing', 'history'];
+const IMAGES_MODE_IDS: ImagesMode[] = ['omni_images', 'transform_upscale', 'repurposing', 'history', 'surprise_me'];
 
 const TRACK_IDS = OMNI_TRACKS.map((t) => t.id) as string[];
 
@@ -207,6 +208,13 @@ export default function OmniAgent() {
               {view === 'images' && imagesMode === 'history' && (
                 <HistoryView
                   onOpenRun={handleHistoryOpenRun}
+                  onExit={() => selectView('images')}
+                />
+              )}
+
+              {view === 'images' && imagesMode === 'surprise_me' && (
+                <SurpriseMeView
+                  onRunStarted={handleHistoryOpenRun}
                   onExit={() => selectView('images')}
                 />
               )}
