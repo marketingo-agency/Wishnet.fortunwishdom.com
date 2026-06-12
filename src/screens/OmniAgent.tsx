@@ -23,11 +23,12 @@ import { OmniImagesHub } from '@/components/omni/OmniImagesHub';
 import { OmniComingSoon } from '@/components/omni/OmniComingSoon';
 import { OmniImagesWizard } from '@/components/omni/wizard/OmniImagesWizard';
 import { TransformWizard } from '@/components/omni/transform/TransformWizard';
+import { RepurposeModeWizard } from '@/components/omni/repurpose-mode/RepurposeModeWizard';
 import { OMNI_TRACKS } from '@/components/omni/omniConstants';
 
 type OmniTheme = 'light' | 'dark';
 type OmniView = 'home' | OmniTrack;
-type ImagesMode = 'hub' | 'omni_images' | 'transform_upscale';
+type ImagesMode = 'hub' | 'omni_images' | 'transform_upscale' | 'repurposing';
 
 const TRACK_IDS = OMNI_TRACKS.map((t) => t.id) as string[];
 
@@ -65,7 +66,7 @@ export default function OmniAgent() {
     const track = params.get('track');
     if (track && TRACK_IDS.includes(track)) setView(track as OmniTrack);
     const mode = params.get('mode');
-    if (mode === 'omni_images' || mode === 'transform_upscale') setImagesMode(mode);
+    if (mode === 'omni_images' || mode === 'transform_upscale' || mode === 'repurposing') setImagesMode(mode);
     const run = params.get('run');
     if (run) setWizardRunId(run);
   }, []);
@@ -105,6 +106,14 @@ export default function OmniAgent() {
     setImagesMode('omni_images');
     syncUrl('images', 'omni_images', wizardRunId);
   }, [syncUrl, wizardRunId]);
+
+  const handleRepurposeHandoff = useCallback((runId: string) => {
+    // Mode 3 creates the run and hands off in one action, so the id arrives
+    // directly instead of via wizardRunId state.
+    setWizardRunId(runId);
+    setImagesMode('omni_images');
+    syncUrl('images', 'omni_images', runId);
+  }, [syncUrl]);
 
   const { data: agentSettings, isLoading: loadingAgentSettings } = useAgentSettings('omni');
   const isInactive = !loadingAgentSettings && agentSettings && !agentSettings.is_active;
@@ -148,7 +157,7 @@ export default function OmniAgent() {
                 <OmniImagesHub
                   onBack={goHome}
                   onSelectMode={(mode) => {
-                    if (mode === 'omni_images' || mode === 'transform_upscale') openImagesMode(mode);
+                    if (mode === 'omni_images' || mode === 'transform_upscale' || mode === 'repurposing') openImagesMode(mode);
                     // Remaining mode surfaces ship phase by phase.
                   }}
                 />
@@ -168,6 +177,13 @@ export default function OmniAgent() {
                   onRunCreated={handleRunCreated('transform_upscale')}
                   onExit={() => selectView('images')}
                   onHandoffToRepurposing={handleTransformHandoff}
+                />
+              )}
+
+              {view === 'images' && imagesMode === 'repurposing' && (
+                <RepurposeModeWizard
+                  onExit={() => selectView('images')}
+                  onHandoff={handleRepurposeHandoff}
                 />
               )}
 

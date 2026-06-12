@@ -125,8 +125,8 @@ export const OMNI_IMAGE_MODES: OmniModeDef[] = [
     description: 'Turn finished images into every social network format and save the set to the Content Library.',
     icon: Crop,
     accent: 'text-emerald-400',
-    available: false,
-    availabilityNote: 'Arrives with the Content Library phase',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'history',

@@ -1,26 +1,27 @@
 # MEMORY — Working Memory
 
 ## Current Task
-Build the Omni agent (multimodal creation workspace). Canonical spec + approved decisions: OMNI_SPEC.md at repo root. Recon: AGENT_RECON_PROMPTOR_PIXEL.md (read in full).
+Build the Omni agent (multimodal creation workspace). Canonical spec + approved decisions: OMNI_SPEC.md at repo root.
 
 ## Plan Status
 - DONE — Phase 0 Scaffolding (commit 4690291).
-- DONE — Phase 1 FAL LAYER (commits caece6f + 9e65f6d, omni edge v5): dynamic catalog via GET api.fal.ai/v1/models + static outage fallback; generic queue runner; 4 edge actions; useFalCatalog + OmniFalHealthCard. E2E VERIFIED via Playwright: live catalog 100+ models, flux/schnell generation 2.9s, thumbnail rendered. Bug fixed live: fal queue status/result URLs use the BASE app id (first 2 segments, subpaths dropped); nested path 405s. Health-check image returned as data URI (CSP allows data:, not fal.media; user-facing renders use Supabase signed URLs).
-- DONE — Phase 2 OMNI IMAGES (omni edge v6): full 12-step wizard e2e-verified via Playwright on run 9d2add47 (multi-model schnell+Z-Turbo live progressive generation, regenerate-variation, 4 Promptor descriptions, networks IG+X, 6-output repurpose = 4 canvas crops + 2 nano-banana AI extends with exact-pixel final crop, approval, finalize). DB verified: 1 item + 6 posts + run completed + 13 assets. Live fixes: StrictMode stopRef reset (BUG-01 class), DB-driven resume-aware generation start (restores existing + submits missing), assets-query invalidation past step 5, repurpose matrix waits for assets, CSP img-src + fal.media/GCS gallery paths (next.config.ts; dev server restarted), StepLockPrompt local busy state.
-- DONE — Phase 3 TRANSFORM AND UPSCALE (omni edge v7): analyze-image (vision OpenAI/Gemini + hybrid match_knowledge brain+wishpedia w/ query_text + priority-ordered Heart + fenced untrusted context) e2e-verified on run 02324df6 (33 Heart rules + 20 chunks injected; conclusion cited canon). Transform wizard 6 steps; StepModels capability prop + Upscalers toggle; variant-submit i2i shaping (upscalers image_url singular/no prompt, edit family image_urls); finalize item_only branch (metadata.asset_ids, 0 posts); handoff to OmniImagesWizard step 7 on same run VERIFIED; direct save VERIFIED in DB. New budgets OMNI_VISION_DESCRIBE/OMNI_ANALYSIS. Known seam: a handed-off run reopened via mode=transform_upscale URL with current_step>6 renders empty (Phase 5 routes by step).
-- Phase 4 PULSE CONTENT LIBRARY + REPURPOSING MODE, Phase 5 HISTORY, Phase 6 SURPRISE ME, Phase 7 BRAINSTORMING, Phase 8 POLISH + QA.
+- DONE — Phase 1 FAL LAYER (omni edge v5): dynamic catalog + queue runner, e2e-verified. Lesson: fal queue status/result URLs use the BASE app id (first 2 path segments).
+- DONE — Phase 2 OMNI IMAGES (omni edge v6): 12-step wizard e2e-verified on run 9d2add47 (1 item + 6 posts + 13 assets).
+- DONE — Phase 3 TRANSFORM AND UPSCALE (omni edge v7): analyze-image RAG/Heart-grounded, i2i/upscale, item-only save + step 7 handoff, e2e-verified on run 02324df6.
+- DONE — Phase 4 PULSE CONTENT LIBRARY + REPURPOSING MODE: content-library edge v1 (verify_jwt=false, SEC-006; cron path via DB-seeded secret in pulse_connections provider='omni_dispatch'; admin path JWT+is_admin+30/min). Migration 20260612120000: pg_net enabled, secret seeded, cron.schedule 'content-library-dispatch' */5 (jobid 5). Connectors: Meta FB/IG real (gated on pulse_connections 'meta' row), x/tiktok honest NotConnectedError stubs -> posts park as 'queued'. Pulse Library tab (8th tab, the ONLY PulseAgent edit): src/components/pulse/library/ (grid + filters + item Sheet w/ post-now/schedule/unschedule + connections strip + x/tiktok key dialog + run dispatch). Mode 3 repurpose-mode/ wizard (multi-source: upload/Files/Content Library -> mode 'repurposing' run -> handoff step 7). E2E-verified via Playwright: schedule->Scheduled, post-now->honest Queued w/ connector detail, manual dispatch {0 posted,1 queued,0 failed}, CRON LIVE (net._http_response 200 via:'cron'), Mode 3 full run 04d6e6f1 -> 3rd item (1 X post, smart crop 1080x1080 from a cross-user Content Library source). tsc clean; lint 0 errors (39 warnings, 0 from Phase 4 files).
+- NEXT — Phase 5 HISTORY (retake/resume; fix the step>6 URL seam below), Phase 6 SURPRISE ME, Phase 7 BRAINSTORMING, Phase 8 POLISH + QA.
 
 ## Key Decisions
-- All approved decisions live in OMNI_SPEC.md "APPROVED DECISIONS" (identity cyan-violet/Orbit, RLS split owner-scoped vs admin-shared library, additive registry lines sanctioned, fal via raw queue.fal.run fetch, files bucket + Omni AI sector, rate limit 30/min).
-- omni edge deployed verify_jwt=true + full in-function auth (v1). osha-chat agentMeta line STAGED but NOT deployed (deferred to Phase 8, CLI byte-exact).
-- agent_settings row seeded for omni (Nexus toggle + Osha status work).
-- Lint baseline now 37 warnings (was 36): the +1 is omni/page.tsx metadata export, same react-refresh pattern as every other agent page.
+- Approved decisions live in OMNI_SPEC.md "APPROVED DECISIONS".
+- Cron dispatch auth: random uuid secret in pulse_connections (provider 'omni_dispatch'), validated in-function; no human secret setup needed.
+- Mode 3 references existing storage paths via NEW owner-scoped omni_assets rows (dims copied) — never moves bytes; service-role signs cross-user reads (library-asset-urls edge action).
+- osha-chat omni agentMeta line still STAGED, deploy in Phase 8 (CLI byte-exact).
 
 ## Current State
-Phase 1 complete and e2e-verified on feat/omni; omni edge v5 ACTIVE. Dev server live on :8000 (skip npm run build while it runs). Temp QA admin claude.qa@wishnet.internal (user 1a65e05b-7251-4f3b-9411-33d077a09758) exists for Playwright self-testing per Sam's instruction; DELETE in Phase 8. Waiting for Sam's go on Phase 2.
+Phase 4 complete and e2e-verified on feat/omni (uncommitted — commit next). Dev server live on :8000 (skip npm run build). Temp QA admin claude.qa@wishnet.internal (1a65e05b-7251-4f3b-9411-33d077a09758) — DELETE in Phase 8. Test data left in place for Sam: 1 X post Scheduled tonight 23:30 + 1 IG post Queued (cron re-parks them honestly every 5 min — by design). Known seam: reopening a handed-off run via mode=transform_upscale/repurposing URL with current_step>6 renders empty; Phase 5 routes by step.
 
 ## Next Steps When Resuming
-1. Read OMNI_SPEC.md first (operating rules: present per-phase plan, STOP for Sam's go).
-2. Present the Phase 2 plan (Omni Images 12-step wizard: run engine actions on omni_runs/omni_assets, batched fal-status polling, storage persistence to files bucket + Omni AI sector, Promptor steps, networks/dimensions registry, repurposing pipeline, save to Content Library tables).
-3. Lessons to carry: fal queue status/result URLs drop model subpaths (use first 2 segments); Supabase request-log analytics lag minutes and omit console output (debug via temporary response detail + Playwright repro); verify interactive flows yourself via Playwright with the QA admin.
-4. pg_cron availability still unverified (needed Phase 4); check list_extensions then.
+1. Read OMNI_SPEC.md (operating rules: per-phase plan, STOP for Sam's go).
+2. Commit Phase 4 if not yet committed (check git status).
+3. Present the Phase 5 plan (History mode: run list, retake, resume-at-step routing incl. the step>6 seam).
+4. REQUIRES HUMAN (for live publishing, not blocking): Meta app id/secret + page OAuth (+ ig_user_id in pulse_connections config), X API paid-tier keys, TikTok Content Posting API approval.
