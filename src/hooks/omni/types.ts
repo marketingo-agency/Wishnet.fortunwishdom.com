@@ -43,6 +43,42 @@ export interface OmniRun {
   updated_at: string;
 }
 
+// ── fal.ai catalog and runner (client mirrors of the edge shapes) ────────────
+
+export type FalCapability = 'text-to-image' | 'image-to-image' | 'upscale';
+
+export interface FalModel {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  thumbnailUrl: string | null;
+  licenseType: string | null;
+  tags: string[];
+}
+
+export interface FalCatalogPage {
+  models: FalModel[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  source: 'live' | 'fallback';
+  falConfigured: boolean;
+}
+
+export interface FalImage {
+  url: string;
+  width: number | null;
+  height: number | null;
+  contentType: string | null;
+}
+
+export interface FalTestResult {
+  success: boolean;
+  model: string;
+  images: FalImage[];
+  elapsed_ms: number;
+}
+
 export interface OmniAsset {
   id: string;
   user_id: string;

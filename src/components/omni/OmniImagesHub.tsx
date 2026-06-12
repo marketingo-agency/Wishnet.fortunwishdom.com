@@ -11,6 +11,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { OMNI_IMAGE_MODES, type OmniModeDef } from './omniConstants';
+import { OmniFalHealthCard } from './OmniFalHealthCard';
 
 interface OmniImagesHubProps {
   onBack: () => void;
@@ -100,6 +101,8 @@ export function OmniImagesHub({ onBack, onSelectMode }: OmniImagesHubProps) {
           );
         })}
       </motion.div>
+
+      <OmniFalHealthCard />
     </div>
   );
 }

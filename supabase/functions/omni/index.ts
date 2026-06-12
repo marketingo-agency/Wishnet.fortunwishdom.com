@@ -16,6 +16,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 import { sanitizeForPrompt } from '../_shared/sanitize.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
+import { fetchFalCatalog, findFalModel, isFalCapability } from './fal-catalog.ts';
+import { FalUserError, falResult, falStatus, falSubmit } from './fal-runner.ts';
 
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 30 });
 
@@ -113,6 +115,20 @@ function jsonResponse(payload: unknown, status = 200, extraHeaders: Record<strin
   });
 }
 
+/** Resolve the fal.ai key: DB column first, env secret fallback (Batch Task 6 pattern). */
+async function getFalKey(supabaseAdmin: ReturnType<typeof createClient>): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from('llm_settings')
+    .select('fal_api_key')
+    .single();
+  if (error) console.error('Omni: llm_settings read error:', error.message);
+  const key = (data?.fal_api_key as string | null) || Deno.env.get('FAL_KEY') || '';
+  return key.trim().length > 0 ? key.trim() : null;
+}
+
+const FAL_NOT_CONFIGURED = 'fal.ai is not configured. Add a fal.ai API key in Settings > LLM Providers.';
+const TEST_MODEL_ID = 'fal-ai/flux/schnell';
+
 // ── Server ───────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -200,8 +216,104 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: true });
     }
 
+    // ── list-fal-models ──────────────────────────────────────────────────────
+    if (action === 'list-fal-models') {
+      const capability = isFalCapability(body.capability) ? body.capability : undefined;
+      const q = typeof body.q === 'string' ? body.q : undefined;
+      const cursor = typeof body.cursor === 'string' ? body.cursor : undefined;
+      const limit = typeof body.limit === 'number' ? body.limit : undefined;
+
+      const falKey = await getFalKey(supabaseAdmin);
+      const page = await fetchFalCatalog({ capability, q, cursor, limit, falKey });
+      return jsonResponse({ ...page, falConfigured: falKey !== null });
+    }
+
+    // ── fal-submit ───────────────────────────────────────────────────────────
+    if (action === 'fal-submit') {
+      const falKey = await getFalKey(supabaseAdmin);
+      if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
+
+      const modelId = body.model_id;
+      const input = body.input;
+      if (typeof modelId !== 'string' || !input || typeof input !== 'object' || Array.isArray(input)) {
+        return jsonResponse({ error: 'model_id (string) and input (object) are required' }, 400);
+      }
+
+      const model = await findFalModel(modelId, falKey);
+      if (!model) {
+        return jsonResponse({ error: `Model "${modelId}" is not in the fal catalog.` }, 400);
+      }
+
+      const submission = await falSubmit(falKey, modelId, input as Record<string, unknown>);
+      return jsonResponse({ request_id: submission.requestId, queue_position: submission.queuePosition });
+    }
+
+    // ── fal-status ───────────────────────────────────────────────────────────
+    if (action === 'fal-status') {
+      const falKey = await getFalKey(supabaseAdmin);
+      if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
+
+      const modelId = body.model_id;
+      const requestId = body.request_id;
+      if (typeof modelId !== 'string' || typeof requestId !== 'string') {
+        return jsonResponse({ error: 'model_id and request_id are required' }, 400);
+      }
+
+      const status = await falStatus(falKey, modelId, requestId);
+      if (status.status !== 'COMPLETED') {
+        return jsonResponse({ status: status.status, queue_position: status.queuePosition });
+      }
+
+      try {
+        const result = await falResult(falKey, modelId, requestId);
+        return jsonResponse({ status: 'COMPLETED', result: { images: result.images, seed: result.seed } });
+      } catch (e) {
+        if (e instanceof FalUserError) {
+          return jsonResponse({ status: 'ERROR', error: e.message });
+        }
+        throw e;
+      }
+    }
+
+    // ── fal-test-generate (admin-only health check) ──────────────────────────
+    if (action === 'fal-test-generate') {
+      const { data: isAdmin, error: adminErr } = await supabaseAdmin.rpc('is_admin', { _user_id: userId });
+      if (adminErr || !isAdmin) {
+        return jsonResponse({ error: 'Admin access required' }, 403);
+      }
+
+      const falKey = await getFalKey(supabaseAdmin);
+      if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
+
+      const startedAt = Date.now();
+      const submission = await falSubmit(falKey, TEST_MODEL_ID, {
+        prompt: 'A serene mountain landscape at golden hour, crisp light, premium digital art',
+        image_size: 'square',
+        num_images: 1,
+      });
+
+      // flux/schnell completes in seconds; poll server-side up to 60s.
+      for (let attempt = 0; attempt < 60; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const status = await falStatus(falKey, TEST_MODEL_ID, submission.requestId);
+        if (status.status === 'COMPLETED') {
+          const result = await falResult(falKey, TEST_MODEL_ID, submission.requestId);
+          return jsonResponse({
+            success: true,
+            model: TEST_MODEL_ID,
+            images: result.images,
+            elapsed_ms: Date.now() - startedAt,
+          });
+        }
+      }
+      return jsonResponse({ error: 'Test generation timed out after 60 seconds.' }, 504);
+    }
+
     return jsonResponse({ error: 'Invalid action' }, 400);
   } catch (e) {
+    if (e instanceof FalUserError) {
+      return jsonResponse({ error: e.message }, 400);
+    }
     console.error('Omni: unhandled error:', e instanceof Error ? e.message : String(e));
     return jsonResponse({ error: 'Internal error' }, 500);
   }
