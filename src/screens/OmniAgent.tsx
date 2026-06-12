@@ -22,11 +22,12 @@ import { OmniEntryTiles } from '@/components/omni/OmniEntryTiles';
 import { OmniImagesHub } from '@/components/omni/OmniImagesHub';
 import { OmniComingSoon } from '@/components/omni/OmniComingSoon';
 import { OmniImagesWizard } from '@/components/omni/wizard/OmniImagesWizard';
+import { TransformWizard } from '@/components/omni/transform/TransformWizard';
 import { OMNI_TRACKS } from '@/components/omni/omniConstants';
 
 type OmniTheme = 'light' | 'dark';
 type OmniView = 'home' | OmniTrack;
-type ImagesMode = 'hub' | 'omni_images';
+type ImagesMode = 'hub' | 'omni_images' | 'transform_upscale';
 
 const TRACK_IDS = OMNI_TRACKS.map((t) => t.id) as string[];
 
@@ -63,7 +64,8 @@ export default function OmniAgent() {
     const params = new URLSearchParams(window.location.search);
     const track = params.get('track');
     if (track && TRACK_IDS.includes(track)) setView(track as OmniTrack);
-    if (params.get('mode') === 'omni_images') setImagesMode('omni_images');
+    const mode = params.get('mode');
+    if (mode === 'omni_images' || mode === 'transform_upscale') setImagesMode(mode);
     const run = params.get('run');
     if (run) setWizardRunId(run);
   }, []);
@@ -73,9 +75,9 @@ export default function OmniAgent() {
     const url = new URL(window.location.href);
     if (next === 'home') url.searchParams.delete('track');
     else url.searchParams.set('track', next);
-    if (mode === 'omni_images' && next === 'images') url.searchParams.set('mode', mode);
+    if (mode !== 'hub' && next === 'images') url.searchParams.set('mode', mode);
     else url.searchParams.delete('mode');
-    if (runId && mode === 'omni_images') url.searchParams.set('run', runId);
+    if (runId && mode !== 'hub') url.searchParams.set('run', runId);
     else url.searchParams.delete('run');
     window.history.replaceState({}, '', url);
   }, []);
@@ -87,16 +89,22 @@ export default function OmniAgent() {
     syncUrl(next, 'hub', null);
   }, [syncUrl]);
 
-  const openWizard = useCallback(() => {
-    setImagesMode('omni_images');
+  const openImagesMode = useCallback((mode: Exclude<ImagesMode, 'hub'>) => {
+    setImagesMode(mode);
     setWizardRunId(null);
-    syncUrl('images', 'omni_images', null);
+    syncUrl('images', mode, null);
   }, [syncUrl]);
 
-  const handleRunCreated = useCallback((runId: string) => {
+  const handleRunCreated = useCallback((mode: Exclude<ImagesMode, 'hub'>) => (runId: string) => {
     setWizardRunId(runId);
-    syncUrl('images', 'omni_images', runId);
+    syncUrl('images', mode, runId);
   }, [syncUrl]);
+
+  const handleTransformHandoff = useCallback(() => {
+    // The run continues into the Omni Images wizard at step 7 (repurposing path).
+    setImagesMode('omni_images');
+    syncUrl('images', 'omni_images', wizardRunId);
+  }, [syncUrl, wizardRunId]);
 
   const { data: agentSettings, isLoading: loadingAgentSettings } = useAgentSettings('omni');
   const isInactive = !loadingAgentSettings && agentSettings && !agentSettings.is_active;
@@ -140,7 +148,7 @@ export default function OmniAgent() {
                 <OmniImagesHub
                   onBack={goHome}
                   onSelectMode={(mode) => {
-                    if (mode === 'omni_images') openWizard();
+                    if (mode === 'omni_images' || mode === 'transform_upscale') openImagesMode(mode);
                     // Remaining mode surfaces ship phase by phase.
                   }}
                 />
@@ -149,8 +157,17 @@ export default function OmniAgent() {
               {view === 'images' && imagesMode === 'omni_images' && (
                 <OmniImagesWizard
                   runId={wizardRunId}
-                  onRunCreated={handleRunCreated}
+                  onRunCreated={handleRunCreated('omni_images')}
                   onExit={() => selectView('images')}
+                />
+              )}
+
+              {view === 'images' && imagesMode === 'transform_upscale' && (
+                <TransformWizard
+                  runId={wizardRunId}
+                  onRunCreated={handleRunCreated('transform_upscale')}
+                  onExit={() => selectView('images')}
+                  onHandoffToRepurposing={handleTransformHandoff}
                 />
               )}
 

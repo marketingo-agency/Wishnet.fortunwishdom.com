@@ -116,8 +116,8 @@ export const OMNI_IMAGE_MODES: OmniModeDef[] = [
     description: 'Analyze an existing image, then transform or upscale it with the right models.',
     icon: ZoomIn,
     accent: 'text-blue-400',
-    available: false,
-    availabilityNote: 'Arrives with the Transform phase',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'repurposing',

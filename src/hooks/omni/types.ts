@@ -95,10 +95,21 @@ export interface OmniRepurposedRef {
   mode: 'crop' | 'ai';
 }
 
+export interface OmniAnalysis {
+  description: string;
+  universe_relation: { related: boolean; conclusion: string };
+  suggestions: { type: 'upscale' | 'transform'; text: string }[];
+  retrieval: { brain_chunks: number; heart_rules: number };
+}
+
 export interface OmniImagesState {
   objective?: string;
   optimized_prompt?: string;
   locked_prompt?: string;
+  // Transform and Upscale (Mode 2) extras, persisted in the same engine state
+  source_asset_id?: string;
+  analysis?: OmniAnalysis;
+  transform_prompt?: string;
   model_selections?: OmniModelSelection[];
   generated_asset_ids?: string[];
   selected_asset_ids?: string[];

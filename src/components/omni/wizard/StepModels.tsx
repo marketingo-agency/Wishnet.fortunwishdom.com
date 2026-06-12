@@ -11,21 +11,26 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { useFalCatalog, type FalModel, type OmniModelSelection } from '@/hooks/omni';
+import { useFalCatalog, type FalCapability, type FalModel, type OmniModelSelection } from '@/hooks/omni';
 
 interface StepModelsProps {
   initialSelections: OmniModelSelection[];
   onNext: (selections: OmniModelSelection[]) => void;
+  /** Catalog capability to browse; the wizard uses text-to-image, Transform uses i2i/upscale. */
+  capability?: FalCapability;
+  /** Show the Edit models / Upscalers filter chips (Transform mode). */
+  showUpscaleToggle?: boolean;
 }
 
-export function StepModels({ initialSelections, onNext }: StepModelsProps) {
+export function StepModels({ initialSelections, onNext, capability = 'text-to-image', showUpscaleToggle = false }: StepModelsProps) {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [extraModels, setExtraModels] = useState<FalModel[]>([]);
   const [selections, setSelections] = useState<OmniModelSelection[]>(initialSelections);
+  const [activeCapability, setActiveCapability] = useState<FalCapability>(capability);
 
-  const catalog = useFalCatalog({ capability: 'text-to-image', q: query || undefined, cursor, limit: 30 });
+  const catalog = useFalCatalog({ capability: activeCapability, q: query || undefined, cursor, limit: 30 });
 
   const models = useMemo(() => {
     const page = catalog.data?.models ?? [];
@@ -66,8 +71,36 @@ export function StepModels({ initialSelections, onNext }: StepModelsProps) {
 
   const totalImages = selections.reduce((sum, s) => sum + s.variants, 0);
 
+  const switchCapability = (next: FalCapability) => {
+    if (next === activeCapability) return;
+    setActiveCapability(next);
+    setExtraModels([]);
+    setCursor(undefined);
+  };
+
   return (
     <div className="space-y-4">
+      {showUpscaleToggle && (
+        <div className="flex gap-2" role="radiogroup" aria-label="Model family">
+          {([['image-to-image', 'Edit models'], ['upscale', 'Upscalers']] as [FalCapability, string][]).map(([cap, label]) => (
+            <button
+              key={cap}
+              role="radio"
+              aria-checked={activeCapability === cap}
+              onClick={() => switchCapability(cap)}
+              className={cn(
+                'cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-200',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                activeCapability === cap
+                  ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-300'
+                  : 'border-border text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

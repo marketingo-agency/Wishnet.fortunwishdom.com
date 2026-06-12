@@ -19,6 +19,7 @@ import { createRateLimiter } from '../_shared/rate-limit.ts';
 import { fetchFalCatalog, findFalModel, isFalCapability } from './fal-catalog.ts';
 import { FalUserError, falResult, falStatus, falSubmit } from './fal-runner.ts';
 import { persistFalImage, registerInFilesManager, signStoragePath } from './storage.ts';
+import { analyzeImage } from './analysis.ts';
 
 // 60/min: the generation workspace polls in-flight variants every ~3s.
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 60 });
@@ -350,13 +351,17 @@ Deno.serve(async (req: Request) => {
 
       const runId = body.run_id;
       const modelId = body.model_id;
-      const prompt = body.prompt;
       const parentAssetId = typeof body.parent_asset_id === 'string' ? body.parent_asset_id : null;
       const sourceAssetId = typeof body.source_asset_id === 'string' ? body.source_asset_id : null;
-      if (typeof runId !== 'string' || typeof modelId !== 'string' || typeof prompt !== 'string' || prompt.trim().length === 0) {
-        return jsonResponse({ error: 'run_id, model_id and prompt are required' }, 400);
+      const promptStr = typeof body.prompt === 'string' ? body.prompt.trim() : '';
+      if (typeof runId !== 'string' || typeof modelId !== 'string') {
+        return jsonResponse({ error: 'run_id and model_id are required' }, 400);
       }
-      if (prompt.length > 8000) return jsonResponse({ error: 'Prompt is too long (8000 char cap)' }, 400);
+      // Upscalers run without a prompt; everything else needs one.
+      if (!sourceAssetId && promptStr.length === 0) {
+        return jsonResponse({ error: 'prompt is required' }, 400);
+      }
+      if (promptStr.length > 8000) return jsonResponse({ error: 'Prompt is too long (8000 char cap)' }, 400);
 
       const { data: run } = await supabaseAdmin
         .from('omni_runs')
@@ -369,12 +374,13 @@ Deno.serve(async (req: Request) => {
       const model = await findFalModel(modelId, falKey);
       if (!model) return jsonResponse({ error: `Model "${modelId}" is not in the fal catalog.` }, 400);
 
-      const input: Record<string, unknown> = { prompt: prompt.trim(), num_images: 1 };
+      const input: Record<string, unknown> = { num_images: 1 };
+      if (promptStr) input.prompt = promptStr;
       // Image-to-image source: resolved server-side to a short-lived signed URL
       // of the caller's own asset (the client never supplies arbitrary URLs).
-      // image_urls matches the nano-banana edit family used for AI extension;
-      // aspect_ratio steers the extended canvas (exact pixels are cropped
-      // client-side afterwards).
+      // Input key per model family: upscalers take image_url (singular), the
+      // edit families take image_urls (array). aspect_ratio steers extended
+      // canvases (exact pixels are cropped client-side afterwards).
       if (sourceAssetId) {
         const { data: sourceAsset } = await supabaseAdmin
           .from('omni_assets')
@@ -386,7 +392,12 @@ Deno.serve(async (req: Request) => {
         if (!sourcePath) return jsonResponse({ error: 'Source asset not found or not persisted yet' }, 400);
         const sourceUrl = await signStoragePath(supabaseAdmin, sourcePath, 60 * 60);
         if (!sourceUrl) return jsonResponse({ error: 'Could not sign the source image' }, 500);
-        input.image_urls = [sourceUrl];
+        if (/(\/|-)upscal/i.test(modelId)) {
+          input.image_url = sourceUrl;
+          delete input.num_images;
+        } else {
+          input.image_urls = [sourceUrl];
+        }
         const aspectRatio = typeof body.aspect_ratio === 'string' && /^\d{1,2}:\d{1,2}$/.test(body.aspect_ratio)
           ? body.aspect_ratio
           : null;
@@ -401,7 +412,7 @@ Deno.serve(async (req: Request) => {
           parent_asset_id: parentAssetId,
           kind: 'image',
           model_id: modelId,
-          prompt: prompt.trim(),
+          prompt: promptStr || null,
           status: 'generating',
           metadata: { source_asset_id: sourceAssetId },
         })
@@ -535,6 +546,82 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: true });
     }
 
+    // ── analyze-image (vision + RAG + universe-relation conclusion) ───────────
+    if (action === 'analyze-image') {
+      const assetId = body.asset_id;
+      if (typeof assetId !== 'string') return jsonResponse({ error: 'asset_id is required' }, 400);
+
+      const { data: asset } = await supabaseAdmin
+        .from('omni_assets')
+        .select('storage_path, mime_type')
+        .eq('id', assetId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      const record = asset as { storage_path: string | null; mime_type: string | null } | null;
+      if (!record?.storage_path) return jsonResponse({ error: 'Image not found or not persisted yet' }, 404);
+
+      const { data: omniSettings } = await supabaseAdmin
+        .from('omni_settings')
+        .select('analysis_provider, analysis_model')
+        .eq('user_id', userId)
+        .maybeSingle();
+      const { data: llm } = await supabaseAdmin
+        .from('llm_settings')
+        .select('openai_api_key, gemini_api_key, openai_text_model, gemini_text_model')
+        .single();
+
+      const openaiKey = ((llm?.openai_api_key as string | null) || Deno.env.get('OPENAI_API_KEY') || '').trim();
+      const geminiKey = ((llm?.gemini_api_key as string | null) || Deno.env.get('GEMINI_API_KEY') || '').trim();
+      // Embeddings for RAG always run on OpenAI (platform-wide constraint).
+      if (!openaiKey) {
+        return jsonResponse({ error: 'An OpenAI API key is required for analysis (vision and knowledge retrieval). Configure it in Settings > LLM Providers.' }, 503);
+      }
+
+      const settingsProvider = (omniSettings as { analysis_provider?: string } | null)?.analysis_provider;
+      const provider = settingsProvider === 'gemini' && geminiKey ? 'gemini' : 'openai';
+      const settingsModel = (omniSettings as { analysis_model?: string | null } | null)?.analysis_model;
+      const model = settingsModel || (provider === 'gemini'
+        ? ((llm?.gemini_text_model as string | null) || 'gemini-2.5-flash')
+        : ((llm?.openai_text_model as string | null) || 'gpt-4o'));
+
+      let heartRules;
+      try {
+        heartRules = await fetchHeartRules(supabaseAdmin);
+      } catch (e) {
+        return jsonResponse({ error: e instanceof Error ? e.message : 'Heart rules unavailable' }, 503);
+      }
+
+      const signedUrl = await signStoragePath(supabaseAdmin, record.storage_path, 60 * 60);
+      if (!signedUrl) return jsonResponse({ error: 'Could not access the image' }, 500);
+
+      let imageBase64: string | null = null;
+      if (provider === 'gemini') {
+        const imgRes = await fetch(signedUrl, { signal: AbortSignal.timeout(60_000) });
+        if (!imgRes.ok) return jsonResponse({ error: 'Could not download the image for analysis' }, 500);
+        const buf = await imgRes.arrayBuffer();
+        if (buf.byteLength > 20 * 1024 * 1024) return jsonResponse({ error: 'Image exceeds the 20MB analysis cap' }, 400);
+        const bytes = new Uint8Array(buf);
+        let binary = '';
+        const CHUNK = 0x8000;
+        for (let i = 0; i < bytes.length; i += CHUNK) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+        }
+        imageBase64 = btoa(binary);
+      }
+
+      const result = await analyzeImage({
+        supabaseAdmin,
+        keys: { openaiKey, geminiKey },
+        provider,
+        model,
+        heartRules,
+        imageSignedUrl: signedUrl,
+        imageBase64,
+        imageMime: record.mime_type ?? 'image/png',
+      });
+      return jsonResponse(result);
+    }
+
     // ── finalize-run (save the approved set into the Pulse Content Library) ───
     if (action === 'finalize-run') {
       const runId = body.run_id;
@@ -542,8 +629,16 @@ Deno.serve(async (req: Request) => {
       const description = typeof body.description === 'string' ? body.description.slice(0, 4000) : '';
       const networks = Array.isArray(body.networks) ? body.networks.filter((n: unknown) => typeof n === 'string' && NETWORKS.has(n)) : [];
       const posts = Array.isArray(body.posts) ? body.posts.slice(0, 100) : [];
+      const itemOnly = body.save_mode === 'item_only';
+      const itemAssetIds = itemOnly && Array.isArray(body.asset_ids)
+        ? body.asset_ids.filter((x: unknown) => typeof x === 'string').slice(0, 50)
+        : [];
       if (typeof runId !== 'string' || !title) return jsonResponse({ error: 'run_id and title are required' }, 400);
-      if (networks.length === 0 || posts.length === 0) return jsonResponse({ error: 'At least one network and one post are required' }, 400);
+      if (itemOnly) {
+        if (itemAssetIds.length === 0) return jsonResponse({ error: 'At least one asset is required' }, 400);
+      } else if (networks.length === 0 || posts.length === 0) {
+        return jsonResponse({ error: 'At least one network and one post are required' }, 400);
+      }
 
       const { data: run } = await supabaseAdmin
         .from('omni_runs')
@@ -554,7 +649,9 @@ Deno.serve(async (req: Request) => {
       if (!run) return jsonResponse({ error: 'Run not found' }, 404);
 
       // Every referenced asset must belong to the caller.
-      const assetIds = [...new Set(posts.map((p: Record<string, unknown>) => p.asset_id).filter((x: unknown) => typeof x === 'string'))] as string[];
+      const assetIds = itemOnly
+        ? itemAssetIds
+        : ([...new Set(posts.map((p: Record<string, unknown>) => p.asset_id).filter((x: unknown) => typeof x === 'string'))] as string[]);
       const { data: ownedAssets } = await supabaseAdmin
         .from('omni_assets')
         .select('id')
@@ -573,7 +670,9 @@ Deno.serve(async (req: Request) => {
           source_run_id: runId,
           networks,
           status: 'ready',
-          metadata: { mode: 'omni_images' },
+          metadata: itemOnly
+            ? { mode: 'transform_upscale', asset_ids: itemAssetIds }
+            : { mode: 'omni_images' },
           created_by: userId,
         })
         .select('id')
@@ -584,28 +683,32 @@ Deno.serve(async (req: Request) => {
       }
       const itemId = (item as { id: string }).id;
 
-      const postRows = posts
-        .filter((p: Record<string, unknown>) => typeof p.network === 'string' && NETWORKS.has(p.network as string) && typeof p.asset_id === 'string')
-        .map((p: Record<string, unknown>) => ({
-          item_id: itemId,
-          network: p.network as string,
-          asset_id: p.asset_id as string,
-          caption: typeof p.caption === 'string' ? p.caption.slice(0, 4000) : description || null,
-          status: 'draft',
-          created_by: userId,
-        }));
-      const { error: postsError } = await supabaseAdmin.from('content_library_posts').insert(postRows);
-      if (postsError) {
-        console.error('Omni: library posts insert error:', postsError.message);
-        return jsonResponse({ error: 'Failed to create the Content Library posts' }, 500);
+      let postsCreated = 0;
+      if (!itemOnly) {
+        const postRows = posts
+          .filter((p: Record<string, unknown>) => typeof p.network === 'string' && NETWORKS.has(p.network as string) && typeof p.asset_id === 'string')
+          .map((p: Record<string, unknown>) => ({
+            item_id: itemId,
+            network: p.network as string,
+            asset_id: p.asset_id as string,
+            caption: typeof p.caption === 'string' ? p.caption.slice(0, 4000) : description || null,
+            status: 'draft',
+            created_by: userId,
+          }));
+        const { error: postsError } = await supabaseAdmin.from('content_library_posts').insert(postRows);
+        if (postsError) {
+          console.error('Omni: library posts insert error:', postsError.message);
+          return jsonResponse({ error: 'Failed to create the Content Library posts' }, 500);
+        }
+        postsCreated = postRows.length;
       }
 
       await supabaseAdmin
         .from('omni_runs')
-        .update({ status: 'completed', current_step: 12 })
+        .update({ status: 'completed' })
         .eq('id', runId);
 
-      return jsonResponse({ item_id: itemId, posts_created: postRows.length });
+      return jsonResponse({ item_id: itemId, posts_created: postsCreated });
     }
 
     return jsonResponse({ error: 'Invalid action' }, 400);

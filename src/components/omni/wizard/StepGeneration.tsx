@@ -23,10 +23,12 @@ interface StepGenerationProps {
   lockedPrompt: string;
   selections: OmniModelSelection[];
   initialSelected: string[];
+  /** Transform mode: the i2i/upscale source image driving every job. */
+  sourceAssetId?: string;
   onNext: (generatedIds: string[], selectedIds: string[]) => void;
 }
 
-export function StepGeneration({ runId, lockedPrompt, selections, initialSelected, onNext }: StepGenerationProps) {
+export function StepGeneration({ runId, lockedPrompt, selections, initialSelected, sourceAssetId, onNext }: StepGenerationProps) {
   const runner = useGenerationRunner(runId);
   const existingAssets = useOmniAssets(runId);
   const discardAsset = useDiscardAsset();
@@ -42,7 +44,9 @@ export function StepGeneration({ runId, lockedPrompt, selections, initialSelecte
   useEffect(() => {
     if (startedRef.current || !existingAssets.data) return;
     startedRef.current = true;
-    const priorVariants = existingAssets.data.filter((a) => !a.metadata?.repurposed);
+    // Exclude repurposed outputs and transform-mode source images (uploads /
+    // library references) from the variant grid.
+    const priorVariants = existingAssets.data.filter((a) => !a.metadata?.repurposed && !a.metadata?.source);
 
     const countByModel = new Map<string, number>();
     for (const a of priorVariants) {
@@ -72,7 +76,7 @@ export function StepGeneration({ runId, lockedPrompt, selections, initialSelecte
         runner.restoreVariants(restored);
       }
       if (remaining.length > 0) {
-        await runner.runPlan(remaining, lockedPrompt);
+        await runner.runPlan(remaining, lockedPrompt, sourceAssetId);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- start exactly once when asset data arrives
@@ -108,7 +112,7 @@ export function StepGeneration({ runId, lockedPrompt, selections, initialSelecte
 
   const submitRegen = () => {
     if (regenTarget && regenNotes.trim()) {
-      void runner.regenerateVariation(regenTarget, regenNotes, lockedPrompt);
+      void runner.regenerateVariation(regenTarget, regenNotes, lockedPrompt, sourceAssetId);
       setRegenTarget(null);
       setRegenNotes('');
     }

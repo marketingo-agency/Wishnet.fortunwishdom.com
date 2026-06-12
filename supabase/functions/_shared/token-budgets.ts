@@ -31,6 +31,12 @@ export const TOKEN_BUDGETS = {
   /** OCR text extraction from images */
   OCR_EXTRACTION: 4096,
 
+  /** Omni vision pass: describe an uploaded/selected image */
+  OMNI_VISION_DESCRIBE: 1024,
+
+  /** Omni analysis pass: universe-relation conclusion + improvement suggestions */
+  OMNI_ANALYSIS: 2048,
+
   /** General-purpose default when no specific budget applies */
   DEFAULT: 2048,
 } as const;
