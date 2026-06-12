@@ -4,7 +4,7 @@
  */
 
 import type { LucideIcon } from 'lucide-react';
-import { 
+import {
   Settings2,
   Wand2,
   Bot,
@@ -12,6 +12,7 @@ import {
   Share2,
   Palette,
   Boxes,
+  Orbit,
 } from 'lucide-react';
 
 export type AgentStatus = 'active' | 'inactive' | 'coming_soon';
@@ -119,6 +120,20 @@ export const AI_AGENTS: AgentMetadata[] = [
     tags: ['Podcast', 'Audio', 'Script', 'Voice', 'ElevenLabs'],
     status: 'active',
     path: '/ai-agents/whisper',
+  },
+  {
+    id: 'omni',
+    name: 'Omni',
+    role: 'Multimodal Creation AI',
+    description: 'Premium multimodal creation studio: brainstorm ideas, generate images across every fal.ai model, transform and upscale, repurpose for social networks, and ship to the Pulse Content Library.',
+    icon: Orbit,
+    color: 'from-cyan-500 to-violet-600',
+    gradient: 'from-cyan-500/10 via-blue-500/5 to-violet-600/10',
+    glowColor: 'bg-cyan-500/30',
+    iconColor: 'text-cyan-500',
+    tags: ['Images', 'Audio', 'Video', 'Creative', 'Repurposing'],
+    status: 'active',
+    path: '/ai-agents/omni',
   },
   {
     id: 'atlas',

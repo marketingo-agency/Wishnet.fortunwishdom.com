@@ -84,6 +84,7 @@ export function useCurrentUserPermissions() {
         ai_can_access_muse: true,
         ai_can_access_pixel: true,
         ai_can_access_atlas: true,
+        ai_can_access_omni: true,
         // Wishdom
         wishdom_can_access_main: true,
         wishdom_can_access_plushes: true,
@@ -179,7 +180,8 @@ export type AgentAccessKey =
   | 'ai_can_access_pulse'
   | 'ai_can_access_whisper'
   | 'ai_can_access_muse'
-  | 'ai_can_access_atlas';
+  | 'ai_can_access_atlas'
+  | 'ai_can_access_omni';
 
 // Map URL paths to permission keys
 export type ToolPermissionKey = 'files_manager' | 'mastermind' | 'taskforce' | 'ai_agents' | 'wishdom' | 'marketing_hub';

@@ -41,6 +41,7 @@ const routeLabels: Record<string, string> = {
   '/ai-agents/pixel': 'Pixel',
   '/ai-agents/muse': 'Muse',
   '/ai-agents/atlas': 'ATLAS',
+  '/ai-agents/omni': 'Omni',
   // MasterMind
   '/mastermind': 'MasterMind',
   '/mastermind/brain': 'Brain Knowledge',

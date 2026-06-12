@@ -26,6 +26,7 @@ import {
   Nfc,
   Database,
   Boxes,
+  Orbit,
 } from 'lucide-react';
 import type { ToolKey } from '@/config/permissions';
 
@@ -83,6 +84,15 @@ export const AI_AGENT_ROUTES: RouteConfig[] = [
     description: 'Turns a topic or your Brain/Wishpedia sources into a fully scripted, multi-voice podcast episode with ElevenLabs audio.',
     icon: Mic,
     iconColor: 'text-blue-500',
+    toolKey: 'ai_agents',
+    isComingSoon: false,
+  },
+  {
+    path: '/ai-agents/omni',
+    title: 'Omni',
+    description: 'Premium multimodal creation studio: brainstorming, multi-model image generation, transform and upscale, and social repurposing into the Pulse Content Library.',
+    icon: Orbit,
+    iconColor: 'text-cyan-500',
     toolKey: 'ai_agents',
     isComingSoon: false,
   },
