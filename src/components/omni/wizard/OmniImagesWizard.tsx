@@ -57,7 +57,11 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
   );
 
   const persist = async (nextStep: number, patch: Partial<OmniImagesState>) => {
-    const nextState = { ...state, ...patch };
+    const nextState: OmniImagesState = {
+      ...state,
+      ...patch,
+      max_step_reached: Math.max(state.max_step_reached ?? 0, nextStep, step),
+    };
     setLocalState(nextState);
     setLocalStep(nextStep);
     // Steps after generation read asset records (dims, storage paths); the
@@ -82,11 +86,31 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
     }
   };
 
+  // Paid step-10 outputs reach step_state as soon as each job completes, not
+  // only on Continue: an exit or refresh mid-step then restores them instead
+  // of re-billing every job.
+  const persistRepurposedProgress = async (repurposed: OmniRepurposedRef[]) => {
+    if (!runId) return;
+    const nextState: OmniImagesState = { ...state, repurposed };
+    setLocalState(nextState);
+    try {
+      await updateRun.mutateAsync({ runId, step_state: nextState });
+    } catch {
+      // Non-fatal: the next completed job or the Continue persist retries.
+    }
+  };
+
+  // Step 7 is the handoff boundary: transform and repurposing runs do not own
+  // steps 1-5 of THIS wizard (their early steps live elsewhere or nowhere), so
+  // backing below 7 would drop them into foreign text-to-image semantics.
+  const runMode = run.data?.mode;
+  const ownsEarlySteps = runMode == null || runMode === 'omni_images';
+  const backTarget = step === 7 && !ownsEarlySteps ? undefined : BACK_TARGET[step];
+
   const goBack = () => {
-    const target = BACK_TARGET[step];
-    if (target) {
-      setLocalStep(target);
-      if (runId) void updateRun.mutateAsync({ runId, current_step: target });
+    if (backTarget) {
+      setLocalStep(backTarget);
+      if (runId) void updateRun.mutateAsync({ runId, current_step: backTarget });
     }
   };
 
@@ -102,7 +126,7 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
 
   return (
     <AnimatePresence mode="wait">
-      <WizardChrome key="chrome" step={step} onBack={BACK_TARGET[step] ? goBack : undefined} onExit={onExit}>
+      <WizardChrome key="chrome" step={step} onBack={backTarget ? goBack : undefined} onExit={onExit}>
         {step === 1 && (
           <StepObjective
             initialValue={state.objective ?? ''}
@@ -140,6 +164,13 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
             }
           />
         )}
+        {step === 6 && (
+          // Transient transform-handoff state: the run row still says 6 while
+          // the persist to 7 is in flight. Render a loader, never empty chrome.
+          <div className="flex justify-center py-12" aria-label="Loading run state">
+            <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
+          </div>
+        )}
         {step === 7 && (
           <StepDescriptions
             objective={state.objective ?? ''}
@@ -165,7 +196,10 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
           />
         )}
         {step === 10 && runId && (
-          assets.isLoading ? (
+          // isFetching too: after an invalidation a STALE cached snapshot has
+          // isLoading false while the refetch is in flight; building the job
+          // matrix from it would miss restored outputs and re-bill them.
+          assets.isLoading || assets.isFetching ? (
             <div className="flex justify-center py-12" aria-label="Loading run assets">
               <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
             </div>
@@ -173,7 +207,10 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
             <StepRepurpose
               runId={runId}
               selectedAssets={selectedAssets}
+              runAssets={assets.data ?? []}
+              initialRepurposed={state.repurposed ?? []}
               presetSelections={state.preset_selections ?? {}}
+              onProgress={(repurposed: OmniRepurposedRef[]) => void persistRepurposedProgress(repurposed)}
               onNext={(repurposed: OmniRepurposedRef[]) => void persist(11, { repurposed })}
             />
           )

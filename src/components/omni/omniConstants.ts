@@ -134,7 +134,7 @@ export const OMNI_IMAGE_MODES: OmniModeDef[] = [
     description: 'Every run, every mode. Retake any entry or resume a workflow at the exact step you left it.',
     icon: History,
     accent: 'text-violet-400',
-    available: false,
-    availabilityNote: 'Arrives with the History phase',
+    available: true,
+    availabilityNote: '',
   },
 ];

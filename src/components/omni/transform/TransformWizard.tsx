@@ -8,7 +8,7 @@
  * on the SAME run.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -47,8 +47,21 @@ export function TransformWizard({ runId, onRunCreated, onExit, onHandoffToRepurp
     [localState, run.data],
   );
 
+  // A run at step 7+ already lives in the Omni Images wizard. Stale URLs
+  // (bookmarks, the handoff race window) used to land here on a blank shell;
+  // route them forward instead. Gated on SERVER truth (run.data), not the
+  // optimistic local step, so it can never fire before the persist lands.
+  const serverStep = run.data?.current_step ?? 0;
+  useEffect(() => {
+    if (serverStep >= 7) onHandoffToRepurposing();
+  }, [serverStep, onHandoffToRepurposing]);
+
   const persist = async (nextStep: number, patch: Partial<OmniImagesState>, targetRunId?: string) => {
-    const nextState = { ...state, ...patch };
+    const nextState: OmniImagesState = {
+      ...state,
+      ...patch,
+      max_step_reached: Math.max(state.max_step_reached ?? 0, nextStep, step),
+    };
     setLocalState(nextState);
     setLocalStep(nextStep);
     const id = targetRunId ?? runId;
@@ -85,12 +98,24 @@ export function TransformWizard({ runId, onRunCreated, onExit, onHandoffToRepurp
 
   const handleHandoff = async () => {
     // Hand the run to the Omni Images wizard at step 7 (descriptions) with the
-    // locked transform results as the selected images.
-    await persist(7, {
+    // locked transform results as the selected images. Non-optimistic: the
+    // surface only swaps after the write is confirmed (the cache then already
+    // holds step 7), so a failed save leaves the user here with the toast
+    // instead of stranding them on a blank foreign wizard.
+    if (!runId) return;
+    const nextState: OmniImagesState = {
+      ...state,
       objective: state.analysis?.description ?? state.transform_prompt ?? 'Transformed image',
       locked_prompt: state.transform_prompt || (state.analysis?.description ?? ''),
-    });
-    onHandoffToRepurposing();
+      max_step_reached: Math.max(state.max_step_reached ?? 0, 7),
+    };
+    setLocalState(nextState);
+    try {
+      await updateRun.mutateAsync({ runId, current_step: 7, step_state: nextState });
+      onHandoffToRepurposing();
+    } catch (e) {
+      toast.error(`Could not save your progress: ${e instanceof Error ? e.message : 'unknown error'}`);
+    }
   };
 
   return (

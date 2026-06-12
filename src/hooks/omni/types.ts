@@ -121,6 +121,9 @@ export interface OmniImagesState {
   repurposed?: OmniRepurposedRef[];
   approved_asset_ids?: string[];
   title?: string;
+  /** High-water mark: the furthest step this run ever reached (History keeps
+   *  later steps resumable even after a backwards jump rewrites current_step). */
+  max_step_reached?: number;
 }
 
 export type VariantPollStatus = 'generating' | 'done' | 'failed' | 'discarded';

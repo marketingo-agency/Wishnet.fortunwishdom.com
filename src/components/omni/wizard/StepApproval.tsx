@@ -20,9 +20,13 @@ interface StepApprovalProps {
 }
 
 export function StepApproval({ repurposed, initialApproved, onNext }: StepApprovalProps) {
-  const [approved, setApproved] = useState<Set<string>>(
-    new Set(initialApproved.length > 0 ? initialApproved : repurposed.map((r) => r.asset_id)),
-  );
+  // Drop stale ids from earlier passes (a regenerated set has all-new asset
+  // ids); phantom approvals would otherwise dead-end finalize with 0 posts.
+  const [approved, setApproved] = useState<Set<string>>(() => {
+    const current = new Set(repurposed.map((r) => r.asset_id));
+    const valid = initialApproved.filter((id) => current.has(id));
+    return new Set(valid.length > 0 ? valid : current);
+  });
   const [urls, setUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {

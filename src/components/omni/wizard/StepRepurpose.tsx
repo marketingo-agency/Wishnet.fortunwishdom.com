@@ -6,40 +6,76 @@
  * (suggested automatically when cropping would damage the subject).
  */
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { ArrowRight, CheckCircle2, Loader2, Play, Sparkles, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { cropDamageRisk, getNetwork, getPreset, type OmniNetworkId } from '../omniNetworkPresets';
 import { useRepurposeRunner, type RepurposeJob } from '@/hooks/omni/useRepurposeRunner';
+import { getAssetSignedUrl } from '@/hooks/omni';
 import type { OmniAsset, OmniRepurposedRef } from '@/hooks/omni';
 
 interface StepRepurposeProps {
   runId: string;
   selectedAssets: OmniAsset[];
+  /** All run assets, used to restore previously completed outputs on resume. */
+  runAssets: OmniAsset[];
+  /** Outputs persisted by an earlier pass through this step. */
+  initialRepurposed: OmniRepurposedRef[];
   presetSelections: Record<string, string[]>;
+  /** Fired as each job completes so paid outputs persist before Continue. */
+  onProgress: (repurposed: OmniRepurposedRef[]) => void;
   onNext: (repurposed: OmniRepurposedRef[]) => void;
 }
 
-export function StepRepurpose({ runId, selectedAssets, presetSelections, onNext }: StepRepurposeProps) {
+export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurposed, presetSelections, onProgress, onNext }: StepRepurposeProps) {
   const assetsById = useMemo(() => new Map(selectedAssets.map((a) => [a.id, a])), [selectedAssets]);
   const runner = useRepurposeRunner(runId, assetsById);
 
-  // Build the job matrix once the selected assets are available:
-  // every selected image x every selected preset.
+  // Build the job matrix once the selected assets are available: every
+  // selected image x every selected preset. Outputs already produced by an
+  // earlier pass (resume, back-nav) seed as done so nothing regenerates or
+  // re-bills; only genuinely missing combinations stay pending.
   useEffect(() => {
     if (runner.jobs.length > 0 || selectedAssets.length === 0) return;
+
+    const restored = new Map<string, { ref: OmniRepurposedRef; storagePath: string }>();
+    for (const ref of initialRepurposed) {
+      const output = runAssets.find((a) => a.id === ref.asset_id && a.status === 'done' && a.storage_path);
+      if (output) {
+        restored.set(`${ref.source_asset_id}:${ref.network}:${ref.preset_id}`, { ref, storagePath: output.storage_path! });
+      }
+    }
+
     const jobs: RepurposeJob[] = [];
+    const toSign: { key: string; storagePath: string }[] = [];
     for (const asset of selectedAssets) {
       for (const [networkId, presetIds] of Object.entries(presetSelections)) {
         for (const presetId of presetIds) {
           const preset = getPreset(networkId as OmniNetworkId, presetId);
           if (!preset) continue;
+          const key = `${asset.id}:${presetId}`;
+
+          const prior = restored.get(`${asset.id}:${networkId}:${presetId}`);
+          if (prior) {
+            jobs.push({
+              key,
+              sourceAssetId: asset.id,
+              network: networkId as OmniNetworkId,
+              presetId,
+              mode: prior.ref.mode,
+              status: 'done',
+              resultAssetId: prior.ref.asset_id,
+            });
+            toSign.push({ key, storagePath: prior.storagePath });
+            continue;
+          }
+
           const risky = asset.width && asset.height
             ? cropDamageRisk(asset.width, asset.height, preset.width, preset.height)
             : false;
           jobs.push({
-            key: `${asset.id}:${presetId}`,
+            key,
             sourceAssetId: asset.id,
             network: networkId as OmniNetworkId,
             presetId,
@@ -50,12 +86,30 @@ export function StepRepurpose({ runId, selectedAssets, presetSelections, onNext 
       }
     }
     runner.setJobs(jobs);
+
+    void (async () => {
+      for (const { key, storagePath } of toSign) {
+        const url = await getAssetSignedUrl(storagePath);
+        if (url) runner.patchJob(key, { previewUrl: url });
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- build once when assets arrive
-  }, [selectedAssets]);
+  }, [selectedAssets, runAssets, initialRepurposed]);
 
   const doneCount = runner.jobs.filter((j) => j.status === 'done').length;
   const allDone = runner.jobs.length > 0 && doneCount === runner.jobs.length;
   const hasPending = runner.jobs.some((j) => j.status === 'pending' || j.status === 'failed');
+
+  // Persist completed outputs as they land. The seeding pass also raises
+  // doneCount, which harmlessly re-persists the same refs.
+  const persistedDoneRef = useRef(0);
+  useEffect(() => {
+    if (doneCount > persistedDoneRef.current) {
+      persistedDoneRef.current = doneCount;
+      onProgress(runner.collectRefs());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire per completed job
+  }, [doneCount]);
 
   return (
     <div className="space-y-4">
@@ -111,7 +165,7 @@ export function StepRepurpose({ runId, selectedAssets, presetSelections, onNext 
                       key={mode}
                       role="radio"
                       aria-checked={job.mode === mode}
-                      disabled={job.status === 'working' || job.status === 'done'}
+                      disabled={runner.isRunning || job.status === 'working' || job.status === 'done'}
                       onClick={() => runner.patchJob(job.key, { mode })}
                       className={cn(
                         'flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-md border px-1.5 py-1 text-[10px] font-medium transition-colors duration-200',

@@ -7,7 +7,7 @@
  * aspect_ratio steered), then a final canvas crop guarantees exact pixels.
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { callOmni } from '@/lib/omniApi';
 import { repurposeEngine } from '@/lib/omni/repurpose';
 import { getPreset, type OmniNetworkId } from '@/components/omni/omniNetworkPresets';
@@ -46,19 +46,45 @@ function nearestAiRatio(width: number, height: number): string {
   return best;
 }
 
-async function pollSingle(assetId: string): Promise<VariantPollResult> {
-  for (;;) {
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    const res = await callOmni<{ results: VariantPollResult[] }>('variants-poll', { asset_ids: [assetId] });
-    const r = res.results.find((x) => x.id === assetId);
-    if (r && r.status !== 'generating') return r;
-  }
-}
-
 export function useRepurposeRunner(runId: string, assetsById: Map<string, OmniAsset>) {
   const [jobs, setJobs] = useState<RepurposeJob[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const stopRef = useRef(false);
+
+  // Mirror of jobs so the run loop reads each job's LATEST state (mode flips,
+  // completions) instead of the snapshot captured at click time.
+  const jobsRef = useRef<RepurposeJob[]>([]);
+  useEffect(() => {
+    jobsRef.current = jobs;
+  }, [jobs]);
+
+  // Stop the loop when the step unmounts. Reset in setup, not just cleanup:
+  // a cleanup-only ref stays stuck after StrictMode's mount/unmount replay
+  // (the documented BUG-01 footgun).
+  useEffect(() => {
+    stopRef.current = false;
+    return () => {
+      stopRef.current = true;
+    };
+  }, []);
+
+  const pollSingle = useCallback(async (assetId: string): Promise<VariantPollResult> => {
+    let consecutiveErrors = 0;
+    for (;;) {
+      if (stopRef.current) throw new Error('Repurposing was interrupted');
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      try {
+        const res = await callOmni<{ results: VariantPollResult[] }>('variants-poll', { asset_ids: [assetId] });
+        consecutiveErrors = 0;
+        const r = res.results.find((x) => x.id === assetId);
+        if (r && r.status !== 'generating') return r;
+      } catch (e) {
+        // Tolerate transient poll failures; only three in a row is a real error.
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= 3) throw e;
+      }
+    }
+  }, []);
 
   const patchJob = useCallback((key: string, patch: Partial<RepurposeJob>) => {
     setJobs((prev) => prev.map((j) => (j.key === key ? { ...j, ...patch } : j)));
@@ -116,7 +142,7 @@ export function useRepurposeRunner(runId: string, assetsById: Map<string, OmniAs
         patchJob(job.key, { status: 'failed', error: e instanceof Error ? e.message : 'Repurposing failed' });
       }
     },
-    [assetsById, patchJob, runId],
+    [assetsById, patchJob, pollSingle, runId],
   );
 
   const runAll = useCallback(
@@ -125,8 +151,9 @@ export function useRepurposeRunner(runId: string, assetsById: Map<string, OmniAs
       stopRef.current = false;
       setIsRunning(true);
       try {
-        for (const job of toRun) {
+        for (const queued of toRun) {
           if (stopRef.current) break;
+          const job = jobsRef.current.find((j) => j.key === queued.key) ?? queued;
           if (job.status === 'done') continue;
           await runJob(job);
         }

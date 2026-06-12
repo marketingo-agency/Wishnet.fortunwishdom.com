@@ -10,13 +10,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Lock, Orbit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useAgentSettings } from '@/hooks/useAgentSettings';
-import type { OmniTrack } from '@/hooks/omni';
+import type { OmniRun, OmniTrack } from '@/hooks/omni';
 import { OmniTopBar } from '@/components/omni/OmniTopBar';
 import { OmniEntryTiles } from '@/components/omni/OmniEntryTiles';
 import { OmniImagesHub } from '@/components/omni/OmniImagesHub';
@@ -24,11 +25,15 @@ import { OmniComingSoon } from '@/components/omni/OmniComingSoon';
 import { OmniImagesWizard } from '@/components/omni/wizard/OmniImagesWizard';
 import { TransformWizard } from '@/components/omni/transform/TransformWizard';
 import { RepurposeModeWizard } from '@/components/omni/repurpose-mode/RepurposeModeWizard';
+import { HistoryView } from '@/components/omni/history/HistoryView';
+import { resolveSurfaceForStep } from '@/components/omni/history/historyRouting';
 import { OMNI_TRACKS } from '@/components/omni/omniConstants';
 
 type OmniTheme = 'light' | 'dark';
 type OmniView = 'home' | OmniTrack;
-type ImagesMode = 'hub' | 'omni_images' | 'transform_upscale' | 'repurposing';
+type ImagesMode = 'hub' | 'omni_images' | 'transform_upscale' | 'repurposing' | 'history';
+
+const IMAGES_MODE_IDS: ImagesMode[] = ['omni_images', 'transform_upscale', 'repurposing', 'history'];
 
 const TRACK_IDS = OMNI_TRACKS.map((t) => t.id) as string[];
 
@@ -66,7 +71,7 @@ export default function OmniAgent() {
     const track = params.get('track');
     if (track && TRACK_IDS.includes(track)) setView(track as OmniTrack);
     const mode = params.get('mode');
-    if (mode === 'omni_images' || mode === 'transform_upscale' || mode === 'repurposing') setImagesMode(mode);
+    if (mode && (IMAGES_MODE_IDS as string[]).includes(mode)) setImagesMode(mode as ImagesMode);
     const run = params.get('run');
     if (run) setWizardRunId(run);
   }, []);
@@ -115,6 +120,18 @@ export default function OmniAgent() {
     syncUrl('images', 'omni_images', runId);
   }, [syncUrl]);
 
+  const queryClient = useQueryClient();
+  const handleHistoryOpenRun = useCallback((run: OmniRun) => {
+    // Fresh data before re-entering: a stale assets snapshot would make
+    // step 5's restore undercount and resubmit paid generations.
+    void queryClient.invalidateQueries({ queryKey: ['omni-run', run.id] });
+    void queryClient.invalidateQueries({ queryKey: ['omni-assets', run.id] });
+    const surface = resolveSurfaceForStep(run.mode, run.current_step);
+    setWizardRunId(run.id);
+    setImagesMode(surface);
+    syncUrl('images', surface, run.id);
+  }, [queryClient, syncUrl]);
+
   const { data: agentSettings, isLoading: loadingAgentSettings } = useAgentSettings('omni');
   const isInactive = !loadingAgentSettings && agentSettings && !agentSettings.is_active;
 
@@ -157,7 +174,7 @@ export default function OmniAgent() {
                 <OmniImagesHub
                   onBack={goHome}
                   onSelectMode={(mode) => {
-                    if (mode === 'omni_images' || mode === 'transform_upscale' || mode === 'repurposing') openImagesMode(mode);
+                    if ((IMAGES_MODE_IDS as string[]).includes(mode)) openImagesMode(mode as Exclude<ImagesMode, 'hub'>);
                     // Remaining mode surfaces ship phase by phase.
                   }}
                 />
@@ -184,6 +201,13 @@ export default function OmniAgent() {
                 <RepurposeModeWizard
                   onExit={() => selectView('images')}
                   onHandoff={handleRepurposeHandoff}
+                />
+              )}
+
+              {view === 'images' && imagesMode === 'history' && (
+                <HistoryView
+                  onOpenRun={handleHistoryOpenRun}
+                  onExit={() => selectView('images')}
                 />
               )}
 

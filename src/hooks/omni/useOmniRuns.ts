@@ -73,6 +73,8 @@ export function useUpdateOmniRun() {
     },
     onSuccess: (run) => {
       queryClient.setQueryData(['omni-run', run.id], run);
+      // Keep the History registry in sync with step/status/title changes.
+      queryClient.invalidateQueries({ queryKey: ['omni-runs'] });
     },
   });
 }
