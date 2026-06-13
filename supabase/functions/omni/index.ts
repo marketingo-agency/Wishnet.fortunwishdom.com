@@ -133,7 +133,7 @@ async function getFalKey(supabaseAdmin: ReturnType<typeof createClient>): Promis
 
 const FAL_NOT_CONFIGURED = 'fal.ai is not configured. Add a fal.ai API key in Settings > LLM Providers.';
 const TEST_MODEL_ID = 'fal-ai/flux/schnell';
-const NETWORKS = new Set(['facebook', 'instagram', 'x', 'tiktok']);
+const NETWORKS = new Set(['facebook', 'instagram', 'x', 'tiktok', 'youtube', 'pinterest']);
 
 interface WishpediaReference {
   url: string;

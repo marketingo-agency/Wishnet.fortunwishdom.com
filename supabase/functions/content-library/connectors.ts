@@ -151,9 +151,37 @@ const tiktokConnector: Connector = {
   },
 };
 
+// Image-library-only targets: Omni can repurpose images to these platforms'
+// dimensions and store them in the Content Library, but there is no live
+// publishing integration. Per the honesty contract, publish never fakes
+// success — the dispatcher parks any such post as `queued`.
+const youtubeConnector: Connector = {
+  network: 'youtube',
+  isConfigured: () => false,
+  statusDetail: () => 'Image library only: YouTube image posts are saved to the Content Library; live publishing is not available.',
+  publish() {
+    return Promise.reject(new NotConnectedError(
+      'YouTube is an image-library target only: posts are saved to the Content Library; there is no live publishing integration.',
+    ));
+  },
+};
+
+const pinterestConnector: Connector = {
+  network: 'pinterest',
+  isConfigured: () => false,
+  statusDetail: () => 'Image library only: Pinterest pins are saved to the Content Library; live publishing is not available.',
+  publish() {
+    return Promise.reject(new NotConnectedError(
+      'Pinterest is an image-library target only: pins are saved to the Content Library; there is no live publishing integration.',
+    ));
+  },
+};
+
 export const CONNECTORS: Record<string, Connector> = {
   facebook: facebookConnector,
   instagram: instagramConnector,
   x: xConnector,
   tiktok: tiktokConnector,
+  youtube: youtubeConnector,
+  pinterest: pinterestConnector,
 };

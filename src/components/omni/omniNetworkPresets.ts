@@ -5,10 +5,11 @@
  * subject (large aspect-ratio jumps).
  */
 
-import type { LucideIcon } from 'lucide-react';
-import { Facebook, Instagram, Twitter, Music } from 'lucide-react';
+import type { ComponentType } from 'react';
+import { Facebook, Instagram, Twitter, Music, Youtube } from 'lucide-react';
+import { PinterestIcon } from './PinterestIcon';
 
-export type OmniNetworkId = 'facebook' | 'instagram' | 'x' | 'tiktok';
+export type OmniNetworkId = 'facebook' | 'instagram' | 'x' | 'tiktok' | 'youtube' | 'pinterest';
 
 export interface OmniDimensionPreset {
   id: string;
@@ -21,7 +22,9 @@ export interface OmniDimensionPreset {
 export interface OmniNetworkDef {
   id: OmniNetworkId;
   label: string;
-  icon: LucideIcon;
+  // className-accepting component: lucide icons and the inline PinterestIcon
+  // both satisfy this (lucide lacks a Pinterest glyph in this version).
+  icon: ComponentType<{ className?: string }>;
   accent: string;
   presets: OmniDimensionPreset[];
 }
@@ -72,6 +75,31 @@ export const OMNI_NETWORKS: OmniNetworkDef[] = [
       { id: 'tt_vertical', label: 'Video Cover', width: 1080, height: 1920, ratio: '9:16' },
       { id: 'tt_square', label: 'Square Visual', width: 1080, height: 1080, ratio: '1:1' },
       { id: 'tt_profile', label: 'Profile Visual', width: 400, height: 400, ratio: '1:1' },
+    ],
+  },
+  {
+    id: 'youtube',
+    label: 'YouTube',
+    icon: Youtube,
+    accent: 'text-red-500',
+    // Images only (no video). Dimensions from YouTube Help + 2024-2025 guides.
+    presets: [
+      { id: 'yt_thumbnail', label: 'Thumbnail', width: 1280, height: 720, ratio: '16:9' },
+      { id: 'yt_community_square', label: 'Community Square', width: 1080, height: 1080, ratio: '1:1' },
+      { id: 'yt_community_landscape', label: 'Community Landscape', width: 1920, height: 1080, ratio: '16:9' },
+      { id: 'yt_banner', label: 'Channel Banner', width: 2560, height: 1440, ratio: '16:9' },
+    ],
+  },
+  {
+    id: 'pinterest',
+    label: 'Pinterest',
+    icon: PinterestIcon,
+    accent: 'text-red-500',
+    // Pin dimensions from Pinterest Business creative best practices.
+    presets: [
+      { id: 'pin_standard', label: 'Standard Pin', width: 1000, height: 1500, ratio: '2:3' },
+      { id: 'pin_square', label: 'Square Pin', width: 1000, height: 1000, ratio: '1:1' },
+      { id: 'pin_long', label: 'Long Pin', width: 1000, height: 2100, ratio: '1:2.1' },
     ],
   },
 ];
