@@ -1,0 +1,35 @@
+name: Deploy to VPS
+
+# Auto-deploy Wishnet to the Hostinger VPS on every push to main.
+# The VPS pulls the latest code and rebuilds the Docker container behind Traefik.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build & deploy on VPS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_HOST" '
+            set -e
+            cd /root/wishnet
+            GIT_SSH_COMMAND="ssh -i /root/.ssh/wishnet_deploy -o StrictHostKeyChecking=accept-new" git -C app pull --ff-only
+            docker compose up -d --build
+            docker image prune -f
+          '
