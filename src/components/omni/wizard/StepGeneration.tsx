@@ -25,10 +25,12 @@ interface StepGenerationProps {
   initialSelected: string[];
   /** Transform mode: the i2i/upscale source image driving every job. */
   sourceAssetId?: string;
+  /** Wishpedia reference image IDs for canon-accurate recreation (edit model). */
+  referenceImageIds?: string[];
   onNext: (generatedIds: string[], selectedIds: string[]) => void;
 }
 
-export function StepGeneration({ runId, lockedPrompt, selections, initialSelected, sourceAssetId, onNext }: StepGenerationProps) {
+export function StepGeneration({ runId, lockedPrompt, selections, initialSelected, sourceAssetId, referenceImageIds, onNext }: StepGenerationProps) {
   const runner = useGenerationRunner(runId);
   const existingAssets = useOmniAssets(runId);
   const discardAsset = useDiscardAsset();
@@ -76,7 +78,7 @@ export function StepGeneration({ runId, lockedPrompt, selections, initialSelecte
         runner.restoreVariants(restored);
       }
       if (remaining.length > 0) {
-        await runner.runPlan(remaining, lockedPrompt, sourceAssetId);
+        await runner.runPlan(remaining, lockedPrompt, sourceAssetId, referenceImageIds);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- start exactly once when asset data arrives
@@ -112,7 +114,7 @@ export function StepGeneration({ runId, lockedPrompt, selections, initialSelecte
 
   const submitRegen = () => {
     if (regenTarget && regenNotes.trim()) {
-      void runner.regenerateVariation(regenTarget, regenNotes, lockedPrompt, sourceAssetId);
+      void runner.regenerateVariation(regenTarget, regenNotes, lockedPrompt, sourceAssetId, referenceImageIds);
       setRegenTarget(null);
       setRegenNotes('');
     }

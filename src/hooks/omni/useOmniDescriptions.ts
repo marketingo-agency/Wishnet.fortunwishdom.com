@@ -29,7 +29,7 @@ export function useOmniDescriptions() {
           const notes = changeNotes?.trim() ? ` Apply these change notes: ${changeNotes.trim()}.` : '';
           try {
             const text = await optimizeDraft(
-              `${brief.trim()}\n\n(Write a distinct, ready-to-post social media caption for this visual - variation ${i + 1} of ${count}, with a fresh angle and hook.${notes} Output only the caption.)`,
+              `${brief.trim()}\n\n(Write a distinct, ready-to-post social media caption for this visual - variation ${i + 1} of ${count}, with a fresh angle and hook. Use relevant emojis naturally throughout, the way real social media captions do (in the hook, between ideas, and around the call to action), without overdoing it.${notes} Output only the caption.)`,
             );
             if (text?.trim()) results.push(text.trim());
           } catch {

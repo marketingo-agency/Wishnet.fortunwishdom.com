@@ -6,12 +6,15 @@
  */
 
 import { useMemo, useState } from 'react';
-import { ArrowRight, Check, ChevronDown, Loader2, Minus, Plus, RefreshCw, Search } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, Loader2, Minus, Plus, RefreshCw, Search, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useFalCatalog, type FalCapability, type FalModel, type OmniModelSelection } from '@/hooks/omni';
+
+/** The edit-capable model used for canon-accurate recreation from references. */
+const REFERENCE_EDIT_MODEL = { id: 'fal-ai/nano-banana-pro/edit', name: 'Nano Banana Pro Edit' };
 
 interface StepModelsProps {
   initialSelections: OmniModelSelection[];
@@ -20,14 +23,24 @@ interface StepModelsProps {
   capability?: FalCapability;
   /** Show the Edit models / Upscalers filter chips (Transform mode). */
   showUpscaleToggle?: boolean;
+  /** Reference images are attached: lock to an edit-capable model so they are used. */
+  hasReferences?: boolean;
 }
 
-export function StepModels({ initialSelections, onNext, capability = 'text-to-image', showUpscaleToggle = false }: StepModelsProps) {
+export function StepModels({ initialSelections, onNext, capability = 'text-to-image', showUpscaleToggle = false, hasReferences = false }: StepModelsProps) {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [extraModels, setExtraModels] = useState<FalModel[]>([]);
-  const [selections, setSelections] = useState<OmniModelSelection[]>(initialSelections);
+  const [selections, setSelections] = useState<OmniModelSelection[]>(() => {
+    // Text-to-image models ignore reference images, so when references are
+    // attached we force the edit-capable model (keeping any resumed count).
+    if (hasReferences) {
+      const prior = initialSelections.find((s) => s.model_id === REFERENCE_EDIT_MODEL.id);
+      return [{ ...REFERENCE_EDIT_MODEL, model_id: REFERENCE_EDIT_MODEL.id, variants: prior?.variants ?? initialSelections[0]?.variants ?? 2 }];
+    }
+    return initialSelections;
+  });
   const [activeCapability, setActiveCapability] = useState<FalCapability>(capability);
 
   const catalog = useFalCatalog({ capability: activeCapability, q: query || undefined, cursor, limit: 30 });
@@ -78,6 +91,52 @@ export function StepModels({ initialSelections, onNext, capability = 'text-to-im
     setCursor(undefined);
   };
 
+  // References attached: lock to the edit-capable model (the catalog browser
+  // is hidden because a text-to-image pick would silently ignore the refs).
+  if (hasReferences) {
+    const variants = selections[0]?.variants ?? 2;
+    return (
+      <div className="space-y-4">
+        <div className="flex items-start gap-2.5 rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-3">
+          <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400" />
+          <p className="text-xs text-muted-foreground">
+            Reference images are attached, so Omni uses <span className="font-medium text-cyan-700 [[data-omni-theme=dark]_&]:text-cyan-300">{REFERENCE_EDIT_MODEL.name}</span> to recreate the canon character faithfully. Text-to-image models cannot use references.
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-cyan-500/50 bg-card p-3 shadow-lg shadow-cyan-500/10">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold">{REFERENCE_EDIT_MODEL.name}</h3>
+            <span className="flex h-5 w-5 items-center justify-center rounded-full border border-cyan-500 bg-cyan-500 text-white">
+              <Check className="h-3 w-3" />
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">Edits the reference images to match your prompt while preserving the character.</p>
+          <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
+            <span className="text-xs text-muted-foreground">Variants</span>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" onClick={() => setVariants(REFERENCE_EDIT_MODEL.id, -1)} disabled={variants <= 1} aria-label="Fewer variants" className="h-7 w-7 cursor-pointer">
+                <Minus className="h-3 w-3" />
+              </Button>
+              <span className="w-6 text-center text-sm font-semibold">{variants}</span>
+              <Button variant="outline" size="icon" onClick={() => setVariants(REFERENCE_EDIT_MODEL.id, 1)} disabled={variants >= 10} aria-label="More variants" className="h-7 w-7 cursor-pointer">
+                <Plus className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between rounded-xl border border-border bg-card/95 p-3">
+          <p className="text-sm text-muted-foreground">{variants} image{variants === 1 ? '' : 's'} total</p>
+          <Button onClick={() => onNext(selections)} className="cursor-pointer gap-2 bg-gradient-to-r from-cyan-500 to-violet-600 text-white transition-all duration-300 hover:opacity-90">
+            Continue
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {showUpscaleToggle && (
@@ -92,7 +151,7 @@ export function StepModels({ initialSelections, onNext, capability = 'text-to-im
                 'cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-200',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 activeCapability === cap
-                  ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-300'
+                  ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-700 [[data-omni-theme=dark]_&]:text-cyan-300'
                   : 'border-border text-muted-foreground hover:text-foreground',
               )}
             >

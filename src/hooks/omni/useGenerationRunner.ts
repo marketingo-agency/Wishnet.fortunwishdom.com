@@ -70,7 +70,7 @@ export function useGenerationRunner(runId: string | null) {
 
   /** Submit count variants for one model; returns the created asset ids. */
   const submitModelBatch = useCallback(
-    async (modelSel: OmniModelSelection, prompt: string, sourceAssetId?: string): Promise<string[]> => {
+    async (modelSel: OmniModelSelection, prompt: string, sourceAssetId?: string, referenceImageIds?: string[]): Promise<string[]> => {
       const created: string[] = [];
       for (let i = 0; i < modelSel.variants; i++) {
         if (stopRef.current) break;
@@ -80,6 +80,7 @@ export function useGenerationRunner(runId: string | null) {
             model_id: modelSel.model_id,
             prompt,
             source_asset_id: sourceAssetId,
+            reference_image_ids: referenceImageIds,
           });
           created.push(res.asset_id);
           setVariants((prev) => [
@@ -97,7 +98,7 @@ export function useGenerationRunner(runId: string | null) {
 
   /** Run the full plan: one model at a time, polling between batches. */
   const runPlan = useCallback(
-    async (selections: OmniModelSelection[], prompt: string, sourceAssetId?: string) => {
+    async (selections: OmniModelSelection[], prompt: string, sourceAssetId?: string, referenceImageIds?: string[]) => {
       if (!runId || isRunning) return;
       stopRef.current = false;
       setIsRunning(true);
@@ -105,7 +106,7 @@ export function useGenerationRunner(runId: string | null) {
         for (const sel of selections) {
           if (stopRef.current) break;
           setActiveModel(sel.model_id);
-          const ids = await submitModelBatch(sel, prompt, sourceAssetId);
+          const ids = await submitModelBatch(sel, prompt, sourceAssetId, referenceImageIds);
           if (ids.length > 0) await pollUntilSettled(ids);
         }
       } finally {
@@ -118,7 +119,7 @@ export function useGenerationRunner(runId: string | null) {
 
   /** Regenerate a variation of an existing image with its ORIGINAL model. */
   const regenerateVariation = useCallback(
-    async (source: VariantView, changeNotes: string, basePrompt: string, sourceAssetId?: string) => {
+    async (source: VariantView, changeNotes: string, basePrompt: string, sourceAssetId?: string, referenceImageIds?: string[]) => {
       if (!runId) return;
       const prompt = `${basePrompt}\n\nREQUESTED CHANGES: ${changeNotes.trim()}\nGenerate a NEW variation that keeps the core concept but applies the requested changes.`;
       try {
@@ -128,6 +129,7 @@ export function useGenerationRunner(runId: string | null) {
           prompt,
           parent_asset_id: source.assetId,
           source_asset_id: sourceAssetId,
+          reference_image_ids: referenceImageIds,
         });
         setVariants((prev) => [
           ...prev,

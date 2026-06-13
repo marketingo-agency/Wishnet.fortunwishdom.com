@@ -10,14 +10,18 @@ import { ArrowRight, Loader2, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useOptimizeDraft } from '@/hooks/promptor';
+import type { OmniWishReferenceRef } from '@/hooks/omni';
+import { OmniWishReferencePicker } from './OmniWishReferencePicker';
 
 interface StepObjectiveProps {
   initialValue: string;
-  onNext: (objective: string) => void;
+  initialReferences: OmniWishReferenceRef[];
+  onNext: (objective: string, references: OmniWishReferenceRef[]) => void;
 }
 
-export function StepObjective({ initialValue, onNext }: StepObjectiveProps) {
+export function StepObjective({ initialValue, initialReferences, onNext }: StepObjectiveProps) {
   const [value, setValue] = useState(initialValue);
+  const [references, setReferences] = useState<OmniWishReferenceRef[]>(initialReferences);
   const { optimizeDraft, isOptimizing } = useOptimizeDraft();
 
   const handleOptimize = async () => {
@@ -57,9 +61,12 @@ export function StepObjective({ initialValue, onNext }: StepObjectiveProps) {
           {isOptimizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
         </Button>
       </div>
+
+      <OmniWishReferencePicker value={references} onChange={setReferences} disabled={isOptimizing} />
+
       <div className="flex justify-end">
         <Button
-          onClick={() => onNext(value.trim())}
+          onClick={() => onNext(value.trim(), references)}
           disabled={!value.trim() || isOptimizing}
           className="cursor-pointer gap-2 bg-gradient-to-r from-cyan-500 to-violet-600 text-white transition-all duration-300 hover:opacity-90"
         >

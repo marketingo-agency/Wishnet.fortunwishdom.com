@@ -135,6 +135,61 @@ const FAL_NOT_CONFIGURED = 'fal.ai is not configured. Add a fal.ai API key in Se
 const TEST_MODEL_ID = 'fal-ai/flux/schnell';
 const NETWORKS = new Set(['facebook', 'instagram', 'x', 'tiktok']);
 
+interface WishpediaReference {
+  url: string;
+  entryName: string;
+  angle: string | null;
+}
+
+/**
+ * Resolve Wishpedia entry-image IDs to public URLs + canon entry names.
+ *
+ * Security: the client passes only IDs (never raw URLs), so a caller cannot
+ * point fal at an arbitrary host. Only IDs that exist in wishpedia_entry_images
+ * resolve; everything else is silently dropped. The wishpedia-media bucket is
+ * public, so getPublicUrl needs no signing. Names are fetched in a second query
+ * (no FK-embedding dependency) and sanitized before they reach a prompt.
+ */
+async function resolveWishpediaReferences(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  ids: string[],
+): Promise<WishpediaReference[]> {
+  if (ids.length === 0) return [];
+  const { data: imgs, error } = await supabaseAdmin
+    .from('wishpedia_entry_images')
+    .select('storage_path, angle, entry_id')
+    .in('id', ids);
+  if (error || !imgs) {
+    console.error('Omni: wishpedia reference resolve error:', error?.message);
+    return [];
+  }
+
+  const rows = imgs as { storage_path: string | null; angle: string | null; entry_id: string | null }[];
+  const entryIds = [...new Set(rows.map((r) => r.entry_id).filter((x): x is string => !!x))];
+  const nameById = new Map<string, string>();
+  if (entryIds.length > 0) {
+    const { data: entries } = await supabaseAdmin
+      .from('wishpedia_entries')
+      .select('id, name')
+      .in('id', entryIds);
+    for (const e of (entries as { id: string; name: string | null }[] | null) ?? []) {
+      nameById.set(e.id, e.name ?? '');
+    }
+  }
+
+  return rows
+    .filter((r) => !!r.storage_path)
+    .map((r) => {
+      const { data: pub } = supabaseAdmin.storage.from('wishpedia-media').getPublicUrl(r.storage_path as string);
+      return {
+        url: pub.publicUrl,
+        entryName: sanitizeForPrompt(nameById.get(r.entry_id ?? '') ?? ''),
+        angle: r.angle ?? null,
+      };
+    })
+    .filter((r) => !!r.url);
+}
+
 /**
  * Download a fal CDN image and return it as a data URI.
  * Used by the health check only: the app CSP allowlists data: but not
@@ -355,6 +410,11 @@ Deno.serve(async (req: Request) => {
       const modelId = body.model_id;
       const parentAssetId = typeof body.parent_asset_id === 'string' ? body.parent_asset_id : null;
       const sourceAssetId = typeof body.source_asset_id === 'string' ? body.source_asset_id : null;
+      // Wishpedia character references for canon-accurate recreation: IDs only,
+      // resolved to public URLs server-side. Capped to keep the edit call sane.
+      const referenceImageIds = Array.isArray(body.reference_image_ids)
+        ? (body.reference_image_ids as unknown[]).filter((x): x is string => typeof x === 'string').slice(0, 5)
+        : [];
       const promptStr = typeof body.prompt === 'string' ? body.prompt.trim() : '';
       if (typeof runId !== 'string' || typeof modelId !== 'string') {
         return jsonResponse({ error: 'run_id and model_id are required' }, 400);
@@ -378,11 +438,17 @@ Deno.serve(async (req: Request) => {
 
       const input: Record<string, unknown> = { num_images: 1 };
       if (promptStr) input.prompt = promptStr;
-      // Image-to-image source: resolved server-side to a short-lived signed URL
-      // of the caller's own asset (the client never supplies arbitrary URLs).
-      // Input key per model family: upscalers take image_url (singular), the
+
+      // Build the image-to-image input from two server-resolved sources, so the
+      // client never supplies a raw URL:
+      //  - sourceAssetId: the caller's own prior Omni asset (Transform/Upscale).
+      //  - reference_image_ids: Wishpedia canon art (character recreation).
+      // Input key per model family: upscalers take image_url (singular); the
       // edit families take image_urls (array). aspect_ratio steers extended
       // canvases (exact pixels are cropped client-side afterwards).
+      const isUpscaler = /(\/|-)upscal/i.test(modelId);
+      const imageUrls: string[] = [];
+
       if (sourceAssetId) {
         const { data: sourceAsset } = await supabaseAdmin
           .from('omni_assets')
@@ -394,16 +460,39 @@ Deno.serve(async (req: Request) => {
         if (!sourcePath) return jsonResponse({ error: 'Source asset not found or not persisted yet' }, 400);
         const sourceUrl = await signStoragePath(supabaseAdmin, sourcePath, 60 * 60);
         if (!sourceUrl) return jsonResponse({ error: 'Could not sign the source image' }, 500);
-        if (/(\/|-)upscal/i.test(modelId)) {
-          input.image_url = sourceUrl;
+        imageUrls.push(sourceUrl);
+      }
+
+      let referenceNames: string[] = [];
+      if (referenceImageIds.length > 0) {
+        const refs = await resolveWishpediaReferences(supabaseAdmin, referenceImageIds);
+        for (const r of refs) imageUrls.push(r.url);
+        referenceNames = [...new Set(refs.map((r) => r.entryName).filter((n) => n.length > 0))];
+      }
+
+      if (imageUrls.length > 0) {
+        if (isUpscaler) {
+          input.image_url = imageUrls[0];
           delete input.num_images;
         } else {
-          input.image_urls = [sourceUrl];
+          input.image_urls = imageUrls;
         }
         const aspectRatio = typeof body.aspect_ratio === 'string' && /^\d{1,2}:\d{1,2}$/.test(body.aspect_ratio)
           ? body.aspect_ratio
           : null;
         if (aspectRatio) input.aspect_ratio = aspectRatio;
+      }
+
+      // Anchor the edit model on the canon subject(s) so it recreates the actual
+      // Wishpedia character from the references, not a generic look-alike.
+      if (referenceNames.length > 0 && typeof input.prompt === 'string') {
+        // Collapse line breaks and hard-cap each name: the names are admin-set
+        // Wishpedia titles interpolated into the fal IMAGE prompt, where
+        // sanitizeForPrompt (built for system prompts) does not strip newlines
+        // or bound length. Prevents a long/multi-line title from steering or
+        // overflowing the prompt. (security-auditor MEDIUM-1 / LOW-2)
+        const subjects = referenceNames.map((n) => n.replace(/[\r\n\t]+/g, ' ').slice(0, 80)).join(', ');
+        input.prompt = `Using the provided reference image(s) of the Fortun Wishnet canon subject(s): ${subjects}. Recreate ${referenceNames.length > 1 ? 'them' : 'it'} faithfully, preserving the exact appearance, colors, shapes, and proportions shown in the references. ${input.prompt}`;
       }
 
       const { data: asset, error: assetError } = await supabaseAdmin
@@ -416,7 +505,7 @@ Deno.serve(async (req: Request) => {
           model_id: modelId,
           prompt: promptStr || null,
           status: 'generating',
-          metadata: { source_asset_id: sourceAssetId },
+          metadata: { source_asset_id: sourceAssetId, reference_image_ids: referenceImageIds },
         })
         .select('id')
         .single();
@@ -430,7 +519,7 @@ Deno.serve(async (req: Request) => {
         const submission = await falSubmit(falKey, modelId, input);
         await supabaseAdmin
           .from('omni_assets')
-          .update({ metadata: { source_asset_id: sourceAssetId, fal_request_id: submission.requestId } })
+          .update({ metadata: { source_asset_id: sourceAssetId, reference_image_ids: referenceImageIds, fal_request_id: submission.requestId } })
           .eq('id', assetId);
         return jsonResponse({ asset_id: assetId, request_id: submission.requestId, queue_position: submission.queuePosition });
       } catch (e) {

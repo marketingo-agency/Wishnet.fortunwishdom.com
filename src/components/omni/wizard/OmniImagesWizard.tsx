@@ -132,7 +132,8 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
         {step === 1 && (
           <StepObjective
             initialValue={state.objective ?? ''}
-            onNext={(objective) => void persist(2, { objective })}
+            initialReferences={state.reference_image_refs ?? []}
+            onNext={(objective, references) => void persist(2, { objective, reference_image_refs: references })}
           />
         )}
         {step === 2 && (
@@ -145,6 +146,7 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
         {step === 3 && (
           <StepModels
             initialSelections={state.model_selections ?? []}
+            hasReferences={(state.reference_image_refs?.length ?? 0) > 0}
             onNext={(selections) => void persist(4, { model_selections: selections })}
           />
         )}
@@ -161,6 +163,7 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
             lockedPrompt={state.locked_prompt ?? ''}
             selections={state.model_selections ?? []}
             initialSelected={state.selected_asset_ids ?? []}
+            referenceImageIds={(state.reference_image_refs ?? []).map((r) => r.wishpediaImageId)}
             onNext={(generatedIds, selectedIds) =>
               void persist(7, { generated_asset_ids: generatedIds, selected_asset_ids: selectedIds })
             }

@@ -95,6 +95,17 @@ export interface OmniRepurposedRef {
   mode: 'crop' | 'ai';
 }
 
+/** A Wishpedia reference image attached to an Omni Images run for canon-accurate
+ *  character recreation. The wizard passes wishpediaImageId to the edge, which
+ *  resolves it to a public URL server-side (the client never sends raw URLs). */
+export interface OmniWishReferenceRef {
+  wishpediaImageId: string;
+  entryId: string;
+  entryName: string;
+  angle: string | null;
+  publicUrl: string;
+}
+
 export interface OmniAnalysis {
   description: string;
   universe_relation: { related: boolean; conclusion: string };
@@ -106,6 +117,9 @@ export interface OmniImagesState {
   objective?: string;
   optimized_prompt?: string;
   locked_prompt?: string;
+  /** Wishpedia character references attached at step 1 for canon-accurate
+   *  recreation; when present the wizard auto-routes to an edit-capable model. */
+  reference_image_refs?: OmniWishReferenceRef[];
   // Transform and Upscale (Mode 2) extras, persisted in the same engine state
   source_asset_id?: string;
   analysis?: OmniAnalysis;
