@@ -7,8 +7,11 @@
     "dev": "next dev -p 8000",
     "dev:webpack": "next dev -p 8000 --webpack",
     "build": "next build",
-    "start": "next start -p 8000",
+    "start": "next start",
     "lint": "eslint src middleware.ts"
+  },
+  "engines": {
+    "node": "22.x"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
