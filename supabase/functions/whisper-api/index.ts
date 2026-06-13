@@ -15,6 +15,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
+import { stripDashes } from '../_shared/sanitize.ts';
 
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 30 });
 const ELEVEN_BASE = 'https://api.elevenlabs.io';
@@ -119,14 +120,15 @@ function parseScript(raw: string): { title: string; segments: Array<{ speaker: s
   let s = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
   try {
     const o = JSON.parse(s) as { title?: unknown; segments?: unknown };
+    // stripDashes: deterministic backstop for the "No em dashes" Heart rule.
     const segments = Array.isArray(o.segments)
       ? o.segments
           .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object' && typeof (x as { text?: unknown }).text === 'string')
-          .map((x) => ({ speaker: String(x.speaker ?? 'Host'), text: String(x.text) }))
+          .map((x) => ({ speaker: String(x.speaker ?? 'Host'), text: stripDashes(String(x.text)) }))
       : [];
-    return { title: typeof o.title === 'string' && o.title ? o.title : 'Untitled episode', segments };
+    return { title: stripDashes(typeof o.title === 'string' && o.title ? o.title : 'Untitled episode'), segments };
   } catch {
-    return { title: 'Untitled episode', segments: s ? [{ speaker: 'Host', text: s }] : [] };
+    return { title: 'Untitled episode', segments: s ? [{ speaker: 'Host', text: stripDashes(s) }] : [] };
   }
 }
 
@@ -381,11 +383,12 @@ Deno.serve(async (req) => {
       } catch {
         notes = { description: raw.trim().slice(0, 500), chapters: [], tags: [] };
       }
+      // stripDashes: deterministic backstop for the "No em dashes" Heart rule.
       const showNotes = {
-        title: typeof notes.title === 'string' ? notes.title : undefined,
-        description: typeof notes.description === 'string' ? notes.description : '',
-        chapters: Array.isArray(notes.chapters) ? notes.chapters.filter((c): c is { time: number; label: string } => !!c && typeof c === 'object' && typeof (c as { label?: unknown }).label === 'string').map((c) => ({ time: Number((c as { time?: unknown }).time) || 0, label: String((c as { label: string }).label) })) : [],
-        tags: Array.isArray(notes.tags) ? notes.tags.filter((t): t is string => typeof t === 'string').slice(0, 12) : [],
+        title: typeof notes.title === 'string' ? stripDashes(notes.title) : undefined,
+        description: typeof notes.description === 'string' ? stripDashes(notes.description) : '',
+        chapters: Array.isArray(notes.chapters) ? notes.chapters.filter((c): c is { time: number; label: string } => !!c && typeof c === 'object' && typeof (c as { label?: unknown }).label === 'string').map((c) => ({ time: Number((c as { time?: unknown }).time) || 0, label: stripDashes(String((c as { label: string }).label)) })) : [],
+        tags: Array.isArray(notes.tags) ? notes.tags.filter((t): t is string => typeof t === 'string').map((t) => stripDashes(t)).slice(0, 12) : [],
       };
       await supabaseAdmin.from('whisper_episodes').update({ show_notes: showNotes, updated_at: new Date().toISOString() }).eq('id', episodeId);
       return jsonResponse(showNotes);

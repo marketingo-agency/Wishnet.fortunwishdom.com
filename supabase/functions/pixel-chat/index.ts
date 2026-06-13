@@ -10,7 +10,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
-import { sanitizeForPrompt } from '../_shared/sanitize.ts';
+import { sanitizeForPrompt, stripDashes } from '../_shared/sanitize.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
 import { TOKEN_BUDGETS } from '../_shared/token-budgets.ts';
@@ -1566,6 +1566,10 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
     responseContent = 'I encountered an error processing your request. Please try again.';
     complianceStatus = 'pass';
   }
+
+  // stripDashes: deterministic backstop for the "No em dashes" Heart rule,
+  // applied once before persist + return so it covers both.
+  responseContent = stripDashes(responseContent);
 
   // ── Step 7: Persist messages ─────────────────────────────────────────────
   await supabase.from('pixel_messages').insert({ user_id: userId, role: 'user', content: message, mode });

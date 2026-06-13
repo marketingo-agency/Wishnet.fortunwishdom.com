@@ -10,7 +10,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
-import { sanitizeForPrompt } from '../_shared/sanitize.ts';
+import { sanitizeForPrompt, stripDashes } from '../_shared/sanitize.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
 import { TOKEN_BUDGETS } from '../_shared/token-budgets.ts';
@@ -1310,7 +1310,7 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
       }
 
       const clarifyData = await clarifyRes.json();
-      const questions = clarifyData.choices?.[0]?.message?.content?.trim() || '';
+      const questions = stripDashes(clarifyData.choices?.[0]?.message?.content?.trim() || '');
 
       // Save the user message and the clarification questions to chat history
       await supabase.from('osha_messages').insert({ user_id: userId, role: 'user', content: message, mode: 'deep-research' });
@@ -1453,7 +1453,7 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
       const data = await response.json();
 
       if (data.status === 'completed') {
-        const content = data.output_text || data.output?.[0]?.content?.[0]?.text || '';
+        const content = stripDashes(data.output_text || data.output?.[0]?.content?.[0]?.text || '');
         await supabase.from('osha_messages').insert({ user_id: userId, role: 'assistant', content, mode: 'deep-research' });
         if ((await supabase.from('osha_settings').select('internal_audit_logging').eq('user_id', userId).maybeSingle()).data?.internal_audit_logging !== false) {
           await supabaseAdmin.from('osha_audit_logs').insert({
@@ -1561,7 +1561,7 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
       await supabase.from('osha_messages').insert({ user_id: userId, role: 'user', content: resolvedTopic, mode: 'deep-research' });
 
       if (data.status === 'completed') {
-        const content = data.output_text || data.output?.[0]?.content?.[0]?.text || '';
+        const content = stripDashes(data.output_text || data.output?.[0]?.content?.[0]?.text || '');
         await supabase.from('osha_messages').insert({ user_id: userId, role: 'assistant', content, mode: 'deep-research' });
         if ((await supabase.from('osha_settings').select('internal_audit_logging').eq('user_id', userId).maybeSingle()).data?.internal_audit_logging !== false) {
           await supabaseAdmin.from('osha_audit_logs').insert({
@@ -1603,7 +1603,7 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
       const stage = statusToStage[data.status] ?? 1;
 
       if (data.status === 'completed') {
-        const content = data.output_text || data.output?.[0]?.content?.[0]?.text || '';
+        const content = stripDashes(data.output_text || data.output?.[0]?.content?.[0]?.text || '');
         await supabase.from('osha_messages').insert({ user_id: userId, role: 'assistant', content, mode: 'deep-research' });
         return new Response(JSON.stringify({ status: 'completed', content, stage }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
       }
@@ -1656,7 +1656,7 @@ Feel free to answer all three, or just the ones you find relevant. You can also 
       }
 
       const data = await response.json();
-      const content = data.output_text || data.output?.[0]?.content?.[0]?.text || 'No results found.';
+      const content = stripDashes(data.output_text || data.output?.[0]?.content?.[0]?.text || 'No results found.');
 
       // Persist messages
       await supabase.from('osha_messages').insert({ user_id: userId, role: 'user', content: message, mode: 'web-search' });
@@ -2470,6 +2470,10 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
     responseContent = 'I encountered an error processing your request. Please try again.';
     complianceStatus = 'adjusted';
   }
+
+  // stripDashes: deterministic backstop for the "No em dashes" Heart rule,
+  // applied once before persist + return so it covers both.
+  responseContent = stripDashes(responseContent);
 
   // ── Step 7: Persist messages ─────────────────────────────────────────────────
   await supabase.from('osha_messages').insert({

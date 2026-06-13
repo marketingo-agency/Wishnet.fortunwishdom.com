@@ -7,7 +7,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
-import { sanitizeForPrompt } from '../_shared/sanitize.ts';
+import { sanitizeForPrompt, stripDashes } from '../_shared/sanitize.ts';
 import { TOKEN_BUDGETS } from '../_shared/token-budgets.ts';
 
 import { getCorsHeaders } from '../_shared/cors.ts';
@@ -611,6 +611,18 @@ Respond ONLY with the JSON object.`;
       } catch {
         llmResponse = {};
       }
+    }
+
+    // ── Em-dash guarantee ─────────────────────────────────────────────────────
+    // Strip typographic dashes from every generated text field before it is
+    // persisted or returned (Heart rule "No em dashes or en dashes"). This is
+    // Promptor's output, which feeds image prompts, Omni captions, and the
+    // Osha/Pixel "improve with AI" wand, so it covers all of those at once.
+    for (const k of ['brief_summary', 'final_prompt_short', 'final_prompt_full', 'negatives', 'compliance_notes'] as const) {
+      if (typeof llmResponse[k] === 'string') llmResponse[k] = stripDashes(llmResponse[k] as string);
+    }
+    if (Array.isArray(llmResponse.variants)) {
+      llmResponse.variants = (llmResponse.variants as unknown[]).map((v) => (typeof v === 'string' ? stripDashes(v) : v));
     }
 
     // ── Persist run ───────────────────────────────────────────────────────────

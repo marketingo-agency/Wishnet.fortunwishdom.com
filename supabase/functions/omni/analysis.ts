@@ -13,7 +13,7 @@
  */
 
 import type { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
-import { sanitizeForPrompt } from '../_shared/sanitize.ts';
+import { sanitizeForPrompt, stripDashes } from '../_shared/sanitize.ts';
 import { TOKEN_BUDGETS } from '../_shared/token-budgets.ts';
 import type { HeartRule } from './index.ts';
 
@@ -237,17 +237,18 @@ export async function analyzeImage(params: {
   const parsed = await concludeAnalysis(params.provider, params.model, params.keys, prompt);
 
   const suggestionsRaw = Array.isArray(parsed.suggestions) ? parsed.suggestions : [];
+  // stripDashes: deterministic backstop for the "No em dashes" Heart rule.
   return {
-    description: typeof parsed.description === 'string' && parsed.description ? parsed.description : description,
+    description: stripDashes(typeof parsed.description === 'string' && parsed.description ? parsed.description : description),
     universe_relation: {
       related: parsed.related === true,
-      conclusion: typeof parsed.conclusion === 'string' ? parsed.conclusion : 'No conclusion produced.',
+      conclusion: stripDashes(typeof parsed.conclusion === 'string' ? parsed.conclusion : 'No conclusion produced.'),
     },
     suggestions: suggestionsRaw
       .filter((s: Record<string, unknown>) => typeof s?.text === 'string')
       .map((s: Record<string, unknown>) => ({
         type: s.type === 'upscale' ? 'upscale' as const : 'transform' as const,
-        text: s.text as string,
+        text: stripDashes(s.text as string),
       }))
       .slice(0, 4),
     retrieval: { brain_chunks: knowledge.length, heart_rules: params.heartRules.length },

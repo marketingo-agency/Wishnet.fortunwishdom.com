@@ -11,6 +11,7 @@
  */
 
 import { TOKEN_BUDGETS } from '../_shared/token-budgets.ts';
+import { stripDashes } from '../_shared/sanitize.ts';
 import type { HeartRule } from './index.ts';
 
 export interface BrainstormMessageInput {
@@ -150,10 +151,11 @@ export async function chatBrainstorm(params: {
   attachments: BrainstormAttachment[];
 }): Promise<string> {
   const system = buildChatSystemPrompt(params.heartRules, params.knowledge, params.ragAvailable);
-  if (params.provider === 'gemini' && params.keys.geminiKey) {
-    return callGeminiChat(params.model, params.keys.geminiKey, system, params.messages, params.attachments, TOKEN_BUDGETS.OMNI_BRAINSTORM_CHAT);
-  }
-  return callOpenAiChat(params.model, params.keys.openaiKey, system, params.messages, params.attachments, TOKEN_BUDGETS.OMNI_BRAINSTORM_CHAT);
+  // stripDashes: deterministic backstop for the "No em dashes" Heart rule.
+  const reply = params.provider === 'gemini' && params.keys.geminiKey
+    ? await callGeminiChat(params.model, params.keys.geminiKey, system, params.messages, params.attachments, TOKEN_BUDGETS.OMNI_BRAINSTORM_CHAT)
+    : await callOpenAiChat(params.model, params.keys.openaiKey, system, params.messages, params.attachments, TOKEN_BUDGETS.OMNI_BRAINSTORM_CHAT);
+  return stripDashes(reply);
 }
 
 const LOCK_TASK = `Distill this brainstorming conversation into the FINAL creative brief the user has converged on.
@@ -216,8 +218,8 @@ export async function lockIdea(params: {
     }
   }
 
-  const title = typeof parsed.title === 'string' ? parsed.title.trim().slice(0, 120) : '';
-  const objective = typeof parsed.objective === 'string' ? parsed.objective.trim().slice(0, 2000) : '';
+  const title = typeof parsed.title === 'string' ? stripDashes(parsed.title.trim()).slice(0, 120) : '';
+  const objective = typeof parsed.objective === 'string' ? stripDashes(parsed.objective.trim()).slice(0, 2000) : '';
   if (!title || !objective) {
     throw new Error('The idea could not be distilled. Add one more exchange and try locking again.');
   }

@@ -29,6 +29,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
+import { stripDashes } from '../_shared/sanitize.ts';
 
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 30 });
 const UPLOAD_POST_BASE = 'https://api.upload-post.com/api';
@@ -604,7 +605,8 @@ Deno.serve(async (req) => {
 
       let reply = '';
       try {
-        reply = (await generateReplyText(provider, model, temperature, system, user, keys)).trim();
+        // stripDashes: deterministic backstop for the "No em dashes" Heart rule.
+        reply = stripDashes((await generateReplyText(provider, model, temperature, system, user, keys)).trim());
       } catch (e) {
         return errorResponse(e instanceof Error ? e.message : 'Reply generation failed', 502);
       }

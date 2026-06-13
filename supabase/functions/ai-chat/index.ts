@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
-import { sanitizeForPrompt } from '../_shared/sanitize.ts';
+import { sanitizeForPrompt, stripDashes } from '../_shared/sanitize.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
 import { checkQuota, logUsage } from '../_shared/usage-quota.ts';
@@ -452,9 +452,11 @@ Deno.serve(async (req) => {
         
         if (data.status === 'completed') {
           // Extract content from completed response
-          const content = data.output_text || data.output?.[0]?.content?.[0]?.text || data.output || '';
+          const rawResearch = data.output_text || data.output?.[0]?.content?.[0]?.text || data.output || '';
+          // stripDashes: deterministic backstop for the "No em dashes" Heart rule.
+          const content = typeof rawResearch === 'string' ? stripDashes(rawResearch) : rawResearch;
           return new Response(
-            JSON.stringify({ 
+            JSON.stringify({
               status: 'completed',
               content,
             }),
@@ -578,13 +580,15 @@ Deno.serve(async (req) => {
 
           const data = await response.json();
           // The responses API returns output_text or output array
-          const content = data.output_text || data.output?.[0]?.content?.[0]?.text || data.output || '';
+          const rawResearch = data.output_text || data.output?.[0]?.content?.[0]?.text || data.output || '';
+          // stripDashes: deterministic backstop for the "No em dashes" Heart rule.
+          const content = typeof rawResearch === 'string' ? stripDashes(rawResearch) : rawResearch;
           return new Response(
             JSON.stringify({ content }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-        
+
         // Standard chat completions API for regular models
         // Newer models (o4, gpt-5) use max_completion_tokens
         const isNewerModel = selectedModel.startsWith('o4') || 
@@ -678,7 +682,12 @@ Deno.serve(async (req) => {
                       const parsed = JSON.parse(payload);
                       const delta = parsed.choices?.[0]?.delta?.content;
                       if (delta) {
-                        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: delta })}\n\n`));
+                        // Em-dash guarantee on the stream: a lone em-dash token
+                        // would otherwise reach the client. Replace any
+                        // typographic dash with a comma per chunk (no leading
+                        // trim, so the clause separator survives the stream).
+                        const clean = delta.replace(/\s*[‒–—―]\s*/g, ', ');
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: clean })}\n\n`));
                       }
                     } catch { /* skip malformed chunks */ }
                   }
@@ -703,8 +712,9 @@ Deno.serve(async (req) => {
 
         // Non-streaming response (default)
         const data = await response.json();
+        // stripDashes: deterministic backstop for the "No em dashes" Heart rule.
         return new Response(
-          JSON.stringify({ content: data.choices[0].message.content }),
+          JSON.stringify({ content: stripDashes(data.choices[0].message.content ?? '') }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       } else {
@@ -768,8 +778,9 @@ Deno.serve(async (req) => {
         }
 
         const data = await response.json();
+        // stripDashes: deterministic backstop for the "No em dashes" Heart rule.
         return new Response(
-          JSON.stringify({ content: data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated' }),
+          JSON.stringify({ content: stripDashes(data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated') }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }

@@ -9,7 +9,7 @@
  */
 
 import type { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
-import { sanitizeForPrompt } from '../_shared/sanitize.ts';
+import { sanitizeForPrompt, stripDashes } from '../_shared/sanitize.ts';
 import { TOKEN_BUDGETS } from '../_shared/token-budgets.ts';
 import type { HeartRule } from './index.ts';
 
@@ -173,11 +173,12 @@ export async function mineSurpriseIdeas(params: {
   const rawIdeas = Array.isArray(parsed.ideas) ? parsed.ideas : [];
   const ideas: SurpriseIdea[] = rawIdeas
     .filter((i: Record<string, unknown>) => typeof i?.title === 'string' && typeof i?.objective === 'string')
+    // stripDashes: deterministic backstop for the "No em dashes" Heart rule.
     .map((i: Record<string, unknown>) => ({
-      title: (i.title as string).slice(0, 120),
-      summary: typeof i.summary === 'string' ? i.summary.slice(0, 500) : '',
-      objective: (i.objective as string).slice(0, 2000),
-      grounding: typeof i.grounding === 'string' ? i.grounding.slice(0, 300) : '',
+      title: stripDashes((i.title as string)).slice(0, 120),
+      summary: typeof i.summary === 'string' ? stripDashes(i.summary).slice(0, 500) : '',
+      objective: stripDashes((i.objective as string)).slice(0, 2000),
+      grounding: typeof i.grounding === 'string' ? stripDashes(i.grounding).slice(0, 300) : '',
     }))
     .slice(0, 6);
   if (ideas.length === 0) {
