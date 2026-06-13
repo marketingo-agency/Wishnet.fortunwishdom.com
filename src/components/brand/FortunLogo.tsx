@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import { useBranding } from '@/hooks/useBranding';
+import { useSecureImageUrl } from '@/hooks/files';
 
 interface FortunLogoProps {
   variant?: 'full' | 'mini' | 'login';
@@ -18,14 +19,18 @@ export function FortunLogo({ variant = 'full', className = '' }: FortunLogoProps
   const { width, height } = sizes[variant];
 
   // Check for custom logo URL based on variant
-  const customUrl = variant === 'login' 
-    ? branding?.login_logo_url 
-    : variant === 'mini' 
-      ? branding?.mini_logo_url 
+  const rawCustomUrl = variant === 'login'
+    ? branding?.login_logo_url
+    : variant === 'mini'
+      ? branding?.mini_logo_url
       : branding?.main_logo_url;
+  // Logos stored from the private `files` bucket need a signed URL (a public
+  // URL 403s); useSecureImageUrl passes other URLs through unchanged.
+  const customUrl = useSecureImageUrl(rawCustomUrl);
 
-  // If custom logo exists, render an image
-  if (customUrl) {
+  // If a custom logo is set, render it once its URL is resolved; while a
+  // files-bucket logo re-signs, fall through to the default mark below.
+  if (rawCustomUrl && customUrl) {
     return (
       <Image
         src={customUrl}

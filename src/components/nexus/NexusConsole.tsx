@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import { SecureImage } from '@/components/files/SecureImage';
 import dynamic from 'next/dynamic';
 import remarkGfm from 'remark-gfm';
 
@@ -188,7 +188,7 @@ export function NexusConsole({ settings, initialPrompt, initialMode }: NexusCons
                   <div className={cn("max-w-[90%] sm:max-w-[80%] rounded-2xl px-4 py-2.5 relative group", message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
                     {message.isImage && message.imageUrl ? (
                       <div>
-                        <Image src={message.imageUrl} alt="Generated" width={512} height={512} className="rounded-lg max-w-full h-auto" unoptimized />
+                        <SecureImage stored={message.imageUrl} alt="Generated" className="rounded-lg max-w-full h-auto" />
                         <div className="flex items-center gap-2 mt-2">
                           <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5 text-destructive hover:text-destructive" onClick={() => ctrl.handleDeleteImage(message)} disabled={ctrl.savingImageId === message.id}>
                             {ctrl.savingImageId === message.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}

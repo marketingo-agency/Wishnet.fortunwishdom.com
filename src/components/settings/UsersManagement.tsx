@@ -30,7 +30,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { SecureAvatarImage } from '@/components/files/SecureImage';
 import { Card } from '@/components/ui/card';
 import { 
   Loader2, 
@@ -325,7 +326,7 @@ export function UsersManagement() {
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-3 flex-1 min-w-0">
                 <Avatar className="h-12 w-12 border-2 border-border flex-shrink-0">
-                  <AvatarImage src={user.avatar_url || undefined} />
+                  <SecureAvatarImage src={user.avatar_url} />
                   <AvatarFallback className="bg-primary/10 text-primary font-medium">
                     {getInitials(user.full_name)}
                   </AvatarFallback>

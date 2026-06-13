@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { SecureAvatarImage } from '@/components/files/SecureImage';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PermissionLevelSelector } from './PermissionLevelSelector';
@@ -361,7 +362,7 @@ export function EditUserSheet({ open, onOpenChange, user, onSave }: EditUserShee
               {/* Avatar */}
               <div className="flex items-center gap-4">
                 <Avatar className="h-20 w-20 border-2 border-border">
-                  <AvatarImage src={avatarUrl || undefined} />
+                  <SecureAvatarImage src={avatarUrl} />
                   <AvatarFallback className="text-lg bg-primary/10 text-primary">
                     {getInitials(fullName)}
                   </AvatarFallback>

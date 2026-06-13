@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
+import { SecureImage, SecureAvatarImage } from '@/components/files/SecureImage';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useFiles, getFileUrl, useUploadFile } from '@/hooks/useFiles';
@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -210,7 +210,7 @@ export function AccountSettings() {
             {/* Avatar with change and remove buttons */}
             <div className="relative group">
               <Avatar className="h-24 w-24 border-4 border-muted shadow-lg">
-                <AvatarImage src={avatarUrl || undefined} alt={fullName || 'User'} />
+                <SecureAvatarImage src={avatarUrl} alt={fullName || 'User'} />
                 <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground text-2xl font-semibold">
                   {getInitials(fullName || profile?.full_name)}
                 </AvatarFallback>
@@ -395,12 +395,11 @@ export function AccountSettings() {
                           }`}
                           disabled={isLoading}
                         >
-                          <Image
-                            src={url}
+                          <SecureImage
+                            stored={file.storage_path}
                             alt={file.name}
-                            fill
-                            className="object-cover"
-                            unoptimized
+                            className="absolute inset-0 h-full w-full object-cover"
+                            fallback={<div className="absolute inset-0 h-full w-full animate-pulse bg-muted/40" />}
                           />
                           {isSelected && (
                             <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">

@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -21,13 +24,20 @@ export function FilePreview({
   iconBg,
   onPreviewClick,
 }: FilePreviewProps) {
+  const [errored, setErrored] = useState(false);
+  // FileInspector is not remounted per file, so reset the error when the URL
+  // changes — otherwise one failed preview would icon-fallback every later file.
+  useEffect(() => setErrored(false), [fileUrl]);
+  // Show the image only once a (signed) URL is resolved and it loads; otherwise
+  // fall back to the type icon (covers resolving state + missing/orphaned files).
+  const showImage = isImage && !!fileUrl && !errored;
   return (
     <div
       className="relative group aspect-square rounded-lg overflow-hidden border border-border cursor-pointer"
       onClick={onPreviewClick}
     >
-      {isImage ? (
-        <Image src={fileUrl} alt={fileName} fill className="object-cover bg-card" unoptimized />
+      {showImage ? (
+        <Image src={fileUrl} alt={fileName} fill className="object-cover bg-card" unoptimized onError={() => setErrored(true)} />
       ) : (
         <div className={cn('w-full h-full flex items-center justify-center', iconBg)}>
           <Icon className={cn('h-16 w-16', iconColor)} strokeWidth={1.5} />

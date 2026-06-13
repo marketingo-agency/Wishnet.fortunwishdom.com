@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { X, Download, ExternalLink } from 'lucide-react';
+import { X, Download, ExternalLink, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -19,10 +19,12 @@ import {
   useBrainKnowledgeSector,
   getSecureFileUrl,
 } from '@/hooks/useFiles';
+import { useSecureImageUrl, getBrainDocumentUrl } from '@/hooks/files';
 import { useUpdateBrainDocument } from '@/hooks/useBrainDocuments';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import * as Sentry from '@sentry/nextjs';
+import { downloadFromUrl } from '@/lib/downloadFromUrl';
 import { useAuth } from '@/contexts/AuthContext';
 import { getFileIcon, formatFileSize, getFileTypeLabel } from '@/lib/fileTypes';
 import { FilePreview } from './FilePreview';
@@ -59,8 +61,10 @@ export function FileInspector({ file, onClose, isReadOnly = false }: FileInspect
   const { icon: Icon, color, bg } = getFileIcon(file.mime_type, file.name);
 
   const bucket = isBrainDocument ? 'brain-documents' : 'files';
-  const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(file.storage_path);
-  const fileUrl = urlData?.publicUrl || '';
+  // The `files` bucket is PRIVATE — getPublicUrl 403s (SEC-019). Re-sign on
+  // mount for files-bucket items; brain documents live in the public bucket.
+  const secureFilesUrl = useSecureImageUrl(isBrainDocument ? null : file.storage_path);
+  const fileUrl = isBrainDocument ? getBrainDocumentUrl(file.storage_path) : (secureFilesUrl ?? '');
 
   useEffect(() => {
     setName(file.name);
@@ -115,14 +119,19 @@ export function FileInspector({ file, onClose, isReadOnly = false }: FileInspect
     }
   };
 
-  const handleDownload = () => {
-    const link = document.createElement('a');
-    link.href = fileUrl;
-    link.download = file.name;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async () => {
+    if (!fileUrl) {
+      toast.error('File link is still loading, please try again in a moment.');
+      return;
+    }
+    // A cross-origin <a download> is ignored by browsers; fetch to a blob and
+    // download a same-origin object URL instead (CSP allows the supabase fetch).
+    try {
+      await downloadFromUrl(fileUrl, file.name);
+    } catch (err) {
+      Sentry.captureException(err);
+      toast.error('Download failed. Please try again.');
+    }
   };
 
   const handleOpenInNewWindow = () => {
@@ -187,7 +196,7 @@ export function FileInspector({ file, onClose, isReadOnly = false }: FileInspect
       <FileActions
         file={file}
         isBrainDocument={isBrainDocument}
-        onDownload={handleDownload}
+        onDownload={() => void handleDownload()}
         onTogglePin={handleTogglePin}
         onMoveToTrash={handleMoveToTrash}
         onRestoreFromTrash={handleRestoreFromTrash}
@@ -210,9 +219,13 @@ export function FileInspector({ file, onClose, isReadOnly = false }: FileInspect
                 <DialogTitle className="text-center">{file.name}</DialogTitle>
               </DialogHeader>
               <div className="flex items-center justify-center p-4 flex-1 overflow-auto">
-                {isImage && <Image src={fileUrl} alt={file.name} width={800} height={600} className="max-w-full max-h-full object-contain" unoptimized />}
-                {isVideo && <video src={fileUrl} controls className="max-w-full max-h-full" />}
-                {isAudio && <audio src={fileUrl} controls className="w-full max-w-md" />}
+                {/* Gate on fileUrl: the signed URL resolves async, and an empty
+                    src would trip a next/image warning + a blank media element. */}
+                {isImage && (fileUrl
+                  ? <Image src={fileUrl} alt={file.name} width={800} height={600} className="max-w-full max-h-full object-contain" unoptimized />
+                  : <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />)}
+                {isVideo && fileUrl && <video src={fileUrl} controls className="max-w-full max-h-full" />}
+                {isAudio && fileUrl && <audio src={fileUrl} controls className="w-full max-w-md" />}
               </div>
             </>
           ) : (
@@ -235,7 +248,7 @@ export function FileInspector({ file, onClose, isReadOnly = false }: FileInspect
                 <Button onClick={handleOpenInNewWindow} className="w-full bg-card hover:bg-card">
                   <ExternalLink className="h-4 w-4 mr-2" />Preview in New Window
                 </Button>
-                <Button onClick={handleDownload} variant="outline" className="w-full">
+                <Button onClick={() => void handleDownload()} variant="outline" className="w-full">
                   <Download className="h-4 w-4 mr-2" />Download
                 </Button>
               </div>

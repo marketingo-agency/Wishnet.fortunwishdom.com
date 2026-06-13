@@ -5,13 +5,15 @@
  */
 
 import { useState, useMemo } from 'react';
-import { Search, Loader2, FolderOpen } from 'lucide-react';
+import { Search, Loader2, FolderOpen, ImageIcon } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useFiles, getFileUrl } from '@/hooks/files';
+import { useFiles, getSignedFileUrl } from '@/hooks/files';
+import { SecureImage } from '@/components/files/SecureImage';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -30,8 +32,14 @@ export function SelectFromFilesDialog({ open, onOpenChange, onSelect, title }: P
     [files]
   );
 
-  const handleSelect = (file: typeof imageFiles[0]) => {
-    const url = getFileUrl(file.storage_path);
+  const handleSelect = async (file: typeof imageFiles[0]) => {
+    // The consumer FETCHES this URL to re-upload, so it must be a working
+    // signed URL (the files bucket is private; a public URL would 403).
+    const url = await getSignedFileUrl(file.storage_path);
+    if (!url) {
+      toast.error('Could not open that image, please try again.');
+      return;
+    }
     onSelect({ url, name: file.original_name, mime_type: file.mime_type });
     onOpenChange(false);
     setSearch('');
@@ -81,7 +89,7 @@ export function SelectFromFilesDialog({ open, onOpenChange, onSelect, title }: P
               {imageFiles.map((file) => (
                 <button
                   key={file.id}
-                  onClick={() => handleSelect(file)}
+                  onClick={() => void handleSelect(file)}
                   className={cn(
                     "group relative aspect-square rounded-xl border-2 border-border/50 overflow-hidden",
                     "bg-muted/20 hover:border-amber-500/50 hover:shadow-md hover:shadow-amber-500/10",
@@ -89,11 +97,12 @@ export function SelectFromFilesDialog({ open, onOpenChange, onSelect, title }: P
                     "min-h-[80px] min-w-[44px] active:scale-[0.97]"
                   )}
                 >
-                  <img
-                    src={getFileUrl(file.storage_path)}
+                  <SecureImage
+                    stored={file.storage_path}
                     alt={file.name}
-                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                     loading="lazy"
+                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                    fallback={<div className="flex h-full w-full items-center justify-center bg-muted/30"><ImageIcon className="h-6 w-6 text-muted-foreground/40" /></div>}
                   />
                   {/* Name overlay */}
                   <div className="absolute bottom-0 inset-x-0 py-1 px-1.5 bg-background/80 backdrop-blur-sm">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { extractFilesStoragePath, getSignedFileUrl } from './fileUrls';
 
 /**
@@ -12,28 +12,26 @@ import { extractFilesStoragePath, getSignedFileUrl } from './fileUrls';
  * - Empty input → undefined.
  */
 export function useSecureImageUrl(stored: string | null | undefined): string | undefined {
-  const [url, setUrl] = useState<string | undefined>(undefined);
+  // A `files`-bucket reference needs an async signed URL; anything else
+  // (external / public-bucket URL) is used verbatim and resolves synchronously.
+  const path = useMemo(() => (stored ? extractFilesStoragePath(stored) : null), [stored]);
+  // Track which path the signed URL belongs to, so a `stored` change never
+  // returns the PREVIOUS ref's signed URL for a tick (no stale image flash).
+  const [entry, setEntry] = useState<{ path: string | null; url: string | undefined }>({ path: null, url: undefined });
 
   useEffect(() => {
     let active = true;
-    if (!stored) {
-      setUrl(undefined);
-      return;
-    }
-    const path = extractFilesStoragePath(stored);
     if (!path) {
-      // Not a files-bucket reference (e.g. external URL) — use as-is.
-      setUrl(stored);
+      setEntry({ path: null, url: undefined });
       return;
     }
-    // Re-sign the path with the caller's session so the URL is always fresh.
-    getSignedFileUrl(path, 60 * 60 * 24).then((signed) => {
-      if (active) setUrl(signed ?? undefined);
-    });
-    return () => {
-      active = false;
-    };
-  }, [stored]);
+    getSignedFileUrl(path, 60 * 60 * 24)
+      .then((signed) => { if (active) setEntry({ path, url: signed ?? undefined }); })
+      .catch(() => { if (active) setEntry({ path, url: undefined }); });
+    return () => { active = false; };
+  }, [path]);
 
-  return url;
+  if (!stored) return undefined;
+  if (!path) return stored; // non-files ref: synchronous passthrough
+  return entry.path === path ? entry.url : undefined; // files ref: only the URL signed for THIS path
 }

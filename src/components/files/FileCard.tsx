@@ -1,6 +1,10 @@
+"use client";
+
+import { useState } from 'react';
 import { X, Brain, Pin, RotateCcw, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { type FileRecord, getFileUrl, getBrainDocumentUrl } from '@/hooks/useFiles';
+import { type FileRecord, getBrainDocumentUrl } from '@/hooks/useFiles';
+import { useSecureImageUrl } from '@/hooks/files';
 import { getFileIcon, formatFileSize } from '@/lib/fileTypes';
 
 interface FileCardProps {
@@ -30,12 +34,14 @@ export function FileCard({
 }: FileCardProps) {
   const isImage = file.mime_type.startsWith('image/');
   const { icon: Icon, color, bg } = getFileIcon(file.mime_type, file.name);
-  
-  // Use appropriate bucket URL based on document type
-  const fileUrl = isBrainDocument 
-    ? getBrainDocumentUrl(file.storage_path)
-    : getFileUrl(file.storage_path);
-  
+  const [imgError, setImgError] = useState(false);
+
+  // The `files` bucket is PRIVATE — a public URL 403s. Re-sign on mount for
+  // files-bucket items; brain documents live in the public brain-documents
+  // bucket. (getFileUrl/getPublicUrl on `files` is the SEC-019 broken-thumbnail bug.)
+  const secureFilesUrl = useSecureImageUrl(isBrainDocument ? null : file.storage_path);
+  const fileUrl = isBrainDocument ? getBrainDocumentUrl(file.storage_path) : secureFilesUrl;
+
   const isTrashed = file.is_trashed === true;
   const isPinned = file.is_pinned === true;
 
@@ -70,13 +76,16 @@ export function FileCard({
     >
       {/* Thumbnail */}
       <div className="relative aspect-square">
-        {isImage ? (
+        {isImage && fileUrl && !imgError ? (
           <img
             src={fileUrl}
             alt={file.name}
+            onError={() => setImgError(true)}
             className="w-full h-full object-cover bg-card"
           />
         ) : (
+          // Non-image, still-resolving signed URL, or a missing/orphaned object
+          // (broken load) all fall back to the type icon.
           <div className={cn('w-full h-full flex items-center justify-center', bg)}>
             <Icon className={cn('h-12 w-12', color)} strokeWidth={1.5} />
           </div>

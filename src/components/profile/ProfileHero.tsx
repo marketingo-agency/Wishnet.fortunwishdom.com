@@ -1,4 +1,5 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { SecureAvatarImage } from '@/components/files/SecureImage';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Shield, User, Camera, X, Pencil, Calendar } from 'lucide-react';
@@ -38,7 +39,7 @@ export default function ProfileHero({
         <div className="relative group shrink-0">
           <div className="absolute -inset-3 rounded-full bg-gradient-to-br from-primary/25 to-primary/5 opacity-0 group-hover:opacity-100 blur-xl transition-all duration-500" />
           <Avatar className="relative h-24 w-24 ring-2 ring-border/60 shadow-xl transition-transform duration-500 group-hover:scale-[1.03]">
-            <AvatarImage src={avatarUrl || undefined} alt={fullName || 'User'} className="object-cover" />
+            <SecureAvatarImage src={avatarUrl} alt={fullName || 'User'} className="object-cover" />
             <AvatarFallback className="bg-gradient-to-br from-primary to-primary/70 text-primary-foreground text-2xl font-bold">
               {getInitials(fullName)}
             </AvatarFallback>

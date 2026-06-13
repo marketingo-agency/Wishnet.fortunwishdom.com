@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { FortunLogo } from '@/components/brand/FortunLogo';
 import { useBranding, useUpdateBranding } from '@/hooks/useBranding';
 import { useFiles, useUploadFile, getFileUrl } from '@/hooks/useFiles';
+import { SecureImage } from '@/components/files/SecureImage';
 import { 
   LogIn, Layout, Globe, Type, Upload, Image, RotateCcw, Loader2, Palette, PanelLeftClose,
   // Shapes & Symbols
@@ -697,8 +698,8 @@ export function BrandingSettings() {
                       }
                       className="aspect-square rounded-lg border border-border overflow-hidden hover:ring-2 hover:ring-primary transition-all"
                     >
-                      <img
-                        src={url}
+                      <SecureImage
+                        stored={file.storage_path}
                         alt={file.name}
                         className="w-full h-full object-cover"
                       />
