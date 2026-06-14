@@ -17,6 +17,7 @@ import { sanitizeForPrompt } from '../_shared/sanitize.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
 import { fetchFalCatalog, findFalModel, isFalCapability } from './fal-catalog.ts';
+import { applySpecToInput, modelSupportsNumImages } from './fal-specs.ts';
 import { FalUserError, falResult, falStatus, falSubmit } from './fal-runner.ts';
 import { persistFalImage, registerInFilesManager, signStoragePath } from './storage.ts';
 import { analyzeImage, retrieveKnowledge } from './analysis.ts';
@@ -134,6 +135,18 @@ async function getFalKey(supabaseAdmin: ReturnType<typeof createClient>): Promis
 const FAL_NOT_CONFIGURED = 'fal.ai is not configured. Add a fal.ai API key in Settings > LLM Providers.';
 const TEST_MODEL_ID = 'fal-ai/flux/schnell';
 const NETWORKS = new Set(['facebook', 'instagram', 'x', 'tiktok', 'youtube', 'pinterest']);
+
+// Per-edit-model reference-image caps (mirrors src/config/llmModels FAL_EDIT_MODELS).
+// reference_image_ids are clamped to the chosen model's max before resolution.
+const EDIT_MODEL_MAX_REFS: Record<string, number> = {
+  'fal-ai/nano-banana-pro/edit': 8,
+  'fal-ai/nano-banana-2/edit': 8,
+  'fal-ai/bytedance/seedream/v4/edit': 10,
+  'fal-ai/qwen-image-edit-plus': 6,
+  'fal-ai/flux-2-pro/edit': 8,
+  'fal-ai/gpt-image-1.5/edit': 8,
+};
+const DEFAULT_EDIT_MODEL_MAX_REFS = 6;
 
 interface WishpediaReference {
   url: string;
@@ -402,6 +415,33 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── variant-submit (one fal job per variant; supports regenerate lineage) ─
+    // ── fal account credit balance (Recap cost card, admin-only) ──────────────
+    if (action === 'fal-credits') {
+      // Org financial data: admin-gated. Non-admins get the estimate-only view
+      // (the client degrades gracefully to "Unavailable").
+      const { data: isCreditsAdmin } = await supabaseAdmin.rpc('is_admin', { _user_id: userId });
+      if (!isCreditsAdmin) return jsonResponse({ balance: null, currency: 'USD', configured: false });
+      const falKey = await getFalKey(supabaseAdmin);
+      if (!falKey) return jsonResponse({ balance: null, currency: 'USD', configured: false });
+      try {
+        const res = await fetch('https://api.fal.ai/v1/account/billing?expand=credits', {
+          headers: { Authorization: `Key ${falKey}` },
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!res.ok) return jsonResponse({ balance: null, currency: 'USD', configured: true });
+        const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+        const credits = data?.credits as unknown;
+        const balance =
+          typeof credits === 'number' ? credits
+          : credits && typeof (credits as Record<string, unknown>).balance === 'number' ? (credits as Record<string, number>).balance
+          : typeof data?.balance === 'number' ? (data.balance as number)
+          : null;
+        return jsonResponse({ balance, currency: 'USD', configured: true });
+      } catch (_e) {
+        return jsonResponse({ balance: null, currency: 'USD', configured: true });
+      }
+    }
+
     if (action === 'variant-submit') {
       const falKey = await getFalKey(supabaseAdmin);
       if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
@@ -411,9 +451,11 @@ Deno.serve(async (req: Request) => {
       const parentAssetId = typeof body.parent_asset_id === 'string' ? body.parent_asset_id : null;
       const sourceAssetId = typeof body.source_asset_id === 'string' ? body.source_asset_id : null;
       // Wishpedia character references for canon-accurate recreation: IDs only,
-      // resolved to public URLs server-side. Capped to keep the edit call sane.
+      // resolved to public URLs server-side. Capped to the generous edit-model
+      // default (the UI mixes images across entries up to this many; per-model
+      // clamping is enforced client-side at model selection).
       const referenceImageIds = Array.isArray(body.reference_image_ids)
-        ? (body.reference_image_ids as unknown[]).filter((x): x is string => typeof x === 'string').slice(0, 5)
+        ? (body.reference_image_ids as unknown[]).filter((x): x is string => typeof x === 'string').slice(0, 10)
         : [];
       const promptStr = typeof body.prompt === 'string' ? body.prompt.trim() : '';
       if (typeof runId !== 'string' || typeof modelId !== 'string') {
@@ -436,7 +478,14 @@ Deno.serve(async (req: Request) => {
       const model = await findFalModel(modelId, falKey);
       if (!model) return jsonResponse({ error: `Model "${modelId}" is not in the fal catalog.` }, 400);
 
-      const input: Record<string, unknown> = { num_images: 1 };
+      // Per-variant technical spec (size/ratio/quality) from the wizard's step 4.
+      const spec = body.spec && typeof body.spec === 'object' && !Array.isArray(body.spec)
+        ? (body.spec as Record<string, unknown>)
+        : null;
+
+      const input: Record<string, unknown> = {};
+      // Some models (FLUX.2 max / pro-edit, Recraft) reject num_images entirely.
+      if (modelSupportsNumImages(modelId)) input.num_images = 1;
       if (promptStr) input.prompt = promptStr;
 
       // Build the image-to-image input from two server-resolved sources, so the
@@ -465,7 +514,10 @@ Deno.serve(async (req: Request) => {
 
       let referenceNames: string[] = [];
       if (referenceImageIds.length > 0) {
-        const refs = await resolveWishpediaReferences(supabaseAdmin, referenceImageIds);
+        // Model-aware clamp: the edit models differ on how many input images they
+        // accept (e.g. Seedream 10, Qwen 6). Use only as many as this model handles.
+        const maxRefs = EDIT_MODEL_MAX_REFS[modelId] ?? DEFAULT_EDIT_MODEL_MAX_REFS;
+        const refs = await resolveWishpediaReferences(supabaseAdmin, referenceImageIds.slice(0, maxRefs));
         for (const r of refs) imageUrls.push(r.url);
         referenceNames = [...new Set(refs.map((r) => r.entryName).filter((n) => n.length > 0))];
       }
@@ -477,7 +529,14 @@ Deno.serve(async (req: Request) => {
         } else {
           input.image_urls = imageUrls;
         }
-        const aspectRatio = typeof body.aspect_ratio === 'string' && /^\d{1,2}:\d{1,2}$/.test(body.aspect_ratio)
+      }
+      // The generation flow sends a per-variant spec → model-correct size/quality
+      // params. The repurpose flow sends no spec and steers with a legacy
+      // aspect_ratio (only meaningful when there is a source/reference image).
+      if (spec) {
+        applySpecToInput(modelId, spec, input);
+      } else if (imageUrls.length > 0) {
+        const aspectRatio = typeof body.aspect_ratio === 'string' && /^[1-9]\d?:[1-9]\d?$/.test(body.aspect_ratio)
           ? body.aspect_ratio
           : null;
         if (aspectRatio) input.aspect_ratio = aspectRatio;
@@ -902,10 +961,11 @@ Deno.serve(async (req: Request) => {
         .from('omni_assets')
         .select('id')
         .in('id', assetIds)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .eq('run_id', runId);
       const ownedIds = new Set(((ownedAssets as { id: string }[] | null) ?? []).map((a) => a.id));
       if (assetIds.some((id) => !ownedIds.has(id))) {
-        return jsonResponse({ error: 'One or more assets do not belong to this run owner' }, 403);
+        return jsonResponse({ error: 'One or more assets do not belong to this run' }, 403);
       }
 
       const { data: item, error: itemError } = await supabaseAdmin
@@ -944,6 +1004,10 @@ Deno.serve(async (req: Request) => {
         const { error: postsError } = await supabaseAdmin.from('content_library_posts').insert(postRows);
         if (postsError) {
           console.error('Omni: library posts insert error:', postsError.message);
+          // No transaction available via supabase-js: if the posts insert fails,
+          // roll back the item we just created so a posts failure never leaves an
+          // orphaned, empty Content Library item behind.
+          await supabaseAdmin.from('content_library_items').delete().eq('id', itemId);
           return jsonResponse({ error: 'Failed to create the Content Library posts' }, 500);
         }
         postsCreated = postRows.length;

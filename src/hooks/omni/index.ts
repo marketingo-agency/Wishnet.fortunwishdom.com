@@ -1,6 +1,7 @@
 export * from './types';
 export * from './useOmniSettings';
 export * from './useFalCatalog';
+export * from './useFalCredits';
 export * from './useOmniRuns';
 export * from './useOmniGeneration';
 export * from './useOmniDescriptions';

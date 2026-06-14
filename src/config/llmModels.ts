@@ -67,6 +67,45 @@ export const FAL_IMAGE_MODELS: ModelOption[] = [
   { value: 'fal-ai/imagen4/preview', label: 'Imagen 4', description: 'Google highest quality (preview)' },
 ];
 
+// fal.ai Image-to-Image / EDIT Models — curated + verified via fal-ai MCP 2026-06-14.
+// All accept `image_urls[]` + `prompt`, so they recreate Wishpedia canon characters
+// from attached reference images. Offered in Omni Images step 3 when references are
+// attached (the wizard hides text-to-image models there — they cannot use refs).
+// `maxRefs` = the reference-image count the model sensibly handles.
+export interface EditModelOption extends ModelOption {
+  maxRefs: number;
+}
+
+export const FAL_EDIT_MODELS: EditModelOption[] = [
+  { value: 'fal-ai/nano-banana-pro/edit', label: 'Nano Banana Pro Edit', description: 'Google SOTA edit — highest character fidelity, up to 4K', maxRefs: 8 },
+  { value: 'fal-ai/nano-banana-2/edit', label: 'Nano Banana 2 Edit', description: 'Fast Gemini edit, cheaper than Pro', maxRefs: 8 },
+  { value: 'fal-ai/bytedance/seedream/v4/edit', label: 'Seedream V4 Edit', description: 'Unified gen+edit, up to 10 references', maxRefs: 10 },
+  { value: 'fal-ai/qwen-image-edit-plus', label: 'Qwen Image Edit Plus', description: 'Best at preserving in-image text/typography', maxRefs: 6 },
+  { value: 'fal-ai/flux-2-pro/edit', label: 'FLUX.2 Pro Edit', description: 'Photoreal flagship edit + color control', maxRefs: 8 },
+  { value: 'fal-ai/gpt-image-1.5/edit', label: 'GPT-Image 1.5 Edit', description: 'Strong prompt adherence, preserves composition', maxRefs: 8 },
+];
+
+/** Per-edit-model reference-image cap, derived from FAL_EDIT_MODELS. */
+export const EDIT_MODEL_MAX_REFS: Record<string, number> = Object.fromEntries(
+  FAL_EDIT_MODELS.map((m) => [m.value, m.maxRefs]),
+);
+
+export const DEFAULT_EDIT_MODEL_MAX_REFS = 6;
+
+/** The proven default edit model (pre-selected when references are attached). */
+export const DEFAULT_FAL_EDIT_MODEL = FAL_EDIT_MODELS[0].value;
+
+export function getEditModelMaxRefs(modelId: string): number {
+  return EDIT_MODEL_MAX_REFS[modelId] ?? DEFAULT_EDIT_MODEL_MAX_REFS;
+}
+
+/**
+ * Generous reference-image cap for the step-1 picker = the most any curated edit
+ * model accepts. The model is chosen later (step 3), so this is the upper bound;
+ * step 3 narrows the warning to the chosen model and the edge clamps per model.
+ */
+export const MAX_REFERENCE_IMAGES = Math.max(...FAL_EDIT_MODELS.map((m) => m.maxRefs));
+
 // fal.ai Video Generation Models (verified from fal-ai MCP 2026-04-14)
 export const FAL_VIDEO_MODELS: ModelOption[] = [
   { value: 'fal-ai/kling-video/v3/pro/text-to-video', label: 'Kling 3.0 Pro', description: 'Cinematic + native audio' },

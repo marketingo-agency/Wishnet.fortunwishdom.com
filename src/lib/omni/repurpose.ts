@@ -13,17 +13,28 @@ export interface RepurposeTarget {
   height: number;
 }
 
+/**
+ * 'cover' = centered cover-crop (free Smart crop; fills the box, may cut edges).
+ * 'contain' = fit the whole image into the box with no distortion; any letterbox
+ * gap is filled with a cover-scaled copy of the same image (no transparent bars).
+ * Used by AI re-design, where the fal output already matches the target aspect
+ * so the fit is near-exact and the composition is never re-cropped.
+ */
+export type RepurposeFit = 'cover' | 'contain';
+
 export interface RepurposeEngine {
   /** Produce a target-sized image blob from a source image URL. */
-  render(sourceUrl: string, target: RepurposeTarget): Promise<Blob>;
+  render(sourceUrl: string, target: RepurposeTarget, fit?: RepurposeFit): Promise<Blob>;
 }
 
-/** Stepped high-quality downscale + centered cover-crop on a canvas. */
+/** Stepped high-quality downscale + centered cover-crop / contain-fit on a canvas. */
 export class CanvasRepurposeEngine implements RepurposeEngine {
-  async render(sourceUrl: string, target: RepurposeTarget): Promise<Blob> {
+  async render(sourceUrl: string, target: RepurposeTarget, fit: RepurposeFit = 'cover'): Promise<Blob> {
     const source = await loadBitmap(sourceUrl);
     try {
-      const canvas = coverCrop(source, target.width, target.height);
+      const canvas = fit === 'contain'
+        ? containFit(source, target.width, target.height)
+        : coverCrop(source, target.width, target.height);
       return await canvasToBlob(canvas);
     } finally {
       source.close();
@@ -82,6 +93,34 @@ function coverCrop(source: ImageBitmap, dstW: number, dstH: number): HTMLCanvasE
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(current, srcX, srcY, cropW, cropH, 0, 0, dstW, dstH);
+  return out;
+}
+
+/**
+ * Fit the whole image into the target box (no crop, no distortion), centered.
+ * Letterbox gaps are filled with a cover-scaled copy of the same image so there
+ * are never transparent/black bars — ideal for AI re-designed compositions.
+ */
+function containFit(source: ImageBitmap, dstW: number, dstH: number): HTMLCanvasElement {
+  const out = document.createElement('canvas');
+  out.width = dstW;
+  out.height = dstH;
+  const ctx = out.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2D context unavailable');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  // Background fill: cover-scale (fills the box, crops overflow).
+  const coverScale = Math.max(dstW / source.width, dstH / source.height);
+  const bgW = source.width * coverScale;
+  const bgH = source.height * coverScale;
+  ctx.drawImage(source, (dstW - bgW) / 2, (dstH - bgH) / 2, bgW, bgH);
+
+  // Foreground: contain-scale (whole image visible, centered).
+  const fitScale = Math.min(dstW / source.width, dstH / source.height);
+  const fgW = source.width * fitScale;
+  const fgH = source.height * fitScale;
+  ctx.drawImage(source, (dstW - fgW) / 2, (dstH - fgH) / 2, fgW, fgH);
   return out;
 }
 

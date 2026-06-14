@@ -21,7 +21,7 @@ const RatioPreview = ({ width, height }: { width: number; height: number }) => {
   const scale = max / Math.max(width, height);
   return (
     <span
-      className="inline-block rounded-sm border border-cyan-500/50 bg-cyan-500/10"
+      className="inline-block rounded-none border border-cyan-500/50 bg-cyan-500/10"
       style={{ width: Math.max(6, Math.round(width * scale)), height: Math.max(6, Math.round(height * scale)) }}
       aria-hidden="true"
     />

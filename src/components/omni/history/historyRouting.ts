@@ -11,9 +11,9 @@ import type { OmniImagesState, OmniMode, OmniRun } from '@/hooks/omni';
 
 export type WizardSurface = 'omni_images' | 'transform_upscale' | 'repurposing' | 'brainstorming';
 
-const OMNI_IMAGES_SEQUENCE = [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12];
+const OMNI_IMAGES_SEQUENCE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 const TRANSFORM_SEQUENCE = [1, 2, 3, 4, 5, 6];
-const HANDOFF_SEQUENCE = [7, 8, 9, 10, 11, 12];
+const HANDOFF_SEQUENCE = [7, 8, 9, 10, 11];
 
 export function resolveSurfaceForStep(mode: OmniMode, step: number): WizardSurface {
   if (mode === 'transform_upscale') return step <= 6 ? 'transform_upscale' : 'omni_images';

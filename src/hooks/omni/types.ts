@@ -87,12 +87,32 @@ export interface OmniModelSelection {
   variants: number;
 }
 
+/** Per-variant technical image spec (size / ratio / quality). The fields that
+ *  apply depend on the model's fal sizing convention (see src/config/falSpecs).
+ *  The edge translates this into the correct fal input params per model. */
+export interface OmniVariantSpec {
+  /** image_size convention: a named preset or 'custom'; pixel_enum: a pixel string. */
+  imageSize?: string;
+  /** Custom pixel dimensions (image_size convention, imageSize === 'custom'). */
+  width?: number;
+  height?: number;
+  /** aspect_resolution convention. */
+  aspectRatio?: string;
+  resolution?: string;
+  /** Model-specific quality knob value (e.g. gpt quality, ideogram rendering_speed). */
+  quality?: string;
+  /** gpt-image only. */
+  inputFidelity?: string;
+}
+
 export interface OmniRepurposedRef {
   asset_id: string;
   source_asset_id: string;
   network: string;
   preset_id: string;
-  mode: 'crop' | 'ai';
+  // 'redesign' = AI re-layout for the target dimension; 'crop' = free smart crop.
+  // 'ai' is the legacy outpaint-extend mode, kept for resumed older runs.
+  mode: 'crop' | 'ai' | 'redesign';
 }
 
 /** A Wishpedia reference image attached to an Omni Images run for canon-accurate
@@ -125,10 +145,16 @@ export interface OmniImagesState {
   analysis?: OmniAnalysis;
   transform_prompt?: string;
   model_selections?: OmniModelSelection[];
+  /** Per-model, per-variant technical specs (size/ratio/quality), keyed by model_id. */
+  model_specs?: Record<string, OmniVariantSpec[]>;
   generated_asset_ids?: string[];
   selected_asset_ids?: string[];
   descriptions?: string[];
   chosen_description?: string;
+  /** Per base-image, per-network caption options: [assetId][networkId] → examples. */
+  caption_options?: Record<string, Record<string, string[]>>;
+  /** Per base-image, per-network chosen caption: [assetId][networkId] → caption. */
+  chosen_captions?: Record<string, Record<string, string>>;
   description_locked?: boolean;
   networks?: string[];
   preset_selections?: Record<string, string[]>;

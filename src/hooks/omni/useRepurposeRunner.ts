@@ -1,10 +1,11 @@
 "use client";
 
 /**
- * Repurposing runner for wizard step 10.
- * Deterministic jobs run the client canvas engine (resize + cover-crop).
- * AI-extend jobs go through the generic fal runner (nano-banana edit family,
- * aspect_ratio steered), then a final canvas crop guarantees exact pixels.
+ * Repurposing runner for the merged Repurpose & approve step.
+ * 'crop' jobs run the client canvas engine (resize + cover-crop) for free.
+ * 'redesign' jobs ask an edit model to re-lay-out the post for the target
+ * aspect (keeping subjects, text, colors), then contain-fit to exact pixels so
+ * the re-designed composition is never re-cropped.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -14,7 +15,7 @@ import { getPreset, type OmniNetworkId } from '@/components/omni/omniNetworkPres
 import { getAssetSignedUrl, uploadRepurposedAsset } from './useOmniGeneration';
 import type { OmniAsset, OmniRepurposedRef, VariantPollResult } from './types';
 
-export type RepurposeMode = 'crop' | 'ai';
+export type RepurposeMode = 'crop' | 'redesign';
 
 export interface RepurposeJob {
   key: string;
@@ -28,7 +29,9 @@ export interface RepurposeJob {
   error?: string;
 }
 
-const AI_EXTEND_MODEL = 'fal-ai/nano-banana-2/edit';
+// Nano Banana Pro edit gives the best fidelity at preserving text + subjects
+// while recomposing the layout for a new aspect ratio.
+const REDESIGN_MODEL = 'fal-ai/nano-banana-pro/edit';
 const ALLOWED_AI_RATIOS = ['1:1', '4:5', '5:4', '3:4', '4:3', '2:3', '3:2', '9:16', '16:9', '2:1', '1:2', '3:1', '21:9'];
 
 function nearestAiRatio(width: number, height: number): string {
@@ -100,34 +103,34 @@ export function useRepurposeRunner(runId: string, assetsById: Map<string, OmniAs
       }
       patchJob(job.key, { status: 'working' });
       try {
-        let cropSourceUrl: string;
+        let blob: Blob;
 
-        if (job.mode === 'ai') {
+        if (job.mode === 'redesign') {
           const submit = await callOmni<{ asset_id: string }>('variant-submit', {
             run_id: runId,
-            model_id: AI_EXTEND_MODEL,
-            prompt: `Extend this image naturally to a ${preset.ratio} canvas for a ${job.network} ${preset.label}. Keep the main subject fully intact and centered; continue the scene seamlessly at the edges. Do not add text or logos.`,
+            model_id: REDESIGN_MODEL,
+            prompt: `Re-compose this image as a native ${preset.ratio} ${job.network} ${preset.label}. Reposition and rescale the main subject(s) and any text so the whole layout is balanced and fully visible inside the new ${preset.ratio} frame; intelligently rebuild and extend the background to fill the canvas. Preserve the exact subjects, their text content, colors, fonts, and brand style. Do not letterbox, do not crop the subjects, do not invent new text.`,
             parent_asset_id: job.sourceAssetId,
             source_asset_id: job.sourceAssetId,
             aspect_ratio: nearestAiRatio(preset.width, preset.height),
           });
           const result = await pollSingle(submit.asset_id);
           if (result.status !== 'done' || !result.url) {
-            patchJob(job.key, { status: 'failed', error: result.error ?? 'AI extension failed' });
+            patchJob(job.key, { status: 'failed', error: result.error ?? 'AI re-design failed' });
             return;
           }
-          cropSourceUrl = result.url;
+          // The fal output already matches the target aspect; contain-fit to the
+          // exact pixels so the re-designed composition is never re-cropped.
+          blob = await repurposeEngine.render(result.url, { width: preset.width, height: preset.height }, 'contain');
         } else {
           const url = await getAssetSignedUrl(source.storage_path);
           if (!url) {
             patchJob(job.key, { status: 'failed', error: 'Could not access the source image' });
             return;
           }
-          cropSourceUrl = url;
+          blob = await repurposeEngine.render(url, { width: preset.width, height: preset.height }, 'cover');
         }
 
-        // Exact pixel dimensions are always guaranteed by the canvas pass.
-        const blob = await repurposeEngine.render(cropSourceUrl, { width: preset.width, height: preset.height });
         const assetId = await uploadRepurposedAsset({
           runId,
           sourceAssetId: job.sourceAssetId,
@@ -143,6 +146,24 @@ export function useRepurposeRunner(runId: string, assetsById: Map<string, OmniAs
       }
     },
     [assetsById, patchJob, pollSingle, runId],
+  );
+
+  /** Re-run a single job from scratch (its old output should be discarded first). */
+  const regenerate = useCallback(
+    async (key: string) => {
+      if (isRunning) return;
+      const job = jobsRef.current.find((j) => j.key === key);
+      if (!job) return;
+      const fresh: RepurposeJob = { ...job, status: 'pending', resultAssetId: undefined, previewUrl: undefined, error: undefined };
+      setJobs((prev) => prev.map((j) => (j.key === key ? fresh : j)));
+      setIsRunning(true);
+      try {
+        await runJob(fresh);
+      } finally {
+        setIsRunning(false);
+      }
+    },
+    [isRunning, runJob],
   );
 
   const runAll = useCallback(
@@ -176,5 +197,5 @@ export function useRepurposeRunner(runId: string, assetsById: Map<string, OmniAs
       }));
   }, [jobs]);
 
-  return { jobs, setJobs, patchJob, runAll, isRunning, collectRefs };
+  return { jobs, setJobs, patchJob, runAll, regenerate, isRunning, collectRefs };
 }

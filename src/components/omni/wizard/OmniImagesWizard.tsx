@@ -21,16 +21,16 @@ import { WizardChrome } from './WizardChrome';
 import { StepObjective } from './StepObjective';
 import { StepLockPrompt } from './StepLockPrompt';
 import { StepModels } from './StepModels';
+import { StepSpecs } from './StepSpecs';
 import { StepRecap } from './StepRecap';
 import { StepGeneration } from './StepGeneration';
 import { StepDescriptions } from './StepDescriptions';
 import { StepNetworks } from './StepNetworks';
 import { StepDimensions } from './StepDimensions';
 import { StepRepurpose } from './StepRepurpose';
-import { StepApproval } from './StepApproval';
 import { StepFinalize } from './StepFinalize';
 
-const BACK_TARGET: Record<number, number> = { 2: 1, 3: 2, 4: 3, 5: 4, 7: 5, 8: 7, 9: 8, 10: 9, 11: 10, 12: 11 };
+const BACK_TARGET: Record<number, number> = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 7, 9: 8, 10: 9, 11: 10 };
 
 interface OmniImagesWizardProps {
   runId: string | null;
@@ -50,7 +50,10 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
   const [localStep, setLocalStep] = useState<number | null>(null);
   const [localState, setLocalState] = useState<OmniImagesState | null>(null);
 
-  const step = localStep ?? run.data?.current_step ?? 1;
+  const rawStep = localStep ?? run.data?.current_step ?? 1;
+  // Approval merged into step 10 and Finalize moved 12 → 11; map any lingering
+  // step-12 value (runs created before the merge) onto the new Finalize step.
+  const step = rawStep === 12 ? 11 : rawStep;
   const state: OmniImagesState = useMemo(
     () => localState ?? ((run.data?.step_state ?? {}) as OmniImagesState),
     [localState, run.data],
@@ -147,50 +150,66 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
           <StepModels
             initialSelections={state.model_selections ?? []}
             hasReferences={(state.reference_image_refs?.length ?? 0) > 0}
+            referenceCount={state.reference_image_refs?.length ?? 0}
             onNext={(selections) => void persist(4, { model_selections: selections })}
           />
         )}
         {step === 4 && (
+          <StepSpecs
+            selections={state.model_selections ?? []}
+            initialSpecs={state.model_specs ?? {}}
+            onNext={(specs) => void persist(5, { model_specs: specs })}
+          />
+        )}
+        {step === 5 && (
           <StepRecap
             lockedPrompt={state.locked_prompt ?? ''}
             selections={state.model_selections ?? []}
-            onGenerate={() => void persist(5, {})}
-          />
-        )}
-        {step === 5 && runId && (
-          <StepGeneration
-            runId={runId}
-            lockedPrompt={state.locked_prompt ?? ''}
-            selections={state.model_selections ?? []}
-            initialSelected={state.selected_asset_ids ?? []}
-            referenceImageIds={(state.reference_image_refs ?? []).map((r) => r.wishpediaImageId)}
-            onNext={(generatedIds, selectedIds) =>
-              void persist(7, { generated_asset_ids: generatedIds, selected_asset_ids: selectedIds })
-            }
+            modelSpecs={state.model_specs ?? {}}
+            onGenerate={() => void persist(6, {})}
           />
         )}
         {step === 6 && (
-          // Transient transform-handoff state: the run row still says 6 while
-          // the persist to 7 is in flight. Render a loader, never empty chrome.
-          <div className="flex justify-center py-12" aria-label="Loading run state">
-            <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
-          </div>
+          // Generation is a real step for runs that own the early steps
+          // (omni_images / surprise_me / brainstorming). A transform or
+          // repurposing run can only sit here transiently during the handoff
+          // to step 7, so render a loader for those instead of the generator.
+          runId && ownsEarlySteps ? (
+            <StepGeneration
+              runId={runId}
+              lockedPrompt={state.locked_prompt ?? ''}
+              selections={state.model_selections ?? []}
+              modelSpecs={state.model_specs ?? {}}
+              initialSelected={state.selected_asset_ids ?? []}
+              referenceImageIds={(state.reference_image_refs ?? []).map((r) => r.wishpediaImageId)}
+              onNext={(generatedIds, selectedIds) =>
+                void persist(7, { generated_asset_ids: generatedIds, selected_asset_ids: selectedIds })
+              }
+            />
+          ) : (
+            <div className="flex justify-center py-12" aria-label="Loading run state">
+              <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
+            </div>
+          )
         )}
         {step === 7 && (
-          <StepDescriptions
-            objective={state.objective ?? ''}
-            lockedPrompt={state.locked_prompt ?? ''}
-            initialDescriptions={state.descriptions ?? []}
-            initialChosen={state.chosen_description ?? ''}
-            onLock={(descriptions, chosen) =>
-              void persist(8, { descriptions, chosen_description: chosen, description_locked: true })
-            }
-          />
-        )}
-        {step === 8 && (
           <StepNetworks
             initialNetworks={state.networks ?? []}
-            onNext={(networks) => void persist(9, { networks })}
+            onNext={(networks) => void persist(8, { networks })}
+          />
+        )}
+        {step === 8 && runId && (
+          <StepDescriptions
+            runId={runId}
+            objective={state.objective ?? ''}
+            lockedPrompt={state.locked_prompt ?? ''}
+            networks={state.networks ?? []}
+            selectedAssetIds={state.selected_asset_ids ?? []}
+            initialOptions={state.caption_options ?? {}}
+            initialChosen={state.chosen_captions ?? {}}
+            onLock={(options, chosen) =>
+              void persist(9, { caption_options: options, chosen_captions: chosen, description_locked: true })
+            }
           />
         )}
         {step === 9 && (
@@ -214,24 +233,21 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
               selectedAssets={selectedAssets}
               runAssets={assets.data ?? []}
               initialRepurposed={state.repurposed ?? []}
+              initialApproved={state.approved_asset_ids ?? []}
               presetSelections={state.preset_selections ?? {}}
               onProgress={(repurposed: OmniRepurposedRef[]) => void persistRepurposedProgress(repurposed)}
-              onNext={(repurposed: OmniRepurposedRef[]) => void persist(11, { repurposed })}
+              onNext={(repurposed: OmniRepurposedRef[], approved: string[]) =>
+                void persist(11, { repurposed, approved_asset_ids: approved })
+              }
             />
           )
         )}
-        {step === 11 && (
-          <StepApproval
-            repurposed={state.repurposed ?? []}
-            initialApproved={state.approved_asset_ids ?? []}
-            onNext={(approvedIds) => void persist(12, { approved_asset_ids: approvedIds })}
-          />
-        )}
-        {step === 12 && runId && (
+        {step === 11 && runId && (
           <StepFinalize
             runId={runId}
             defaultTitle={state.title ?? state.objective?.slice(0, 60) ?? 'Omni content set'}
             chosenDescription={state.chosen_description ?? ''}
+            chosenCaptions={state.chosen_captions ?? {}}
             networks={state.networks ?? []}
             repurposed={state.repurposed ?? []}
             approvedAssetIds={state.approved_asset_ids ?? []}

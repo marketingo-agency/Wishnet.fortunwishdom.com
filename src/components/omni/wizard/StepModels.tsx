@@ -12,9 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useFalCatalog, type FalCapability, type FalModel, type OmniModelSelection } from '@/hooks/omni';
-
-/** The edit-capable model used for canon-accurate recreation from references. */
-const REFERENCE_EDIT_MODEL = { id: 'fal-ai/nano-banana-pro/edit', name: 'Nano Banana Pro Edit' };
+import { FAL_EDIT_MODELS } from '@/config/llmModels';
 
 interface StepModelsProps {
   initialSelections: OmniModelSelection[];
@@ -23,21 +21,27 @@ interface StepModelsProps {
   capability?: FalCapability;
   /** Show the Edit models / Upscalers filter chips (Transform mode). */
   showUpscaleToggle?: boolean;
-  /** Reference images are attached: lock to an edit-capable model so they are used. */
+  /** Reference images are attached: offer edit-capable models (they can use refs). */
   hasReferences?: boolean;
+  /** How many reference images are attached (drives per-model cap warnings). */
+  referenceCount?: number;
 }
 
-export function StepModels({ initialSelections, onNext, capability = 'text-to-image', showUpscaleToggle = false, hasReferences = false }: StepModelsProps) {
+export function StepModels({ initialSelections, onNext, capability = 'text-to-image', showUpscaleToggle = false, hasReferences = false, referenceCount = 0 }: StepModelsProps) {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [extraModels, setExtraModels] = useState<FalModel[]>([]);
   const [selections, setSelections] = useState<OmniModelSelection[]>(() => {
     // Text-to-image models ignore reference images, so when references are
-    // attached we force the edit-capable model (keeping any resumed count).
+    // attached we offer edit-capable models. Seed from any resumed edit picks,
+    // else pre-select the proven default (first FAL_EDIT_MODELS entry).
     if (hasReferences) {
-      const prior = initialSelections.find((s) => s.model_id === REFERENCE_EDIT_MODEL.id);
-      return [{ ...REFERENCE_EDIT_MODEL, model_id: REFERENCE_EDIT_MODEL.id, variants: prior?.variants ?? initialSelections[0]?.variants ?? 2 }];
+      const editIds = new Set(FAL_EDIT_MODELS.map((m) => m.value));
+      const priorEdits = initialSelections.filter((s) => editIds.has(s.model_id));
+      if (priorEdits.length > 0) return priorEdits;
+      const def = FAL_EDIT_MODELS[0];
+      return [{ model_id: def.value, name: def.label, variants: initialSelections[0]?.variants ?? 2 }];
     }
     return initialSelections;
   });
@@ -53,13 +57,15 @@ export function StepModels({ initialSelections, onNext, capability = 'text-to-im
 
   const selectionFor = (id: string) => selections.find((s) => s.model_id === id);
 
-  const toggle = (model: FalModel) => {
+  const toggleSelection = (id: string, name: string) => {
     setSelections((prev) =>
-      prev.some((s) => s.model_id === model.id)
-        ? prev.filter((s) => s.model_id !== model.id)
-        : [...prev, { model_id: model.id, name: model.name, variants: 2 }],
+      prev.some((s) => s.model_id === id)
+        ? prev.filter((s) => s.model_id !== id)
+        : [...prev, { model_id: id, name, variants: 2 }],
     );
   };
+
+  const toggle = (model: FalModel) => toggleSelection(model.id, model.name);
 
   const setVariants = (modelId: string, delta: number) => {
     setSelections((prev) =>
@@ -91,44 +97,88 @@ export function StepModels({ initialSelections, onNext, capability = 'text-to-im
     setCursor(undefined);
   };
 
-  // References attached: lock to the edit-capable model (the catalog browser
-  // is hidden because a text-to-image pick would silently ignore the refs).
+  // References attached: offer the curated edit-capable models (a text-to-image
+  // pick would silently ignore the refs). A fixed, vetted list — no catalog
+  // browser — each annotated with the reference count it will use.
   if (hasReferences) {
-    const variants = selections[0]?.variants ?? 2;
     return (
       <div className="space-y-4">
         <div className="flex items-start gap-2.5 rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-3">
           <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400" />
           <p className="text-xs text-muted-foreground">
-            Reference images are attached, so Omni uses <span className="font-medium text-cyan-700 [[data-omni-theme=dark]_&]:text-cyan-300">{REFERENCE_EDIT_MODEL.name}</span> to recreate the canon character faithfully. Text-to-image models cannot use references.
+            Reference images are attached, so pick one or more{' '}
+            <span className="font-medium text-cyan-700 [[data-omni-theme=dark]_&]:text-cyan-300">edit models</span>{' '}
+            — these recreate the canon character from your {referenceCount} reference{referenceCount === 1 ? '' : 's'}. Text-to-image models cannot use references.
           </p>
         </div>
 
-        <div className="rounded-xl border border-cyan-500/50 bg-card p-3 shadow-lg shadow-cyan-500/10">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold">{REFERENCE_EDIT_MODEL.name}</h3>
-            <span className="flex h-5 w-5 items-center justify-center rounded-full border border-cyan-500 bg-cyan-500 text-white">
-              <Check className="h-3 w-3" />
-            </span>
-          </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">Edits the reference images to match your prompt while preserving the character.</p>
-          <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
-            <span className="text-xs text-muted-foreground">Variants</span>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={() => setVariants(REFERENCE_EDIT_MODEL.id, -1)} disabled={variants <= 1} aria-label="Fewer variants" className="h-7 w-7 cursor-pointer">
-                <Minus className="h-3 w-3" />
-              </Button>
-              <span className="w-6 text-center text-sm font-semibold">{variants}</span>
-              <Button variant="outline" size="icon" onClick={() => setVariants(REFERENCE_EDIT_MODEL.id, 1)} disabled={variants >= 10} aria-label="More variants" className="h-7 w-7 cursor-pointer">
-                <Plus className="h-3 w-3" />
-              </Button>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {FAL_EDIT_MODELS.map((model) => {
+            const sel = selectionFor(model.value);
+            const overCap = referenceCount > model.maxRefs;
+            return (
+              <div
+                key={model.value}
+                className={cn(
+                  'rounded-xl border bg-card p-3 transition-all duration-200',
+                  sel ? 'border-cyan-500/50 shadow-lg shadow-cyan-500/10' : 'border-border hover:border-cyan-500/25',
+                )}
+              >
+                <button
+                  onClick={() => toggleSelection(model.value, model.label)}
+                  aria-pressed={!!sel}
+                  aria-label={`${sel ? 'Deselect' : 'Select'} ${model.label}`}
+                  className="flex w-full cursor-pointer items-start gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="truncate text-sm font-semibold">{model.label}</h3>
+                      <span
+                        className={cn(
+                          'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors duration-200',
+                          sel ? 'border-cyan-500 bg-cyan-500 text-white' : 'border-border',
+                        )}
+                      >
+                        {sel && <Check className="h-3 w-3" />}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{model.description}</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">Uses up to {model.maxRefs} reference images</p>
+                  </div>
+                </button>
+                {sel && overCap && (
+                  <p className="mt-1.5 text-[11px] text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400">
+                    Will use the first {model.maxRefs} of your {referenceCount} references.
+                  </p>
+                )}
+                {sel && (
+                  <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
+                    <span className="text-xs text-muted-foreground">Variants</span>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="icon" onClick={() => setVariants(model.value, -1)} disabled={sel.variants <= 1} aria-label="Fewer variants" className="h-7 w-7 cursor-pointer">
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      <span className="w-6 text-center text-sm font-semibold">{sel.variants}</span>
+                      <Button variant="outline" size="icon" onClick={() => setVariants(model.value, 1)} disabled={sel.variants >= 10} aria-label="More variants" className="h-7 w-7 cursor-pointer">
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
-        <div className="flex items-center justify-between rounded-xl border border-border bg-card/95 p-3">
-          <p className="text-sm text-muted-foreground">{variants} image{variants === 1 ? '' : 's'} total</p>
-          <Button onClick={() => onNext(selections)} className="cursor-pointer gap-2 bg-gradient-to-r from-cyan-500 to-violet-600 text-white transition-all duration-300 hover:opacity-90">
+        <div className="sticky bottom-0 -mx-1 flex items-center justify-between rounded-xl border border-border bg-card/95 p-3 backdrop-blur">
+          <p className="text-sm text-muted-foreground">
+            {selections.length} model{selections.length === 1 ? '' : 's'} · {totalImages} image{totalImages === 1 ? '' : 's'} total
+          </p>
+          <Button
+            onClick={() => onNext(selections)}
+            disabled={selections.length === 0}
+            className="cursor-pointer gap-2 bg-gradient-to-r from-cyan-500 to-violet-600 text-white transition-all duration-300 hover:opacity-90"
+          >
             Continue
             <ArrowRight className="h-4 w-4" />
           </Button>

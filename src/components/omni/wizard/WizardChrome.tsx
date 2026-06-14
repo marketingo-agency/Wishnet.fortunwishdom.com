@@ -5,7 +5,7 @@
  * Slim progress rail (12 spec steps), step title, back/exit controls.
  */
 
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -14,17 +14,17 @@ export const WIZARD_STEP_TITLES: Record<number, string> = {
   1: 'Describe the objective',
   2: 'Review and lock the prompt',
   3: 'Pick your models',
-  4: 'Recap',
-  5: 'Live generation',
-  7: 'Social descriptions',
-  8: 'Target networks',
+  4: 'Image specs',
+  5: 'Recap',
+  6: 'Live generation',
+  7: 'Target networks',
+  8: 'Social descriptions',
   9: 'Dimension presets',
-  10: 'Repurpose',
-  11: 'Approval',
-  12: 'Finalize',
+  10: 'Repurpose & approve',
+  11: 'Finalize',
 };
 
-const STEP_SEQUENCE = [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12];
+const STEP_SEQUENCE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
 interface WizardChromeProps {
   step: number;
@@ -35,6 +35,7 @@ interface WizardChromeProps {
 
 export function WizardChrome({ step, onBack, onExit, children }: WizardChromeProps) {
   const position = STEP_SEQUENCE.indexOf(step);
+  const reduceMotion = useReducedMotion();
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -53,7 +54,7 @@ export function WizardChrome({ step, onBack, onExit, children }: WizardChromePro
           )}
           <div className="min-w-0">
             <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Omni Images · Step {step} of 12
+              Omni Images · Step {position >= 0 ? position + 1 : step} of {STEP_SEQUENCE.length}
             </p>
             <h1 className="truncate text-sm font-semibold sm:text-base">{WIZARD_STEP_TITLES[step] ?? ''}</h1>
           </div>
@@ -83,10 +84,10 @@ export function WizardChrome({ step, onBack, onExit, children }: WizardChromePro
 
       <motion.div
         key={step}
-        initial={{ opacity: 0, y: 10 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -10 }}
-        transition={{ duration: 0.22, ease: 'easeOut' }}
+        exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -10 }}
+        transition={{ duration: reduceMotion ? 0 : 0.22, ease: 'easeOut' }}
         className="flex-1 overflow-y-auto px-4 py-5 sm:px-6"
       >
         <div className="mx-auto w-full max-w-3xl">{children}</div>

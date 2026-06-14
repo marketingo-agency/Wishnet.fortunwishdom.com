@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { callOmni } from '@/lib/omniApi';
-import type { OmniModelSelection, VariantPollResult } from './types';
+import type { OmniModelSelection, OmniVariantSpec, VariantPollResult } from './types';
 
 export interface VariantView {
   assetId: string;
@@ -70,7 +70,7 @@ export function useGenerationRunner(runId: string | null) {
 
   /** Submit count variants for one model; returns the created asset ids. */
   const submitModelBatch = useCallback(
-    async (modelSel: OmniModelSelection, prompt: string, sourceAssetId?: string, referenceImageIds?: string[]): Promise<string[]> => {
+    async (modelSel: OmniModelSelection, prompt: string, sourceAssetId?: string, referenceImageIds?: string[], variantSpecs?: OmniVariantSpec[]): Promise<string[]> => {
       const created: string[] = [];
       for (let i = 0; i < modelSel.variants; i++) {
         if (stopRef.current) break;
@@ -81,6 +81,7 @@ export function useGenerationRunner(runId: string | null) {
             prompt,
             source_asset_id: sourceAssetId,
             reference_image_ids: referenceImageIds,
+            spec: variantSpecs?.[i] ?? variantSpecs?.[0],
           });
           created.push(res.asset_id);
           setVariants((prev) => [
@@ -98,7 +99,7 @@ export function useGenerationRunner(runId: string | null) {
 
   /** Run the full plan: one model at a time, polling between batches. */
   const runPlan = useCallback(
-    async (selections: OmniModelSelection[], prompt: string, sourceAssetId?: string, referenceImageIds?: string[]) => {
+    async (selections: OmniModelSelection[], prompt: string, sourceAssetId?: string, referenceImageIds?: string[], modelSpecs?: Record<string, OmniVariantSpec[]>) => {
       if (!runId || isRunning) return;
       stopRef.current = false;
       setIsRunning(true);
@@ -106,7 +107,7 @@ export function useGenerationRunner(runId: string | null) {
         for (const sel of selections) {
           if (stopRef.current) break;
           setActiveModel(sel.model_id);
-          const ids = await submitModelBatch(sel, prompt, sourceAssetId, referenceImageIds);
+          const ids = await submitModelBatch(sel, prompt, sourceAssetId, referenceImageIds, modelSpecs?.[sel.model_id]);
           if (ids.length > 0) await pollUntilSettled(ids);
         }
       } finally {
@@ -119,7 +120,7 @@ export function useGenerationRunner(runId: string | null) {
 
   /** Regenerate a variation of an existing image with its ORIGINAL model. */
   const regenerateVariation = useCallback(
-    async (source: VariantView, changeNotes: string, basePrompt: string, sourceAssetId?: string, referenceImageIds?: string[]) => {
+    async (source: VariantView, changeNotes: string, basePrompt: string, sourceAssetId?: string, referenceImageIds?: string[], spec?: OmniVariantSpec) => {
       if (!runId) return;
       const prompt = `${basePrompt}\n\nREQUESTED CHANGES: ${changeNotes.trim()}\nGenerate a NEW variation that keeps the core concept but applies the requested changes.`;
       try {
@@ -130,6 +131,7 @@ export function useGenerationRunner(runId: string | null) {
           parent_asset_id: source.assetId,
           source_asset_id: sourceAssetId,
           reference_image_ids: referenceImageIds,
+          spec,
         });
         setVariants((prev) => [
           ...prev,

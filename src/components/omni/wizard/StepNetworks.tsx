@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * Step 8: choose one or more target social networks.
+ * Step 7: choose one or more target social networks (before captions, so each
+ * caption can be tailored per network).
  */
 
 import { ArrowRight, Check } from 'lucide-react';
