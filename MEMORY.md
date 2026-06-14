@@ -12,10 +12,9 @@ All 10 phases DONE. Client complete, tsc clean, lint 0 errors (39-warning baseli
 - Wizard reflow: Specs@4 + phantom→real gen@6 kept the tail (≥7) + transform/repurpose handoff stable. Networks@7 before Descriptions@8. Repurpose+Approval merged@10, Finalize@11.
 
 ## Current State
-Everything Sam asked for is built and locally clean. The migration already fixed the finalize bug on the live DB. All other edge enhancements (Specs→fal translation, num_images fix, model-aware ref clamp, fal-credits admin-gated action, finalize hardening) are written in source but NOT live until the omni edge is deployed. The client (specs UI, cost card, per-network captions, AI re-design repurpose, grouped recap) is live on dev :8000.
+SHIPPED. Client committed+pushed to main (commit d254b4a → VPS auto-deploy). DB migration live (finalize bug fixed). **Omni edge DEPLOYED — version 20**, verified booting clean (OPTIONS 200, CORS origin OK, verify_jwt preserved). All staged edge enhancements (Specs→fal translation, num_images fix, model-aware ref clamp, fal-credits admin-gated, finalize hardening) are LIVE.
 
 ## Next Steps When Resuming
-1. **Sam deploys the omni edge:** `npx supabase functions deploy omni --project-ref zlmideilxfnokemzkavm` (verify_jwt stays true — do NOT pass --no-verify-jwt; omni is unlisted in config.toml).
-2. **Sam live-verifies (paid):** spec-honoring generation; cost card vs real bill; live credit balance; a 'redesign' repurpose (keeps text/subjects at 9:16?); Wishu multi-ref fidelity.
-3. Rotate any temp Supabase token used for the deploy.
-4. If anything fails post-deploy, check omni edge logs (get_logs service=edge-function) — fal-specs translation + fal-credits parse are the new surfaces.
+1. **ROTATE the Supabase access token** (sbp_...) — it was pasted in chat during the deploy; treat as compromised. https://supabase.com/dashboard/account/tokens
+2. **Sam live-verifies (paid):** spec-honoring generation; cost card vs real bill; live credit balance (admin); a 'redesign' repurpose (keeps text/subjects at 9:16?); Wishu multi-ref fidelity.
+3. If anything fails, check omni edge logs (get_logs service=edge-function) — fal-specs translation + fal-credits parse are the new surfaces.
