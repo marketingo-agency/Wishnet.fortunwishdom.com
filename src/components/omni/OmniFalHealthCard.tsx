@@ -25,6 +25,14 @@ export function OmniFalHealthCard() {
   const testGenerate = useFalTestGenerate();
   const [testResult, setTestResult] = useState<FalTestResult | null>(null);
   const creditBalance = credits.data?.available && credits.data.balance != null ? credits.data.balance : null;
+  const creditReason = credits.data?.reason;
+  const creditHint =
+    creditReason === 'no_key' ? 'No fal API key is configured.'
+    : creditReason === 'http_401' || creditReason === 'http_403'
+      ? 'The fal key lacks billing (Admin) scope — add an Admin-scope fal key to read credits.'
+    : creditReason === 'unparsed' ? 'fal returned an unexpected billing format.'
+    : creditReason === 'fetch_error' || creditReason === 'request_failed' ? 'Could not reach fal billing right now.'
+    : 'Live fal credit balance is unavailable right now.';
 
   const handleTest = async () => {
     setTestResult(null);
@@ -94,7 +102,8 @@ export function OmniFalHealthCard() {
               </span>
             ) : (
               <span
-                aria-label={credits.data?.configured ? 'fal credit balance is temporarily unavailable' : 'fal API key is not configured'}
+                aria-label={creditHint}
+                title={creditHint}
                 className="flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground"
               >
                 <Wallet className="h-3.5 w-3.5" />

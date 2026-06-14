@@ -145,7 +145,7 @@ function toNum(v: unknown): number | null {
 // (not consumed/cost/owed numerics) and clamp to a sane USD range, so an unknown
 // payload can never surface a misleading credits figure. The explicit candidate
 // paths above cover every known fal shape; this only fires on truly-novel ones.
-const BALANCE_KEY_RE = /^(balance|credit_balance|available_credits)$/i;
+const BALANCE_KEY_RE = /^(current_balance|balance|credit_balance|available_credits)$/i;
 function deepFindBalance(obj: Record<string, unknown>, depth: number): number | null {
   if (depth > 3) return null;
   for (const [k, v] of Object.entries(obj)) {
@@ -182,8 +182,10 @@ function extractCreditBalance(data: unknown): { balance: number | null; currency
   const currency = currencyOf(co) ?? currencyOf(root) ?? 'USD';
   const candidates: unknown[] = [
     credits,
-    co?.balance, co?.amount, co?.available, co?.remaining, co?.total, co?.credits,
-    root.balance, root.credit_balance, root.available_credits, root.amount,
+    // fal's documented shape is { credits: { current_balance, currency } } — most
+    // specific path FIRST so it matches deterministically (not via the fallback).
+    co?.current_balance, co?.balance, co?.amount, co?.available, co?.remaining, co?.total, co?.credits,
+    root.current_balance, root.balance, root.credit_balance, root.available_credits, root.amount,
   ];
   for (const c of candidates) {
     const n = toNum(c);
@@ -483,32 +485,35 @@ Deno.serve(async (req: Request) => {
       // Org financial data: admin-gated. Non-admins get the estimate-only view
       // (the client degrades gracefully to "Unavailable").
       const { data: isCreditsAdmin } = await supabaseAdmin.rpc('is_admin', { _user_id: userId });
-      if (!isCreditsAdmin) return jsonResponse({ balance: null, currency: 'USD', configured: false });
+      if (!isCreditsAdmin) return jsonResponse({ balance: null, currency: 'USD', configured: false, reason: 'not_admin' });
       const falKey = await getFalKey(supabaseAdmin);
-      if (!falKey) return jsonResponse({ balance: null, currency: 'USD', configured: false });
+      if (!falKey) return jsonResponse({ balance: null, currency: 'USD', configured: false, reason: 'no_key' });
       try {
         const res = await fetch('https://api.fal.ai/v1/account/billing?expand=credits', {
           headers: { Authorization: `Key ${falKey}` },
           signal: AbortSignal.timeout(10_000),
         });
         if (!res.ok) {
+          // A 401/403 here almost always means the stored fal key lacks Admin
+          // (billing) scope — the inference key that works for generation is not
+          // guaranteed to cover /account/billing. The reason is admin-only + carries
+          // no secret, so the UI can surface a precise hint.
           console.warn(`Omni fal-credits: billing returned HTTP ${res.status}`);
-          return jsonResponse({ balance: null, currency: 'USD', configured: true });
+          return jsonResponse({ balance: null, currency: 'USD', configured: true, reason: `http_${res.status}` });
         }
         const data = (await res.json().catch(() => null)) as unknown;
         const { balance, currency } = extractCreditBalance(data);
         if (balance == null && data && typeof data === 'object') {
-          // Diagnostic (keys only, never values) so a shape mismatch is traceable
-          // from edge logs without leaking the balance or the key. Keys are
-          // allowlist-filtered to plain identifiers so nothing fal might echo back
-          // can land verbatim in logs.
+          // Allowlist-filtered keys only (never values): admin-only, lets us see an
+          // unexpected fal shape from the client network response without dashboard logs.
           const safeKeys = Object.keys(data as Record<string, unknown>).filter((k) => /^[a-z_][a-z0-9_]{0,32}$/i.test(k));
           console.warn('Omni fal-credits: unparsed billing payload; keys =', safeKeys.join(','));
+          return jsonResponse({ balance: null, currency, configured: true, reason: 'unparsed', keys: safeKeys });
         }
         return jsonResponse({ balance, currency, configured: true });
       } catch (e) {
         console.warn('Omni fal-credits: billing fetch failed:', e instanceof Error ? e.message : 'unknown');
-        return jsonResponse({ balance: null, currency: 'USD', configured: true });
+        return jsonResponse({ balance: null, currency: 'USD', configured: true, reason: 'fetch_error' });
       }
     }
 

@@ -18,6 +18,9 @@ export interface FalCredits {
    *  live balance couldn't be read). Lets the UI tell "no access/key" apart from
    *  a transient "balance unavailable". */
   configured: boolean;
+  /** Why the balance is null, when it is: no_key | http_401 | http_403 | unparsed |
+   *  fetch_error | request_failed. Drives a precise UI hint. */
+  reason?: string;
 }
 
 export function useFalCredits(enabled = true) {
@@ -25,15 +28,16 @@ export function useFalCredits(enabled = true) {
     queryKey: ['omni-fal-credits'],
     queryFn: async () => {
       try {
-        const res = await callOmni<{ balance: number | null; currency?: string; configured?: boolean }>('fal-credits', {});
+        const res = await callOmni<{ balance: number | null; currency?: string; configured?: boolean; reason?: string }>('fal-credits', {});
         return {
           balance: typeof res.balance === 'number' ? res.balance : null,
           currency: res.currency ?? 'USD',
           available: typeof res.balance === 'number',
           configured: res.configured ?? false,
+          reason: res.reason,
         };
       } catch {
-        return { balance: null, currency: 'USD', available: false, configured: false };
+        return { balance: null, currency: 'USD', available: false, configured: false, reason: 'request_failed' };
       }
     },
     enabled,
