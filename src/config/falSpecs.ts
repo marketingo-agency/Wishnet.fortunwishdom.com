@@ -68,6 +68,20 @@ const IMAGEN_ASPECTS: FalOption[] = [
   { value: '3:4', label: '3:4' },
 ];
 
+// The Black Forest Labs FLUX family (Kontext + v1.1 Ultra) accepts this ratio set
+// (no 4:5 / 5:4, no resolution param). These UI options stay a subset of each
+// model's MODEL_ASPECT_ENUMS, so nothing here is silently snapped server-side.
+const FLUX_ASPECTS: FalOption[] = [
+  { value: '1:1', label: '1:1 · Square' },
+  { value: '16:9', label: '16:9 · Landscape' },
+  { value: '9:16', label: '9:16 · Story' },
+  { value: '4:3', label: '4:3' },
+  { value: '3:4', label: '3:4' },
+  { value: '3:2', label: '3:2' },
+  { value: '2:3', label: '2:3' },
+  { value: '21:9', label: '21:9 · Cinematic' },
+];
+
 const RES_1K_4K: FalOption[] = [
   { value: '1K', label: '1K' },
   { value: '2K', label: '2K' },
@@ -129,12 +143,15 @@ export const FAL_SPEC_SCHEMAS: Record<string, FalSpecSchema> = {
     },
     defaults: { imageSize: 'square_hd', quality: 'BALANCED' },
   }),
-  'fal-ai/flux-pro/v1.1-ultra': aspectRes(STD_ASPECTS, undefined, { aspectRatio: '1:1' }),
+  'fal-ai/flux-pro/v1.1-ultra': aspectRes(FLUX_ASPECTS, undefined, { aspectRatio: '1:1' }),
   'fal-ai/imagen4/preview': aspectRes(IMAGEN_ASPECTS, RES_1K_2K, { aspectRatio: '1:1', resolution: '1K' }),
 
   // ── image-to-image / edit ───────────────────────────────────────────────────
   'fal-ai/nano-banana-pro/edit': aspectRes(STD_ASPECTS, RES_1K_4K, { aspectRatio: '1:1', resolution: '1K' }),
   'fal-ai/nano-banana-2/edit': aspectRes(STD_ASPECTS, RES_NB2, { aspectRatio: '1:1', resolution: '1K' }),
+  'fal-ai/flux-pro/kontext/max/multi': aspectRes(FLUX_ASPECTS, undefined, { aspectRatio: '1:1' }),
+  'fal-ai/flux-pro/kontext/multi': aspectRes(FLUX_ASPECTS, undefined, { aspectRatio: '1:1' }),
+  'fal-ai/gemini-25-flash-image/edit': aspectRes(STD_ASPECTS, undefined, { aspectRatio: '1:1' }),
   'fal-ai/bytedance/seedream/v4/edit': imageSize('square_hd', {
     quality: {
       label: 'Prompt enhance',
@@ -215,4 +232,72 @@ function parseRatio(ratio: string): [number, number] {
   const m = /^(\d{1,2}):(\d{1,2})$/.exec(ratio);
   if (!m) return [1, 1];
   return [Number(m[1]) || 1, Number(m[2]) || 1];
+}
+
+// ── per-model aspect_ratio enums + snapping ───────────────────────────────────
+// fal validates aspect_ratio against a FIXED per-model enum and rejects anything
+// else (e.g. nano-banana-pro/edit rejects 2:1/3:1). Single source of truth;
+// MIRRORED in supabase/functions/omni/fal-specs.ts — keep the two identical.
+// Only 'aspect_resolution' models have an aspect_ratio param; each must appear here.
+const ASPECT_RE = /^[1-9]\d?:[1-9]\d?$/;
+
+export const MODEL_ASPECT_ENUMS: Record<string, string[]> = {
+  'fal-ai/flux-pro/v1.1-ultra': ['21:9', '16:9', '4:3', '3:2', '1:1', '2:3', '3:4', '9:16', '9:21'],
+  'fal-ai/imagen4/preview': ['1:1', '16:9', '9:16', '4:3', '3:4'],
+  'fal-ai/nano-banana-pro/edit': ['auto', '21:9', '16:9', '3:2', '4:3', '5:4', '1:1', '4:5', '3:4', '2:3', '9:16'],
+  'fal-ai/nano-banana-2/edit': ['auto', '21:9', '16:9', '3:2', '4:3', '5:4', '1:1', '4:5', '3:4', '2:3', '9:16', '4:1', '1:4', '8:1', '1:8'],
+  'fal-ai/flux-pro/kontext/max/multi': ['21:9', '16:9', '4:3', '3:2', '1:1', '3:4', '2:3', '9:16', '9:21'],
+  'fal-ai/flux-pro/kontext/multi': ['21:9', '16:9', '4:3', '3:2', '1:1', '3:4', '2:3', '9:16', '9:21'],
+  'fal-ai/gemini-25-flash-image/edit': ['auto', '21:9', '16:9', '3:2', '4:3', '5:4', '1:1', '4:5', '3:4', '2:3', '9:16'],
+};
+
+function ratioValue(r: string): number | null {
+  const m = /^([1-9]\d?):([1-9]\d?)$/.exec(r);
+  if (!m) return null;
+  const w = Number(m[1]);
+  const h = Number(m[2]);
+  return h > 0 ? w / h : null;
+}
+
+function nearestInEnum(enums: string[], target: number): string | null {
+  let best: string | null = null;
+  let bestDiff = Infinity;
+  for (const cand of enums) {
+    const v = ratioValue(cand);
+    if (v == null) continue;
+    const diff = Math.abs(v - target);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = cand;
+    }
+  }
+  return best;
+}
+
+/**
+ * Snap an aspect_ratio string to the model's accepted enum (mirror of the edge
+ * helper). Returns null when the model has no aspect_ratio param so callers omit it.
+ */
+export function snapAspectRatio(modelId: string, ar: string | null | undefined): string | null {
+  if (typeof ar !== 'string' || ar.length === 0 || ar.length > 12) return null;
+  const enums = MODEL_ASPECT_ENUMS[modelId];
+  if (enums) {
+    if (enums.includes(ar)) return ar;
+    const target = ratioValue(ar);
+    if (target == null) return enums.includes('auto') ? 'auto' : null;
+    return nearestInEnum(enums, target);
+  }
+  if (FAL_SPEC_SCHEMAS[modelId] && FAL_SPEC_SCHEMAS[modelId].convention !== 'aspect_resolution') return null;
+  return ASPECT_RE.test(ar) ? ar : null;
+}
+
+/**
+ * Nearest accepted aspect_ratio for a target pixel size — used by the repurpose
+ * runner to pick a valid ratio for the redesign model from a network preset.
+ * Returns null only when the model has no known enum (caller should fall back).
+ */
+export function nearestAspectRatio(modelId: string, width: number, height: number): string | null {
+  const enums = MODEL_ASPECT_ENUMS[modelId];
+  if (!enums || !(width > 0) || !(height > 0)) return null;
+  return nearestInEnum(enums, width / height);
 }

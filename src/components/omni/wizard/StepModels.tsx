@@ -130,6 +130,11 @@ export function StepModels({ initialSelections, onNext, capability = 'text-to-im
                   aria-label={`${sel ? 'Deselect' : 'Select'} ${model.label}`}
                   className="flex w-full cursor-pointer items-start gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
+                  {model.logoUrl ? (
+                    <img src={model.logoUrl} alt="" className="h-12 w-12 shrink-0 rounded-lg border border-border object-cover" />
+                  ) : (
+                    <div className="h-12 w-12 shrink-0 rounded-lg border border-border bg-muted" />
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <h3 className="truncate text-sm font-semibold">{model.label}</h3>

@@ -82,6 +82,18 @@ export function useDiscardAsset() {
   });
 }
 
+/**
+ * Mark an asset discarded WITHOUT invalidating the ['omni-assets'] query.
+ * In-step actions (repurpose regenerate/delete, abandoning a compare candidate)
+ * must NOT invalidate: the wizard gates the step mount on assets.isFetching, so
+ * an invalidation unmounts the whole grid and rebuilds every tile. Fire-and-forget;
+ * surfaces failures via toast only (a leftover 'done' row is harmless/orphaned).
+ */
+export async function discardAssetSilent(assetId: string): Promise<void> {
+  const { error } = await supabase.from('omni_assets').update({ status: 'discarded' }).eq('id', assetId);
+  if (error) toast.error(`Could not discard the image: ${error.message}`);
+}
+
 export function useSaveAssetToFiles() {
   return useMutation({
     mutationFn: async (assetId: string) => {

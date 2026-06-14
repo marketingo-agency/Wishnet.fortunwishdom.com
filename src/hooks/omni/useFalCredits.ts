@@ -14,6 +14,10 @@ export interface FalCredits {
   balance: number | null;
   currency: string;
   available: boolean;
+  /** True once the edge confirmed a fal key is set + caller is admin (even if the
+   *  live balance couldn't be read). Lets the UI tell "no access/key" apart from
+   *  a transient "balance unavailable". */
+  configured: boolean;
 }
 
 export function useFalCredits(enabled = true) {
@@ -26,9 +30,10 @@ export function useFalCredits(enabled = true) {
           balance: typeof res.balance === 'number' ? res.balance : null,
           currency: res.currency ?? 'USD',
           available: typeof res.balance === 'number',
+          configured: res.configured ?? false,
         };
       } catch {
-        return { balance: null, currency: 'USD', available: false };
+        return { balance: null, currency: 'USD', available: false, configured: false };
       }
     },
     enabled,

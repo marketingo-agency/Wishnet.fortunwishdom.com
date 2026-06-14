@@ -17,7 +17,7 @@ import { sanitizeForPrompt } from '../_shared/sanitize.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
 import { fetchFalCatalog, findFalModel, isFalCapability } from './fal-catalog.ts';
-import { applySpecToInput, modelSupportsNumImages } from './fal-specs.ts';
+import { applySpecToInput, modelSupportsNumImages, snapAspectRatio } from './fal-specs.ts';
 import { FalUserError, falResult, falStatus, falSubmit } from './fal-runner.ts';
 import { persistFalImage, registerInFilesManager, signStoragePath } from './storage.ts';
 import { analyzeImage, retrieveKnowledge } from './analysis.ts';
@@ -132,6 +132,66 @@ async function getFalKey(supabaseAdmin: ReturnType<typeof createClient>): Promis
   return key.trim().length > 0 ? key.trim() : null;
 }
 
+function toNum(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string') {
+    const n = Number.parseFloat(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+// Restrict the deep fallback to keys that unambiguously mean "remaining balance"
+// (not consumed/cost/owed numerics) and clamp to a sane USD range, so an unknown
+// payload can never surface a misleading credits figure. The explicit candidate
+// paths above cover every known fal shape; this only fires on truly-novel ones.
+const BALANCE_KEY_RE = /^(balance|credit_balance|available_credits)$/i;
+function deepFindBalance(obj: Record<string, unknown>, depth: number): number | null {
+  if (depth > 3) return null;
+  for (const [k, v] of Object.entries(obj)) {
+    if (BALANCE_KEY_RE.test(k)) {
+      const n = toNum(v);
+      if (n != null && n >= 0 && n <= 1e7) return n;
+    }
+  }
+  for (const v of Object.values(obj)) {
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      const n = deepFindBalance(v as Record<string, unknown>, depth + 1);
+      if (n != null) return n;
+    }
+  }
+  return null;
+}
+
+/**
+ * Parse fal's GET /account/billing?expand=credits payload into a USD balance.
+ * fal does not contractually fix the JSON shape, so probe the common paths
+ * (credits as a number | { balance|amount|available|remaining|total|credits },
+ * or a top-level balance/credit_balance), then fall back to a shallow key-name
+ * search. Pure, never throws. Currency read from the payload when present.
+ */
+function extractCreditBalance(data: unknown): { balance: number | null; currency: string } {
+  if (!data || typeof data !== 'object') return { balance: null, currency: 'USD' };
+  const root = data as Record<string, unknown>;
+  const credits = root.credits;
+  const co = credits && typeof credits === 'object' ? (credits as Record<string, unknown>) : null;
+  const currencyOf = (o: Record<string, unknown> | null): string | null => {
+    const c = o?.currency;
+    return typeof c === 'string' && c.length === 3 ? c.toUpperCase() : null;
+  };
+  const currency = currencyOf(co) ?? currencyOf(root) ?? 'USD';
+  const candidates: unknown[] = [
+    credits,
+    co?.balance, co?.amount, co?.available, co?.remaining, co?.total, co?.credits,
+    root.balance, root.credit_balance, root.available_credits, root.amount,
+  ];
+  for (const c of candidates) {
+    const n = toNum(c);
+    if (n != null) return { balance: n, currency };
+  }
+  return { balance: deepFindBalance(root, 0), currency };
+}
+
 const FAL_NOT_CONFIGURED = 'fal.ai is not configured. Add a fal.ai API key in Settings > LLM Providers.';
 const TEST_MODEL_ID = 'fal-ai/flux/schnell';
 const NETWORKS = new Set(['facebook', 'instagram', 'x', 'tiktok', 'youtube', 'pinterest']);
@@ -141,6 +201,9 @@ const NETWORKS = new Set(['facebook', 'instagram', 'x', 'tiktok', 'youtube', 'pi
 const EDIT_MODEL_MAX_REFS: Record<string, number> = {
   'fal-ai/nano-banana-pro/edit': 8,
   'fal-ai/nano-banana-2/edit': 8,
+  'fal-ai/flux-pro/kontext/max/multi': 4,
+  'fal-ai/flux-pro/kontext/multi': 4,
+  'fal-ai/gemini-25-flash-image/edit': 8,
   'fal-ai/bytedance/seedream/v4/edit': 10,
   'fal-ai/qwen-image-edit-plus': 6,
   'fal-ai/flux-2-pro/edit': 8,
@@ -428,16 +491,23 @@ Deno.serve(async (req: Request) => {
           headers: { Authorization: `Key ${falKey}` },
           signal: AbortSignal.timeout(10_000),
         });
-        if (!res.ok) return jsonResponse({ balance: null, currency: 'USD', configured: true });
-        const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
-        const credits = data?.credits as unknown;
-        const balance =
-          typeof credits === 'number' ? credits
-          : credits && typeof (credits as Record<string, unknown>).balance === 'number' ? (credits as Record<string, number>).balance
-          : typeof data?.balance === 'number' ? (data.balance as number)
-          : null;
-        return jsonResponse({ balance, currency: 'USD', configured: true });
-      } catch (_e) {
+        if (!res.ok) {
+          console.warn(`Omni fal-credits: billing returned HTTP ${res.status}`);
+          return jsonResponse({ balance: null, currency: 'USD', configured: true });
+        }
+        const data = (await res.json().catch(() => null)) as unknown;
+        const { balance, currency } = extractCreditBalance(data);
+        if (balance == null && data && typeof data === 'object') {
+          // Diagnostic (keys only, never values) so a shape mismatch is traceable
+          // from edge logs without leaking the balance or the key. Keys are
+          // allowlist-filtered to plain identifiers so nothing fal might echo back
+          // can land verbatim in logs.
+          const safeKeys = Object.keys(data as Record<string, unknown>).filter((k) => /^[a-z_][a-z0-9_]{0,32}$/i.test(k));
+          console.warn('Omni fal-credits: unparsed billing payload; keys =', safeKeys.join(','));
+        }
+        return jsonResponse({ balance, currency, configured: true });
+      } catch (e) {
+        console.warn('Omni fal-credits: billing fetch failed:', e instanceof Error ? e.message : 'unknown');
         return jsonResponse({ balance: null, currency: 'USD', configured: true });
       }
     }
@@ -536,9 +606,9 @@ Deno.serve(async (req: Request) => {
       if (spec) {
         applySpecToInput(modelId, spec, input);
       } else if (imageUrls.length > 0) {
-        const aspectRatio = typeof body.aspect_ratio === 'string' && /^[1-9]\d?:[1-9]\d?$/.test(body.aspect_ratio)
-          ? body.aspect_ratio
-          : null;
+        // Repurpose/redesign path: snap the requested ratio to the model's enum
+        // so fal never rejects it (and omit it for models with no aspect param).
+        const aspectRatio = snapAspectRatio(modelId, body.aspect_ratio);
         if (aspectRatio) input.aspect_ratio = aspectRatio;
       }
 

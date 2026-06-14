@@ -32,6 +32,9 @@ const SCHEMAS: Record<string, EdgeSpecSchema> = {
   'fal-ai/imagen4/preview': { convention: 'aspect_resolution', supportsNumImages: true },
   'fal-ai/nano-banana-pro/edit': { convention: 'aspect_resolution', supportsNumImages: true },
   'fal-ai/nano-banana-2/edit': { convention: 'aspect_resolution', supportsNumImages: true },
+  'fal-ai/flux-pro/kontext/max/multi': { convention: 'aspect_resolution', supportsNumImages: true },
+  'fal-ai/flux-pro/kontext/multi': { convention: 'aspect_resolution', supportsNumImages: true },
+  'fal-ai/gemini-25-flash-image/edit': { convention: 'aspect_resolution', supportsNumImages: true },
   'fal-ai/bytedance/seedream/v4/edit': { convention: 'image_size', qualityParam: 'enhance_prompt_mode', supportsNumImages: true },
   'fal-ai/qwen-image-edit-plus': { convention: 'image_size', supportsNumImages: true },
   'fal-ai/flux-2-pro/edit': { convention: 'image_size', supportsNumImages: false },
@@ -42,6 +45,64 @@ const PRESETS = new Set(['square_hd', 'square', 'landscape_4_3', 'landscape_16_9
 const RESOLUTIONS = new Set(['0.5K', '1K', '2K', '4K']);
 const PIXEL_SIZES = new Set(['auto', '1024x1024', '1536x1024', '1024x1536']);
 const ASPECT_RE = /^[1-9]\d?:[1-9]\d?$/;
+
+// Per-model accepted aspect_ratio enums — the load-bearing fix for fal's
+// "Input should be 'auto', '21:9', ..." rejections. fal validates aspect_ratio
+// against a FIXED per-model enum, so a format-valid-but-out-of-enum value (e.g.
+// 2:1 / 3:1 from a 1.91:1 target) is rejected. Every 'aspect_resolution' model in
+// SCHEMAS must appear here. Single source of truth; mirrored in
+// src/config/falSpecs.ts. (Enums from fal runtime validation + get_model_schema
+// 2026-06-14; nano-banana-2 additionally accepts extreme ratios.)
+const MODEL_ASPECT_ENUMS: Record<string, string[]> = {
+  'fal-ai/flux-pro/v1.1-ultra': ['21:9', '16:9', '4:3', '3:2', '1:1', '2:3', '3:4', '9:16', '9:21'],
+  'fal-ai/imagen4/preview': ['1:1', '16:9', '9:16', '4:3', '3:4'],
+  'fal-ai/nano-banana-pro/edit': ['auto', '21:9', '16:9', '3:2', '4:3', '5:4', '1:1', '4:5', '3:4', '2:3', '9:16'],
+  'fal-ai/nano-banana-2/edit': ['auto', '21:9', '16:9', '3:2', '4:3', '5:4', '1:1', '4:5', '3:4', '2:3', '9:16', '4:1', '1:4', '8:1', '1:8'],
+  'fal-ai/flux-pro/kontext/max/multi': ['21:9', '16:9', '4:3', '3:2', '1:1', '3:4', '2:3', '9:16', '9:21'],
+  'fal-ai/flux-pro/kontext/multi': ['21:9', '16:9', '4:3', '3:2', '1:1', '3:4', '2:3', '9:16', '9:21'],
+  'fal-ai/gemini-25-flash-image/edit': ['auto', '21:9', '16:9', '3:2', '4:3', '5:4', '1:1', '4:5', '3:4', '2:3', '9:16'],
+};
+
+function ratioValue(r: string): number | null {
+  const m = /^([1-9]\d?):([1-9]\d?)$/.exec(r);
+  if (!m) return null;
+  const w = Number(m[1]);
+  const h = Number(m[2]);
+  return h > 0 ? w / h : null;
+}
+
+/**
+ * Snap an aspect_ratio to the model's accepted enum so fal never rejects it.
+ *  - model with a known enum  → the value if already accepted, else the NEAREST
+ *    accepted ratio by numeric value ('auto' only when explicitly requested).
+ *  - known model with NO aspect_ratio param → null (caller omits aspect_ratio).
+ *  - unknown live-catalog model → the value unchanged if format-valid, else null
+ *    (preserves legacy pass-through). Pure + never throws.
+ */
+export function snapAspectRatio(modelId: string, ar: unknown): string | null {
+  if (typeof ar !== 'string' || ar.length === 0 || ar.length > 12) return null;
+  const enums = MODEL_ASPECT_ENUMS[modelId];
+  if (enums) {
+    if (enums.includes(ar)) return ar;
+    const target = ratioValue(ar);
+    if (target == null) return enums.includes('auto') ? 'auto' : null;
+    let best: string | null = null;
+    let bestDiff = Infinity;
+    for (const cand of enums) {
+      const v = ratioValue(cand);
+      if (v == null) continue;
+      const diff = Math.abs(v - target);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = cand;
+      }
+    }
+    return best;
+  }
+  // No known enum: omit for known non-aspect models, else pass a format-valid value.
+  if (SCHEMAS[modelId] && SCHEMAS[modelId].convention !== 'aspect_resolution') return null;
+  return ASPECT_RE.test(ar) ? ar : null;
+}
 
 // Allowed values per quality knob — membership-validated so only known enum
 // values reach fal (same discipline as PRESETS/RESOLUTIONS/PIXEL_SIZES).
@@ -79,8 +140,9 @@ export function applySpecToInput(
   const conv = schema?.convention;
 
   if (conv === 'aspect_resolution') {
-    const ar = str(spec.aspectRatio, 12);
-    if (ar && ASPECT_RE.test(ar)) input.aspect_ratio = ar;
+    // Snap to the model's accepted enum (never pass an out-of-enum ratio to fal).
+    const snapped = snapAspectRatio(modelId, spec.aspectRatio);
+    if (snapped) input.aspect_ratio = snapped;
     const res = str(spec.resolution, 6);
     if (res && RESOLUTIONS.has(res)) input.resolution = res;
     return;

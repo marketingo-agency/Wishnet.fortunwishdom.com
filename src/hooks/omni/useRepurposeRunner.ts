@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { callOmni } from '@/lib/omniApi';
 import { repurposeEngine } from '@/lib/omni/repurpose';
 import { getPreset, type OmniNetworkId } from '@/components/omni/omniNetworkPresets';
+import { nearestAspectRatio } from '@/config/falSpecs';
 import { getAssetSignedUrl, uploadRepurposedAsset } from './useOmniGeneration';
 import type { OmniAsset, OmniRepurposedRef, VariantPollResult } from './types';
 
@@ -30,24 +31,10 @@ export interface RepurposeJob {
 }
 
 // Nano Banana Pro edit gives the best fidelity at preserving text + subjects
-// while recomposing the layout for a new aspect ratio.
-const REDESIGN_MODEL = 'fal-ai/nano-banana-pro/edit';
-const ALLOWED_AI_RATIOS = ['1:1', '4:5', '5:4', '3:4', '4:3', '2:3', '3:2', '9:16', '16:9', '2:1', '1:2', '3:1', '21:9'];
-
-function nearestAiRatio(width: number, height: number): string {
-  const target = width / height;
-  let best = ALLOWED_AI_RATIOS[0];
-  let bestDiff = Infinity;
-  for (const ratio of ALLOWED_AI_RATIOS) {
-    const [w, h] = ratio.split(':').map(Number);
-    const diff = Math.abs(w / h - target);
-    if (diff < bestDiff) {
-      bestDiff = diff;
-      best = ratio;
-    }
-  }
-  return best;
-}
+// while recomposing the layout for a new aspect ratio. The target ratio is
+// snapped to this model's accepted enum (nearestAspectRatio) so fal never
+// rejects it; the output is contain-fit to exact pixels afterwards regardless.
+export const REDESIGN_MODEL = 'fal-ai/nano-banana-pro/edit';
 
 export function useRepurposeRunner(runId: string, assetsById: Map<string, OmniAsset>) {
   const [jobs, setJobs] = useState<RepurposeJob[]>([]);
@@ -93,77 +80,68 @@ export function useRepurposeRunner(runId: string, assetsById: Map<string, OmniAs
     setJobs((prev) => prev.map((j) => (j.key === key ? { ...j, ...patch } : j)));
   }, []);
 
-  const runJob = useCallback(
-    async (job: RepurposeJob): Promise<void> => {
+  // Produce one repurposed output (AI re-design or free client crop) and return
+  // the new asset WITHOUT mutating job state — shared by the batch runner (runJob)
+  // and the compare-modal candidate flow (generateCandidate). Throws on failure.
+  const produceOutput = useCallback(
+    async (job: RepurposeJob): Promise<{ assetId: string; previewUrl: string }> => {
       const preset = getPreset(job.network, job.presetId);
       const source = assetsById.get(job.sourceAssetId);
-      if (!preset || !source?.storage_path) {
-        patchJob(job.key, { status: 'failed', error: 'Source image is not available' });
-        return;
+      if (!preset || !source?.storage_path) throw new Error('Source image is not available');
+
+      let blob: Blob;
+      if (job.mode === 'redesign') {
+        const submit = await callOmni<{ asset_id: string }>('variant-submit', {
+          run_id: runId,
+          model_id: REDESIGN_MODEL,
+          prompt: `Re-compose this image as a native ${preset.ratio} ${job.network} ${preset.label}. Reposition and rescale the main subject(s) and any text so the whole layout is balanced and fully visible inside the new ${preset.ratio} frame; intelligently rebuild and extend the background to fill the canvas. Preserve the exact subjects, their text content, colors, fonts, and brand style. Do not letterbox, do not crop the subjects, do not invent new text.`,
+          parent_asset_id: job.sourceAssetId,
+          source_asset_id: job.sourceAssetId,
+          aspect_ratio: nearestAspectRatio(REDESIGN_MODEL, preset.width, preset.height) ?? '1:1',
+        });
+        const result = await pollSingle(submit.asset_id);
+        if (result.status !== 'done' || !result.url) throw new Error(result.error ?? 'AI re-design failed');
+        // The fal output already matches the target aspect; contain-fit to the
+        // exact pixels so the re-designed composition is never re-cropped.
+        blob = await repurposeEngine.render(result.url, { width: preset.width, height: preset.height }, 'contain');
+      } else {
+        const url = await getAssetSignedUrl(source.storage_path);
+        if (!url) throw new Error('Could not access the source image');
+        blob = await repurposeEngine.render(url, { width: preset.width, height: preset.height }, 'cover');
       }
+
+      const assetId = await uploadRepurposedAsset({
+        runId,
+        sourceAssetId: job.sourceAssetId,
+        blob,
+        width: preset.width,
+        height: preset.height,
+        network: job.network,
+        presetId: job.presetId,
+      });
+      return { assetId, previewUrl: URL.createObjectURL(blob) };
+    },
+    [assetsById, pollSingle, runId],
+  );
+
+  const runJob = useCallback(
+    async (job: RepurposeJob): Promise<void> => {
       patchJob(job.key, { status: 'working' });
       try {
-        let blob: Blob;
-
-        if (job.mode === 'redesign') {
-          const submit = await callOmni<{ asset_id: string }>('variant-submit', {
-            run_id: runId,
-            model_id: REDESIGN_MODEL,
-            prompt: `Re-compose this image as a native ${preset.ratio} ${job.network} ${preset.label}. Reposition and rescale the main subject(s) and any text so the whole layout is balanced and fully visible inside the new ${preset.ratio} frame; intelligently rebuild and extend the background to fill the canvas. Preserve the exact subjects, their text content, colors, fonts, and brand style. Do not letterbox, do not crop the subjects, do not invent new text.`,
-            parent_asset_id: job.sourceAssetId,
-            source_asset_id: job.sourceAssetId,
-            aspect_ratio: nearestAiRatio(preset.width, preset.height),
-          });
-          const result = await pollSingle(submit.asset_id);
-          if (result.status !== 'done' || !result.url) {
-            patchJob(job.key, { status: 'failed', error: result.error ?? 'AI re-design failed' });
-            return;
-          }
-          // The fal output already matches the target aspect; contain-fit to the
-          // exact pixels so the re-designed composition is never re-cropped.
-          blob = await repurposeEngine.render(result.url, { width: preset.width, height: preset.height }, 'contain');
-        } else {
-          const url = await getAssetSignedUrl(source.storage_path);
-          if (!url) {
-            patchJob(job.key, { status: 'failed', error: 'Could not access the source image' });
-            return;
-          }
-          blob = await repurposeEngine.render(url, { width: preset.width, height: preset.height }, 'cover');
-        }
-
-        const assetId = await uploadRepurposedAsset({
-          runId,
-          sourceAssetId: job.sourceAssetId,
-          blob,
-          width: preset.width,
-          height: preset.height,
-          network: job.network,
-          presetId: job.presetId,
-        });
-        patchJob(job.key, { status: 'done', resultAssetId: assetId, previewUrl: URL.createObjectURL(blob) });
+        const out = await produceOutput(job);
+        patchJob(job.key, { status: 'done', resultAssetId: out.assetId, previewUrl: out.previewUrl });
       } catch (e) {
         patchJob(job.key, { status: 'failed', error: e instanceof Error ? e.message : 'Repurposing failed' });
       }
     },
-    [assetsById, patchJob, pollSingle, runId],
+    [patchJob, produceOutput],
   );
 
-  /** Re-run a single job from scratch (its old output should be discarded first). */
-  const regenerate = useCallback(
-    async (key: string) => {
-      if (isRunning) return;
-      const job = jobsRef.current.find((j) => j.key === key);
-      if (!job) return;
-      const fresh: RepurposeJob = { ...job, status: 'pending', resultAssetId: undefined, previewUrl: undefined, error: undefined };
-      setJobs((prev) => prev.map((j) => (j.key === key ? fresh : j)));
-      setIsRunning(true);
-      try {
-        await runJob(fresh);
-      } finally {
-        setIsRunning(false);
-      }
-    },
-    [isRunning, runJob],
+  // Generate a candidate for the compare modal WITHOUT touching the live tile —
+  // the original output stays visible until the user approves the replacement.
+  const generateCandidate = useCallback(
+    (job: RepurposeJob): Promise<{ assetId: string; previewUrl: string }> => produceOutput(job),
+    [produceOutput],
   );
 
   const runAll = useCallback(
@@ -197,5 +175,5 @@ export function useRepurposeRunner(runId: string, assetsById: Map<string, OmniAs
       }));
   }, [jobs]);
 
-  return { jobs, setJobs, patchJob, runAll, regenerate, isRunning, collectRefs };
+  return { jobs, setJobs, patchJob, runAll, generateCandidate, isRunning, collectRefs };
 }

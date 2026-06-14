@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" role="img" aria-label="Black Forest Labs FLUX">
+  <defs>
+    <linearGradient id="g" x1="2" y1="4" x2="46" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0EA5E9"/>
+      <stop offset="1" stop-color="#1E3A8A"/>
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="12" fill="url(#g)"/>
+  <path d="M17 34V14h15v4.4H22v3.6h8v4.3h-8V34h-5Z" fill="#fff"/>
+</svg>

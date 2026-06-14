@@ -9,18 +9,22 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Activity, AlertCircle, CheckCircle2, ImageIcon, Loader2, RefreshCw, Zap } from 'lucide-react';
+import { Activity, AlertCircle, CheckCircle2, ImageIcon, Loader2, RefreshCw, Wallet, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { useFalCatalog, useFalTestGenerate, type FalTestResult } from '@/hooks/omni';
+import { useFalCatalog, useFalCredits, useFalTestGenerate, type FalTestResult } from '@/hooks/omni';
+import { formatUsd } from '@/config/falPricing';
 
 export function OmniFalHealthCard() {
   const { isAdmin } = useAuth();
   const catalog = useFalCatalog({ capability: 'text-to-image', limit: 100 });
+  // Live fal credit balance is admin-only org data — only fetch it for admins.
+  const credits = useFalCredits(isAdmin);
   const testGenerate = useFalTestGenerate();
   const [testResult, setTestResult] = useState<FalTestResult | null>(null);
+  const creditBalance = credits.data?.available && credits.data.balance != null ? credits.data.balance : null;
 
   const handleTest = async () => {
     setTestResult(null);
@@ -78,6 +82,25 @@ export function OmniFalHealthCard() {
             >
               {catalog.data?.source === 'live' ? 'Live catalog' : 'Fallback catalog'}
             </span>
+          )}
+          {isAdmin && !credits.isLoading && (
+            creditBalance != null ? (
+              <span
+                aria-label={`Available fal credits: ${formatUsd(creditBalance)}`}
+                className="flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-400"
+              >
+                <Wallet className="h-3.5 w-3.5" />
+                {formatUsd(creditBalance)} credits
+              </span>
+            ) : (
+              <span
+                aria-label={credits.data?.configured ? 'fal credit balance is temporarily unavailable' : 'fal API key is not configured'}
+                className="flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground"
+              >
+                <Wallet className="h-3.5 w-3.5" />
+                {credits.data?.configured ? 'Credits N/A' : 'No fal key'}
+              </span>
+            )
           )}
           {catalog.isError && (
             <Button

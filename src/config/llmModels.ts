@@ -74,15 +74,25 @@ export const FAL_IMAGE_MODELS: ModelOption[] = [
 // `maxRefs` = the reference-image count the model sensibly handles.
 export interface EditModelOption extends ModelOption {
   maxRefs: number;
+  /** Local brand-logo asset under /public/model-logos, shown on the step-3 card. */
+  logoUrl?: string;
 }
 
+// Order = the step-3 card order; index 0 is the pre-selected default.
+// All accept `image_urls[]` + `prompt` (verified via fal-ai get_model_schema
+// 2026-06-14) so they fit the edge variant-submit i2i contract. Inpaint-only
+// (ideogram/v3/edit needs mask_url) and singular-image models (seededit/v3,
+// luma-photon) are intentionally excluded — they break the image_urls[] contract.
 export const FAL_EDIT_MODELS: EditModelOption[] = [
-  { value: 'fal-ai/nano-banana-pro/edit', label: 'Nano Banana Pro Edit', description: 'Google SOTA edit — highest character fidelity, up to 4K', maxRefs: 8 },
-  { value: 'fal-ai/nano-banana-2/edit', label: 'Nano Banana 2 Edit', description: 'Fast Gemini edit, cheaper than Pro', maxRefs: 8 },
-  { value: 'fal-ai/bytedance/seedream/v4/edit', label: 'Seedream V4 Edit', description: 'Unified gen+edit, up to 10 references', maxRefs: 10 },
-  { value: 'fal-ai/qwen-image-edit-plus', label: 'Qwen Image Edit Plus', description: 'Best at preserving in-image text/typography', maxRefs: 6 },
-  { value: 'fal-ai/flux-2-pro/edit', label: 'FLUX.2 Pro Edit', description: 'Photoreal flagship edit + color control', maxRefs: 8 },
-  { value: 'fal-ai/gpt-image-1.5/edit', label: 'GPT-Image 1.5 Edit', description: 'Strong prompt adherence, preserves composition', maxRefs: 8 },
+  { value: 'fal-ai/nano-banana-pro/edit', label: 'Nano Banana Pro Edit', description: 'Google SOTA edit — highest character fidelity, up to 4K', maxRefs: 8, logoUrl: '/model-logos/gemini.svg' },
+  { value: 'fal-ai/nano-banana-2/edit', label: 'Nano Banana 2 Edit', description: 'Fast Gemini edit, cheaper than Pro', maxRefs: 8, logoUrl: '/model-logos/gemini.svg' },
+  { value: 'fal-ai/flux-pro/kontext/max/multi', label: 'FLUX.1 Kontext [max]', description: 'Premium BFL editor — best typography + consistency, multi-reference', maxRefs: 4, logoUrl: '/model-logos/flux.svg' },
+  { value: 'fal-ai/flux-pro/kontext/multi', label: 'FLUX.1 Kontext [pro]', description: 'BFL multi-image editor — strong edits at lower cost', maxRefs: 4, logoUrl: '/model-logos/flux.svg' },
+  { value: 'fal-ai/bytedance/seedream/v4/edit', label: 'Seedream V4 Edit', description: 'Unified gen+edit, up to 10 references', maxRefs: 10, logoUrl: '/model-logos/seedream.svg' },
+  { value: 'fal-ai/qwen-image-edit-plus', label: 'Qwen Image Edit Plus', description: 'Best at preserving in-image text/typography', maxRefs: 6, logoUrl: '/model-logos/qwen.svg' },
+  { value: 'fal-ai/flux-2-pro/edit', label: 'FLUX.2 Pro Edit', description: 'Photoreal flagship edit + color control', maxRefs: 8, logoUrl: '/model-logos/flux.svg' },
+  { value: 'fal-ai/gpt-image-1.5/edit', label: 'GPT-Image 1.5 Edit', description: 'Strong prompt adherence, preserves composition', maxRefs: 8, logoUrl: '/model-logos/openai.svg' },
+  { value: 'fal-ai/gemini-25-flash-image/edit', label: 'Gemini 2.5 Flash Image', description: 'Original Gemini "Nano Banana" editor — fast, low cost', maxRefs: 8, logoUrl: '/model-logos/gemini.svg' },
 ];
 
 /** Per-edit-model reference-image cap, derived from FAL_EDIT_MODELS. */

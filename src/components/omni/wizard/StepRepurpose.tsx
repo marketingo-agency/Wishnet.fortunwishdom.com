@@ -19,8 +19,13 @@ import { cn } from '@/lib/utils';
 import { downloadFromUrl } from '@/lib/downloadFromUrl';
 import { getNetwork, getPreset, type OmniNetworkId } from '../omniNetworkPresets';
 import { useRepurposeRunner, type RepurposeJob, type RepurposeMode } from '@/hooks/omni/useRepurposeRunner';
-import { getAssetSignedUrl, useDiscardAsset, useSaveAssetToFiles } from '@/hooks/omni';
+import { discardAssetSilent, getAssetSignedUrl, useSaveAssetToFiles } from '@/hooks/omni';
 import type { OmniAsset, OmniRepurposedRef } from '@/hooks/omni';
+import { RepurposeCompareModal, type RepurposeCandidate } from './RepurposeCompareModal';
+
+const revokeBlobUrl = (url?: string) => {
+  if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
+};
 
 interface StepRepurposeProps {
   runId: string;
@@ -158,12 +163,12 @@ function RepurposeTile({
 export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurposed, initialApproved, presetSelections, onProgress, onNext }: StepRepurposeProps) {
   const assetsById = useMemo(() => new Map(selectedAssets.map((a) => [a.id, a])), [selectedAssets]);
   const runner = useRepurposeRunner(runId, assetsById);
-  const discardAsset = useDiscardAsset();
   const saveToFiles = useSaveAssetToFiles();
 
   const [mode, setMode] = useState<RepurposeMode>('redesign');
   const [approved, setApproved] = useState<Set<string>>(() => new Set(initialApproved));
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [compareKey, setCompareKey] = useState<string | null>(null);
   const excludedRef = useRef<Set<string>>(
     new Set(initialApproved.length > 0 ? initialRepurposed.map((r) => r.asset_id).filter((id) => !initialApproved.includes(id)) : []),
   );
@@ -210,9 +215,9 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
   }, [selectedAssets, runAssets, initialRepurposed]);
 
   const doneCount = runner.jobs.filter((j) => j.status === 'done').length;
-  const allDone = runner.jobs.length > 0 && doneCount === runner.jobs.length;
   const hasPending = runner.jobs.some((j) => j.status === 'pending' || j.status === 'failed');
   const approvedCount = runner.jobs.filter((j) => j.status === 'done' && j.resultAssetId && approved.has(j.resultAssetId)).length;
+  const compareJob = compareKey ? runner.jobs.find((j) => j.key === compareKey) ?? null : null;
 
   // Newly completed outputs are approved by default unless explicitly excluded.
   useEffect(() => {
@@ -230,15 +235,15 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
     // eslint-disable-next-line react-hooks/exhaustive-deps -- react to completions
   }, [doneCount]);
 
-  // Persist completed outputs as they land (so paid outputs survive resume).
-  const persistedDoneRef = useRef(0);
+  // Persist whenever the set of done outputs changes — new completion, a compare-
+  // modal replacement, or a delete — so paid outputs survive resume. Keyed on the
+  // result-asset signature (not just the count) so a same-count swap still persists.
+  const doneSig = runner.jobs.filter((j) => j.status === 'done' && j.resultAssetId).map((j) => j.resultAssetId).join(',');
   useEffect(() => {
-    if (doneCount > persistedDoneRef.current) {
-      persistedDoneRef.current = doneCount;
-      onProgress(runner.collectRefs());
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire per completed job
-  }, [doneCount]);
+    if (runner.jobs.length === 0) return;
+    onProgress(runner.collectRefs());
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- persist when the done-output set changes
+  }, [doneSig]);
 
   const setGlobalMode = (m: RepurposeMode) => {
     setMode(m);
@@ -260,17 +265,29 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
     });
   };
 
-  const handleRegenerate = (job: RepurposeJob) => {
-    if (job.resultAssetId) {
-      discardAsset.mutate(job.resultAssetId);
-      setApproved((prev) => {
-        const next = new Set(prev);
-        next.delete(job.resultAssetId!);
-        return next;
-      });
-    }
-    void runner.regenerate(job.key);
+  // Open the compare modal instead of regenerating in place — the original stays
+  // visible for side-by-side comparison and is only replaced once approved. (No
+  // ['omni-assets'] invalidation here, so the grid never reloads.)
+  const handleRegenerate = (job: RepurposeJob) => setCompareKey(job.key);
+
+  // Approve the modal's candidate: swap it into the tile, discard the old output
+  // silently (no grid reload), and move approval to the new asset.
+  const handleApproveCandidate = (job: RepurposeJob, candidate: RepurposeCandidate) => {
+    const oldId = job.resultAssetId;
+    revokeBlobUrl(job.previewUrl); // free the displaced output's object URL (no-op for signed URLs)
+    runner.patchJob(job.key, { status: 'done', resultAssetId: candidate.assetId, previewUrl: candidate.previewUrl });
+    if (oldId) void discardAssetSilent(oldId);
+    setApproved((prev) => {
+      const next = new Set(prev);
+      if (oldId) next.delete(oldId);
+      next.add(candidate.assetId);
+      return next;
+    });
+    excludedRef.current.delete(candidate.assetId);
+    setCompareKey(null);
   };
+
+  const handleDiscardCandidate = (assetId: string) => void discardAssetSilent(assetId);
 
   const handleDownload = async (job: RepurposeJob) => {
     if (!job.previewUrl) return;
@@ -294,7 +311,7 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
 
   const handleDelete = (job: RepurposeJob) => {
     if (job.resultAssetId) {
-      discardAsset.mutate(job.resultAssetId);
+      void discardAssetSilent(job.resultAssetId);
       excludedRef.current.add(job.resultAssetId);
       setApproved((prev) => {
         const next = new Set(prev);
@@ -302,6 +319,7 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
         return next;
       });
     }
+    revokeBlobUrl(job.previewUrl);
     runner.setJobs((prev) => prev.filter((j) => j.key !== job.key));
   };
 
@@ -339,7 +357,7 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
           className="cursor-pointer gap-1.5 bg-gradient-to-r from-cyan-500 to-violet-600 text-white transition-all duration-300 hover:opacity-90"
         >
           {runner.isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-          {doneCount > 0 && hasPending ? 'Run remaining' : 'Generate the set'}
+          Generate the set
         </Button>
       </div>
 
@@ -372,13 +390,21 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
         <p className="text-sm text-muted-foreground">{approvedCount} of {doneCount} approved</p>
         <Button
           onClick={handleContinue}
-          disabled={!allDone || approvedCount === 0}
+          disabled={approvedCount === 0}
           className="cursor-pointer gap-2 bg-gradient-to-r from-cyan-500 to-violet-600 text-white transition-all duration-300 hover:opacity-90"
         >
           Continue to finalize
           <ArrowRight className="h-4 w-4" />
         </Button>
       </div>
+
+      <RepurposeCompareModal
+        job={compareJob}
+        generateCandidate={runner.generateCandidate}
+        onApprove={handleApproveCandidate}
+        onDiscardCandidate={handleDiscardCandidate}
+        onClose={() => setCompareKey(null)}
+      />
     </div>
   );
 }

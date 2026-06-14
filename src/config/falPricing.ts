@@ -30,10 +30,13 @@ export const FAL_PRICING: Record<string, FalPrice> = {
   // image-to-image / edit
   'fal-ai/nano-banana-pro/edit': { unitPrice: 0.15, unit: 'image' },
   'fal-ai/nano-banana-2/edit': { unitPrice: 0.08, unit: 'image' },
+  'fal-ai/flux-pro/kontext/max/multi': { unitPrice: 0.08, unit: 'image' },
+  'fal-ai/flux-pro/kontext/multi': { unitPrice: 0.04, unit: 'image' },
   'fal-ai/bytedance/seedream/v4/edit': { unitPrice: 0.03, unit: 'image' },
   'fal-ai/qwen-image-edit-plus': { unitPrice: 0.03, unit: 'megapixel' },
   'fal-ai/flux-2-pro/edit': { unitPrice: 0.03, unit: 'megapixel' },
   'fal-ai/gpt-image-1.5/edit': { unitPrice: null, unit: 'unknown' },
+  'fal-ai/gemini-25-flash-image/edit': { unitPrice: 0.0398, unit: 'image' },
 };
 
 export function getFalPrice(modelId: string): FalPrice {
