@@ -48,3 +48,17 @@ test-results
 
 # Misc
 *.local
+
+# Supabase CLI local cache/state (machine-local, not app code)
+supabase/.temp/
+
+# Local dev tooling config (per-developer MCP server list)
+.mcp.json
+
+# Scratch QA/audit screenshots captured at repo root (not deliverables)
+/omni-*.png
+/pulse-*.png
+/phase5-*.png
+
+# Ad-hoc audit prompt scratch
+AUDIT_PROMPT.md
