@@ -75,11 +75,11 @@ export function NexusConsole({ settings, initialPrompt, initialMode }: NexusCons
 
         {/* Provider & Model Selection */}
         <div className="grid grid-cols-2 gap-3">
-          <Select value={ctrl.provider} onValueChange={(v) => ctrl.setProvider(v as 'openai' | 'gemini')} disabled={ctrl.isDisabled || ctrl.mode === 'research'}>
-            <SelectTrigger className="h-9"><SelectValue placeholder="Provider" /></SelectTrigger>
+          <Select value={ctrl.provider} onValueChange={(v) => ctrl.setProvider(v as 'openai' | 'gemini' | 'claude' | 'fal')} disabled={ctrl.isDisabled || ctrl.mode !== 'text'}>
+            <SelectTrigger className="h-9"><SelectValue placeholder={ctrl.mode === 'image' ? 'fal.ai' : ctrl.mode === 'research' ? 'OpenAI' : 'Provider'} /></SelectTrigger>
             <SelectContent>
               {ctrl.availableProviders.map((p) => (
-                <SelectItem key={p} value={p}>{p === 'openai' ? 'OpenAI' : 'Gemini'}</SelectItem>
+                <SelectItem key={p} value={p}>{({ openai: 'OpenAI', gemini: 'Gemini', claude: 'Claude' } as Record<string, string>)[p] ?? p}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -273,7 +273,7 @@ export function NexusConsole({ settings, initialPrompt, initialMode }: NexusCons
             </Button>
           </div>
           <div className="flex items-center gap-2 mt-2">
-            <Badge variant="outline" className="text-xs">{ctrl.provider === 'openai' ? 'OpenAI' : 'Gemini'}</Badge>
+            <Badge variant="outline" className="text-xs">{({ openai: 'OpenAI', gemini: 'Gemini', claude: 'Claude', fal: 'fal.ai' } as Record<string, string>)[ctrl.provider] ?? ctrl.provider}</Badge>
             <Badge variant="outline" className="text-xs">{ctrl.model}</Badge>
             <Badge variant="outline" className="text-xs capitalize">{ctrl.mode}</Badge>
           </div>

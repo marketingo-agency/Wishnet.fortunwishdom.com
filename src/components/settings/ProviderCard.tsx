@@ -14,19 +14,21 @@ import { ApiKeyEditor } from './ApiKeyEditor';
 import type { KeySource } from '@/hooks/useProviderKeyStatus';
 
 interface ProviderCardProps {
-  provider: 'openai' | 'gemini' | 'fal';
+  provider: 'openai' | 'gemini' | 'fal' | 'claude';
   title: string;
   icon: React.ReactNode;
   isConnected: boolean;
   keySource: KeySource;
   isAdmin: boolean;
-  textModel: string;
-  imageModel: string;
-  textModels: ModelOption[];
-  imageModels: ModelOption[];
+  // Reasoning-only providers omit image; the fal media engine omits text. Each section
+  // renders only when its models are supplied.
+  textModel?: string;
+  imageModel?: string;
+  textModels?: ModelOption[];
+  imageModels?: ModelOption[];
   accentColor: string;
-  onTextModelChange: (model: string) => void;
-  onImageModelChange: (model: string) => void;
+  onTextModelChange?: (model: string) => void;
+  onImageModelChange?: (model: string) => void;
   onTestConnection: (apiKey: string) => void;
   isTestingConnection: boolean;
   connectionStatus: 'idle' | 'success' | 'error';
@@ -143,11 +145,15 @@ export function ProviderCard({
     if (!isConnected) return;
 
     const steps: TestAllStep[] = [
-      { label: 'General Reasoning', modelValue: textModel, modelType: 'text', status: 'pending' },
+      ...(textModel && textModels
+        ? [{ label: 'General Reasoning', modelValue: textModel, modelType: 'text' as const, status: 'pending' as const }]
+        : []),
       ...(showDeepResearch && deepResearchModel
         ? [{ label: 'Deep Research', modelValue: deepResearchModel, modelType: 'text' as const, status: 'pending' as const }]
         : []),
-      { label: 'Image Generation', modelValue: imageModel, modelType: 'image', status: 'pending' },
+      ...(imageModel && imageModels
+        ? [{ label: 'Image Generation', modelValue: imageModel, modelType: 'image' as const, status: 'pending' as const }]
+        : []),
       ...(videoModel && videoModels
         ? [{ label: 'Video Generation', modelValue: videoModel, modelType: 'video' as const, status: 'pending' as const }]
         : []),
@@ -213,7 +219,7 @@ export function ProviderCard({
               )}
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              {provider === 'openai' ? 'Integrated OpenAI models' : 'Integrated Gemini models'}
+              {provider === 'fal' ? 'Image & video engine' : 'Reasoning models'}
             </p>
           </div>
           <div className="ml-auto flex items-center gap-2">

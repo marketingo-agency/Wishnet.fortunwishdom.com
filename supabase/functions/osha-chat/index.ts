@@ -15,6 +15,7 @@ import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
 import { TOKEN_BUDGETS } from '../_shared/token-budgets.ts';
 import { getAgentPrompts } from '../_shared/system-prompts.ts';
+import { generateImageViaFal, uploadTempImageForFal, DEFAULT_FAL_EDIT_MODEL } from '../_shared/fal.ts';
 
 // SEC-004: 20 requests per minute per user (governed chatbot, heavier per-request)
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 20 });
@@ -1872,7 +1873,10 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
     });
   }
 
-  const { message, conversationHistory = [], attachments = [] } = body;
+  const { message, conversationHistory = [] } = body;
+  // DoS hardening: cap the number of attachments processed per request (each is base64-decoded
+  // and, for image gen, uploaded to fal — an uncapped list could exhaust memory/CPU).
+  const attachments = (Array.isArray(body.attachments) ? body.attachments : []).slice(0, 10);
   if (!message) {
     return new Response(JSON.stringify({ error: 'message required' }), {
       status: 400,
@@ -1933,8 +1937,10 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
 
   const openaiKey = llmSettings?.openai_api_key || Deno.env.get('OPENAI_API_KEY') || '';
   const geminiKey = llmSettings?.gemini_api_key || Deno.env.get('GEMINI_API_KEY') || '';
+  const claudeKey = llmSettings?.claude_api_key || Deno.env.get('ANTHROPIC_API_KEY') || '';
+  const falKey = ((llmSettings?.fal_api_key as string | null) || Deno.env.get('FAL_KEY') || '').trim();
 
-  if (!openaiKey && !geminiKey) {
+  if (!openaiKey && !geminiKey && !claudeKey) {
     return new Response(JSON.stringify({ error: 'No AI provider configured. Ask an admin to configure LLM settings.' }), {
       status: 503,
       headers: { ...responseHeaders, 'Content-Type': 'application/json' },
@@ -2124,13 +2130,9 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
       }), { headers: { ...responseHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Resolve image provider + model — prefer per-Osha setting, else the globally
-    // SELECTED image model from llm_settings, else a safe default.
-    const imageProvider = settings.image_provider || llmSettings?.active_image_provider || 'openai';
-    const imageModel = settings.image_model
-      || (imageProvider === 'gemini'
-        ? (llmSettings?.gemini_image_model || 'gemini-2.5-flash-image')
-        : (llmSettings?.openai_image_model || 'gpt-image-1'));
+    // fal.ai is the SOLE image engine (OpenAI/Gemini image generation retired).
+    const imageProvider = 'fal';
+    const imageModel = llmSettings?.fal_image_model || 'fal-ai/flux-pro/v1.1-ultra';
     const imagePrompt = await buildImagePrompt(
       message,
       brainContext,
@@ -2170,101 +2172,28 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
     try {
       let imageBlob: Blob;
 
-      if (imageProvider === 'gemini') {
-        // ── Gemini image generation ──────────────────────────────────────────
-        if (!geminiKey) throw new Error('Gemini API key not configured. Please add it in LLM Settings.');
-        const geminiImgUrl = `https://generativelanguage.googleapis.com/v1beta/models/${imageModel}:generateContent?key=${geminiKey}`;
-        // Image-to-image: include source image(s) as inline data so Gemini recreates/combines them.
-        const geminiParts: object[] = [{ text: imagePrompt }];
-        for (const src of sourceImages) {
-          let b = '';
-          for (let i = 0; i < src.length; i++) b += String.fromCharCode(src[i]);
-          geminiParts.unshift({ inlineData: { mimeType: 'image/png', data: btoa(b) } });
-        }
-        const geminiImgRes = await fetch(geminiImgUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: geminiParts }],
-            generationConfig: { responseModalities: ['image', 'text'] },
-          }),
-        });
-        if (!geminiImgRes.ok) throw new Error(await geminiImgRes.text());
-        const geminiImgData = await geminiImgRes.json();
-        const parts = geminiImgData.candidates?.[0]?.content?.parts || [];
-        const imgPart = parts.find((p: any) => p.inlineData?.mimeType?.startsWith('image/'));
-        if (!imgPart?.inlineData?.data) throw new Error('Gemini did not return an image');
-        const binary = atob(imgPart.inlineData.data);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        imageBlob = new Blob([bytes], { type: imgPart.inlineData.mimeType || 'image/png' });
-      } else {
-        // ── OpenAI image generation ──────────────────────────────────────────
-        if (!openaiKey) throw new Error('OpenAI API key not configured. Please add it in LLM Settings.');
-        const runGeneration = () => fetch('https://api.openai.com/v1/images/generations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
-          body: JSON.stringify({
-            model: imageModel,
-            prompt: imagePrompt,
-            n: 1,
-            size: settings.image_default_size,
-            // response_format intentionally omitted — gpt-image-1 and newer models
-            // do not accept this parameter; dall-e-3 defaults to 'url' when omitted.
-          }),
-        });
-
-        let imageRes: Response;
-        if (sourceImages.length > 0) {
-          // Image-to-image (recreate / combine) via /v1/images/edits — multipart form.
-          // Multiple images go under image[] so gpt-image can merge characters/scenes.
-          const form = new FormData();
-          form.append('model', imageModel);
-          form.append('prompt', imagePrompt);
-          form.append('n', '1');
-          if (settings.image_default_size) form.append('size', settings.image_default_size);
-          sourceImages.forEach((src, i) => {
-            form.append('image[]', new File([src], `source_${i}.png`, { type: 'image/png' }));
-          });
-          imageRes = await fetch('https://api.openai.com/v1/images/edits', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${openaiKey}` }, // FormData sets its own Content-Type
-            body: form,
-          });
-          // Fall back to text-to-image if the edit is rejected (e.g. non-square/oversized source).
-          if (!imageRes.ok) {
-            console.error('Image edit failed, falling back to text-to-image:', await imageRes.text());
-            imageRes = await runGeneration();
-          }
-        } else {
-          imageRes = await runGeneration();
-        }
-        if (!imageRes.ok) throw new Error(await imageRes.text());
-        const imageData = await imageRes.json();
-        const imageResult = imageData.data?.[0];
-        if (!imageResult) throw new Error('No image returned');
-        if (imageResult.url) {
-          // SEC-04: validate host + cap size before buffering the upstream image
-          const u = new URL(imageResult.url);
-          if (u.protocol !== 'https:' || !(u.hostname === 'api.openai.com' || u.hostname.endsWith('.blob.core.windows.net') || u.hostname.endsWith('.oaiusercontent.com'))) {
-            throw new Error('Unexpected image result host');
-          }
-          const imgResp = await fetch(imageResult.url);
-          if (!imgResp.ok) throw new Error('Failed to fetch generated image');
-          const cl = Number(imgResp.headers.get('content-length') || '0');
-          if (cl && cl > 20 * 1024 * 1024) throw new Error('Generated image too large');
-          const ab = await imgResp.arrayBuffer();
-          if (ab.byteLength > 20 * 1024 * 1024) throw new Error('Generated image too large');
-          imageBlob = new Blob([ab], { type: imgResp.headers.get('content-type') || 'image/png' });
-        } else if (imageResult.b64_json) {
-          const binary = atob(imageResult.b64_json);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-          imageBlob = new Blob([bytes], { type: 'image/png' });
-        } else {
-          throw new Error('No image URL or base64 data returned');
-        }
+      // fal.ai is the SOLE image engine. Image-to-image sources (user attachments +
+      // retrieved Brain images) are uploaded to signed temp URLs so fal can fetch them;
+      // with sources present we route to the edit model so the canon subject is recreated.
+      const sourceUrls: string[] = [];
+      for (let i = 0; i < sourceImages.length; i++) {
+        const u = await uploadTempImageForFal(supabaseAdmin, userId, sourceImages[i], 'image/png', `osha-${Date.now()}-${i}`);
+        if (u) sourceUrls.push(u);
       }
+      const falImageModel = sourceUrls.length > 0 ? DEFAULT_FAL_EDIT_MODEL : imageModel;
+      const media = await generateImageViaFal({
+        falKey,
+        modelId: falImageModel,
+        prompt: imagePrompt,
+        imageUrls: sourceUrls,
+      });
+      const falHost = new URL(media.url).hostname;
+      if (falHost !== 'fal.media' && !falHost.endsWith('.fal.media')) throw new Error('Unexpected fal image host');
+      const imgResp = await fetch(media.url, { signal: AbortSignal.timeout(60_000) });
+      if (!imgResp.ok) throw new Error('Failed to fetch generated image');
+      const ab = await imgResp.arrayBuffer();
+      if (ab.byteLength > 20 * 1024 * 1024) throw new Error('Generated image too large');
+      imageBlob = new Blob([ab], { type: imgResp.headers.get('content-type') || 'image/png' });
 
       // Persist image to Supabase Storage (mirror of Nexus pattern)
       let permanentImageUrl = '';
@@ -2340,11 +2269,25 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
   }
 
   // ── Step 6: Detect if web search would help ─────────────────────────────────
-  const useGemini = !openaiKey && !!geminiKey;
+  // Honor the globally selected text provider (active_text_provider), falling back to
+  // whatever key is configured. This replaces the old key-availability-only heuristic
+  // so a Claude or Gemini selection actually takes effect in Osha.
+  const activeTextProvider = llmSettings?.active_text_provider as string | undefined;
+  const textProvider: 'openai' | 'gemini' | 'claude' =
+    activeTextProvider === 'claude' && claudeKey ? 'claude'
+    : activeTextProvider === 'gemini' && geminiKey ? 'gemini'
+    : activeTextProvider === 'openai' && openaiKey ? 'openai'
+    : openaiKey ? 'openai'
+    : geminiKey ? 'gemini'
+    : 'claude';
+  const useGemini = textProvider === 'gemini';
+  const useClaude = textProvider === 'claude';
   let responseContent = '';
   let complianceStatus = 'pass';
-  let llmProvider = useGemini ? 'gemini' : 'openai';
-  let llmModel = useGemini ? (llmSettings?.gemini_text_model || 'gemini-1.5-pro') : (llmSettings?.openai_text_model || 'gpt-4o');
+  const llmProvider = textProvider;
+  const llmModel = textProvider === 'gemini' ? (llmSettings?.gemini_text_model || 'gemini-3.5-flash')
+    : textProvider === 'claude' ? (llmSettings?.claude_text_model || 'claude-opus-4-8')
+    : (llmSettings?.openai_text_model || 'gpt-5.4');
 
   // Path A: Explicit web search requests
   const WEB_SEARCH_PHRASES = ['search the web', 'search online', 'look it up online', 'look online', 'yes search', 'yes, search', 'go ahead and search', 'please search', 'search for it', 'web search', 'google it', 'find it online'];
@@ -2364,8 +2307,9 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
   let usedWebSearch = false;
 
   try {
-    if (needsWebSearch && !useGemini) {
-      // Use OpenAI Responses API with web_search_preview for live information
+    if (needsWebSearch && textProvider === 'openai') {
+      // Use OpenAI Responses API with web_search_preview for live information.
+      // Web search is an OpenAI-Responses feature; Gemini/Claude selections skip it.
       usedWebSearch = true;
       // Build input with conversation history so the model has full context
       const responsesInput = [
@@ -2425,7 +2369,37 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
       if (!geminiRes.ok) throw new Error(await geminiRes.text());
       const geminiData = await geminiRes.json();
       responseContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated.';
+    } else if (useClaude) {
+      // ── Anthropic Claude — Messages API (top-level system; first message must be user) ──
+      // Vision attachments degrade to text here (the Brain RAG already injects image
+      // descriptions); web search is OpenAI-only and skipped for Claude.
+      const claudeText = Array.isArray(userContent)
+        ? ((userContent as Array<{ type?: string; text?: string }>).find((p) => p?.type === 'text')?.text || message)
+        : (userContent as string);
+      const claudeHistory = [...contextHistory];
+      while (claudeHistory.length && claudeHistory[0].role !== 'user') claudeHistory.shift();
+      const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': claudeKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: llmModel,
+          max_tokens: TOKEN_BUDGETS.CONTENT_GENERATION,
+          system: systemPrompt,
+          messages: [
+            ...claudeHistory.map((m) => ({ role: m.role, content: m.content })),
+            { role: 'user', content: claudeText },
+          ],
+        }),
+      });
+      if (!claudeRes.ok) throw new Error(await claudeRes.text());
+      const claudeData = await claudeRes.json();
+      responseContent = Array.isArray(claudeData.content)
+        ? (claudeData.content as Array<{ type?: string; text?: string }>).filter((b) => b.type === 'text').map((b) => b.text || '').join('') || 'No response generated.'
+        : 'No response generated.';
     } else {
+      // Reasoning models (gpt-5.x / o-series) use max_completion_tokens + reasoning_effort and
+      // reject temperature; gpt-4.1 and legacy use max_tokens + temperature.
+      const isReasoning = llmModel.startsWith('gpt-5') || /^o[0-9]/.test(llmModel);
       const callOpenAIChat = (uc: string | object[]) => fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
@@ -2436,8 +2410,9 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
             ...contextHistory.map(m => ({ role: m.role, content: m.content })),
             { role: 'user', content: uc },
           ],
-          max_tokens: TOKEN_BUDGETS.CONTENT_GENERATION,
-          temperature: 0.7,
+          ...(isReasoning
+            ? { max_completion_tokens: TOKEN_BUDGETS.CONTENT_GENERATION, reasoning_effort: 'medium' }
+            : { max_tokens: TOKEN_BUDGETS.CONTENT_GENERATION, temperature: 0.7 }),
         }),
       });
 

@@ -690,19 +690,26 @@ export type Database = {
           active_image_provider: string | null
           active_text_provider: string | null
           active_video_provider: string | null
+          claude_enabled: boolean | null
+          claude_text_model: string | null
           created_at: string | null
-
+          fal_enabled: boolean | null
+          fal_image_model: string | null
+          fal_text_model: string | null
+          fal_video_model: string | null
           gemini_enabled: boolean | null
           gemini_image_model: string | null
           gemini_text_model: string | null
           gemini_video_model: string | null
           id: string
-
           openai_deep_research_model: string | null
           openai_enabled: boolean | null
           openai_image_model: string | null
           openai_text_model: string | null
           openai_video_model: string | null
+          pulse_queue_enabled: boolean | null
+          pulse_timezone: string | null
+          pulse_webhook_url: string | null
           updated_at: string | null
         }
         Insert: {
@@ -710,19 +717,26 @@ export type Database = {
           active_image_provider?: string | null
           active_text_provider?: string | null
           active_video_provider?: string | null
+          claude_enabled?: boolean | null
+          claude_text_model?: string | null
           created_at?: string | null
-
+          fal_enabled?: boolean | null
+          fal_image_model?: string | null
+          fal_text_model?: string | null
+          fal_video_model?: string | null
           gemini_enabled?: boolean | null
           gemini_image_model?: string | null
           gemini_text_model?: string | null
           gemini_video_model?: string | null
           id?: string
-
           openai_deep_research_model?: string | null
           openai_enabled?: boolean | null
           openai_image_model?: string | null
           openai_text_model?: string | null
           openai_video_model?: string | null
+          pulse_queue_enabled?: boolean | null
+          pulse_timezone?: string | null
+          pulse_webhook_url?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -730,19 +744,26 @@ export type Database = {
           active_image_provider?: string | null
           active_text_provider?: string | null
           active_video_provider?: string | null
+          claude_enabled?: boolean | null
+          claude_text_model?: string | null
           created_at?: string | null
-
+          fal_enabled?: boolean | null
+          fal_image_model?: string | null
+          fal_text_model?: string | null
+          fal_video_model?: string | null
           gemini_enabled?: boolean | null
           gemini_image_model?: string | null
           gemini_text_model?: string | null
           gemini_video_model?: string | null
           id?: string
-
           openai_deep_research_model?: string | null
           openai_enabled?: boolean | null
           openai_image_model?: string | null
           openai_text_model?: string | null
           openai_video_model?: string | null
+          pulse_queue_enabled?: boolean | null
+          pulse_timezone?: string | null
+          pulse_webhook_url?: string | null
           updated_at?: string | null
         }
         Relationships: []

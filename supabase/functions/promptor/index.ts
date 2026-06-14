@@ -457,12 +457,21 @@ Deno.serve(async (req) => {
       .select('*')
       .single();
 
-    const provider = llmSettings?.active_text_provider || 'openai';
     const openaiKey = llmSettings?.openai_api_key || Deno.env.get('OPENAI_API_KEY') || '';
     const geminiKey = llmSettings?.gemini_api_key || Deno.env.get('GEMINI_API_KEY') || '';
+    const claudeKey = llmSettings?.claude_api_key || Deno.env.get('ANTHROPIC_API_KEY') || '';
+    // Honor the active text provider, but fall back to whatever key is actually configured so a
+    // selected-but-unkeyed provider never routes its model string to the wrong API (code-review C1).
+    const requestedProvider = llmSettings?.active_text_provider || 'openai';
+    const provider = (requestedProvider === 'claude' && claudeKey) ? 'claude'
+      : (requestedProvider === 'gemini' && geminiKey) ? 'gemini'
+      : (requestedProvider === 'openai' && openaiKey) ? 'openai'
+      : openaiKey ? 'openai' : geminiKey ? 'gemini' : claudeKey ? 'claude' : 'openai';
     const model = provider === 'gemini'
-      ? (llmSettings?.gemini_text_model || 'gemini-2.0-flash')
-      : (llmSettings?.openai_text_model || 'gpt-4o');
+      ? (llmSettings?.gemini_text_model || 'gemini-3.5-flash')
+      : provider === 'claude'
+      ? (llmSettings?.claude_text_model || 'claude-opus-4-8')
+      : (llmSettings?.openai_text_model || 'gpt-5.4');
 
     // ── MANDATORY: Query Heart + Brain ────────────────────────────────────────
     console.log(`Promptor: querying Heart and Brain for user=${userId}, output_type=${output_type}`);
@@ -571,7 +580,7 @@ Respond ONLY with the JSON object.`;
     // ── LLM Call ──────────────────────────────────────────────────────────────
     let llmResponse: Record<string, unknown>;
 
-    if (provider === 'gemini' && geminiKey) {
+    if (provider === 'gemini') {
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
       const geminiRes = await fetch(geminiUrl, {
         method: 'POST',
@@ -581,12 +590,41 @@ Respond ONLY with the JSON object.`;
           generationConfig: { temperature: 0.7, maxOutputTokens: maxTokens },
         }),
       });
+      if (!geminiRes.ok) throw new Error(await geminiRes.text());
       const geminiData = await geminiRes.json();
       const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       llmResponse = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+    } else if (provider === 'claude') {
+      // Anthropic Claude — Messages API (top-level system; JSON requested in the user message).
+      const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': claudeKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: maxTokens,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userMessage }],
+        }),
+      });
+      if (!claudeRes.ok) {
+        const errBody = await claudeRes.json().catch(() => ({}));
+        throw new Error((errBody as { error?: { message?: string } })?.error?.message || `Anthropic request failed (${claudeRes.status})`);
+      }
+      const claudeData = await claudeRes.json();
+      const rawText = Array.isArray(claudeData.content)
+        ? (claudeData.content as Array<{ type?: string; text?: string }>).filter((b) => b.type === 'text').map((b) => b.text || '').join('')
+        : '';
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+      llmResponse = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
     } else {
-      // OpenAI
+      // OpenAI — reasoning models (gpt-5.x / o-series) use max_completion_tokens + reasoning_effort
+      // and reject temperature; gpt-4.1 and legacy use max_tokens + temperature.
+      const isReasoning = model.startsWith('gpt-5') || /^o[0-9]/.test(model);
       const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -599,11 +637,11 @@ Respond ONLY with the JSON object.`;
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userMessage },
           ],
-          temperature: 0.7,
-          max_tokens: maxTokens,
+          ...(isReasoning ? { max_completion_tokens: maxTokens, reasoning_effort: 'medium' } : { max_tokens: maxTokens, temperature: 0.7 }),
           response_format: { type: 'json_object' },
         }),
       });
+      if (!openaiRes.ok) throw new Error(await openaiRes.text());
       const openaiData = await openaiRes.json();
       const rawContent = openaiData.choices?.[0]?.message?.content || '{}';
       try {

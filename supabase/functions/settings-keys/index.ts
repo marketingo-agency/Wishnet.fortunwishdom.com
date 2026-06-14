@@ -7,7 +7,7 @@
  * Actions:
  *   - update-key  { provider, key }   → writes the key to the admin-only llm_settings row
  *   - reset-key   { provider }        → NULLs the column, reverting to the Deno.env secret
- *   - check-keys  { }                 → returns { openai, gemini, fal } as 'db' | 'env' | 'none'
+ *   - check-keys  { }                 → returns { openai, gemini, fal, claude, pulse } as 'db' | 'env' | 'none'
  *
  * Security properties:
  *   1. Caller must pass a valid Bearer token (verified via auth.getUser).
@@ -26,13 +26,14 @@ const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 15 });
 
 let corsHeaders: Record<string, string> = getCorsHeaders(null);
 
-type Provider = 'openai' | 'gemini' | 'fal' | 'pulse';
+type Provider = 'openai' | 'gemini' | 'fal' | 'claude' | 'pulse';
 type KeySource = 'db' | 'env' | 'none';
 
 const PROVIDER_COLUMN: Record<Provider, string> = {
   openai: 'openai_api_key',
   gemini: 'gemini_api_key',
   fal:    'fal_api_key',
+  claude: 'claude_api_key',
   pulse:  'upload_post_api_key',
 };
 
@@ -40,11 +41,12 @@ const PROVIDER_ENV_VAR: Record<Provider, string> = {
   openai: 'OPENAI_API_KEY',
   gemini: 'GEMINI_API_KEY',
   fal:    'FAL_KEY',
+  claude: 'ANTHROPIC_API_KEY',
   pulse:  'UPLOAD_POST_API_KEY',
 };
 
 function isValidProvider(p: unknown): p is Provider {
-  return p === 'openai' || p === 'gemini' || p === 'fal' || p === 'pulse';
+  return p === 'openai' || p === 'gemini' || p === 'fal' || p === 'claude' || p === 'pulse';
 }
 
 function classifyKey(dbValue: string | null | undefined, envVarName: string): KeySource {
@@ -112,7 +114,7 @@ Deno.serve(async (req) => {
     if (action === 'check-keys') {
       const { data: settings, error: readErr } = await supabaseAdmin
         .from('llm_settings')
-        .select('openai_api_key, gemini_api_key, fal_api_key, upload_post_api_key')
+        .select('openai_api_key, gemini_api_key, fal_api_key, claude_api_key, upload_post_api_key')
         .single();
 
       if (readErr) {
@@ -128,6 +130,7 @@ Deno.serve(async (req) => {
           openai: classifyKey(settings?.openai_api_key, PROVIDER_ENV_VAR.openai),
           gemini: classifyKey(settings?.gemini_api_key, PROVIDER_ENV_VAR.gemini),
           fal:    classifyKey(settings?.fal_api_key,    PROVIDER_ENV_VAR.fal),
+          claude: classifyKey(settings?.claude_api_key, PROVIDER_ENV_VAR.claude),
           pulse:  classifyKey(settings?.upload_post_api_key, PROVIDER_ENV_VAR.pulse),
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -137,7 +140,7 @@ Deno.serve(async (req) => {
     // ── update-key / reset-key: shared provider validation ───────────────
     if (!isValidProvider(provider)) {
       return new Response(
-        JSON.stringify({ error: 'Invalid provider. Must be openai, gemini, fal, or pulse.' }),
+        JSON.stringify({ error: 'Invalid provider. Must be openai, gemini, fal, claude, or pulse.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

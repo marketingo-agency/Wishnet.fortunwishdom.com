@@ -3,15 +3,15 @@
  * Centralized type definitions for AI/LLM functionality
  */
 
-export type LLMProvider = 'openai' | 'gemini' | 'fal';
+export type LLMProvider = 'openai' | 'gemini' | 'fal' | 'claude';
 export type ChatMode = 'text' | 'image' | 'video' | 'research';
 
 export interface LLMSettings {
   id: string;
   // SEC-001: API keys exist as columns on llm_settings but are NEVER selected into the browser.
-  // The openai_api_key / gemini_api_key / fal_api_key columns are intentionally omitted from this
-  // interface so TypeScript refuses to surface them in any client-side read. Edge functions read
-  // them server-side with the service role; writes go through the settings-keys edge function.
+  // The openai_api_key / gemini_api_key / fal_api_key / claude_api_key columns are intentionally
+  // omitted from this interface so TypeScript refuses to surface them in any client-side read.
+  // Edge functions read them server-side with the service role; writes go through settings-keys.
   openai_text_model: string;
   openai_image_model: string;
   openai_deep_research_model: string;
@@ -25,6 +25,9 @@ export interface LLMSettings {
   fal_image_model: string;
   fal_video_model: string;
   fal_enabled: boolean;
+  // Claude (Anthropic) — TEXT/reasoning only (no image/video/deep-research model columns)
+  claude_text_model: string;
+  claude_enabled: boolean;
   active_text_provider: LLMProvider;
   active_image_provider: LLMProvider;
   active_deep_research_provider: LLMProvider;

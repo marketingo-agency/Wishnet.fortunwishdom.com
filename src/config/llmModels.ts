@@ -9,16 +9,18 @@ export interface ModelOption {
   description: string;
 }
 
-// OpenAI General Reasoning Models
+// OpenAI General Reasoning Models (10 latest, verified 2026-06 — newest first)
 export const OPENAI_TEXT_MODELS: ModelOption[] = [
-  { value: 'gpt-5.2', label: 'GPT-5.2', description: 'Latest flagship model' },
-  { value: 'gpt-5.1', label: 'GPT-5.1', description: 'Previous generation flagship' },
-  { value: 'gpt-5', label: 'GPT-5', description: 'Fifth generation model' },
-  { value: 'gpt-4.1', label: 'GPT-4.1', description: 'Enhanced GPT-4' },
-  { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini', description: 'Fast and efficient' },
-  { value: 'o4-mini', label: 'O4 Mini', description: 'Compact reasoning model' },
-  { value: 'gpt-4o', label: 'GPT-4o', description: 'Multimodal, 128k context' },
-  { value: 'gpt-4o-mini', label: 'GPT-4o Mini', description: 'Fast & affordable' },
+  { value: 'gpt-5.5', label: 'GPT-5.5', description: 'Flagship reasoning, 1M context' },
+  { value: 'gpt-5.5-pro', label: 'GPT-5.5 Pro', description: 'Highest-accuracy reasoning' },
+  { value: 'gpt-5.4', label: 'GPT-5.4', description: 'Frontier reasoning, cost-effective' },
+  { value: 'gpt-5.4-pro', label: 'GPT-5.4 Pro', description: 'High-accuracy 5.4 reasoning' },
+  { value: 'gpt-5.4-mini', label: 'GPT-5.4 mini', description: 'Low-latency reasoning' },
+  { value: 'gpt-5.4-nano', label: 'GPT-5.4 nano', description: 'Cheapest 5.4 reasoning' },
+  { value: 'gpt-5.2', label: 'GPT-5.2', description: 'Reasoning with xhigh effort' },
+  { value: 'gpt-5.1', label: 'GPT-5.1', description: 'Adaptive reasoning' },
+  { value: 'o3', label: 'OpenAI o3', description: 'Dedicated reasoning (legacy)' },
+  { value: 'gpt-4.1', label: 'GPT-4.1', description: 'Fast non-reasoning fallback' },
 ];
 
 // OpenAI Deep Research Models
@@ -27,38 +29,30 @@ export const OPENAI_DEEP_RESEARCH_MODELS: ModelOption[] = [
   { value: 'o4-mini-deep-research', label: 'O4 Mini Deep Research', description: 'Efficient deep research' },
 ];
 
-// OpenAI Image Generation Models
-export const OPENAI_IMAGE_MODELS: ModelOption[] = [
-  { value: 'gpt-image-1.5', label: 'GPT Image 1.5', description: 'Latest image generation' },
-  { value: 'gpt-image-1', label: 'GPT Image 1', description: 'Standard image generation' },
-  { value: 'gpt-image-1-mini', label: 'GPT Image 1 Mini', description: 'Fast image generation' },
-];
+// NOTE: OpenAI/Gemini IMAGE and VIDEO model registries were removed — fal.ai is the sole
+// image/video engine app-wide (see FAL_IMAGE_MODELS / FAL_VIDEO_MODELS below). OpenAI/Gemini
+// remain TEXT/reasoning providers only.
 
-// OpenAI Video Generation Models
-export const OPENAI_VIDEO_MODELS: ModelOption[] = [
-  { value: 'sora-2', label: 'Sora 2', description: 'Standard video generation' },
-  { value: 'sora-2-pro', label: 'Sora 2 Pro', description: 'Professional video generation' },
-];
-
-// Gemini General Reasoning Models
+// Gemini General Reasoning Models (current, verified 2026-06 — newest first; shut-down ids removed)
 export const GEMINI_TEXT_MODELS: ModelOption[] = [
-  { value: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro', description: 'Next-gen reasoning flagship (preview)' },
-  { value: 'gemini-3-pro-preview', label: 'Gemini 3 Pro', description: 'Latest flagship model' },
-  { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash', description: 'Fast and efficient' },
-  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', description: 'Best quality, 2M context' },
-  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', description: 'Balanced speed & quality' },
+  { value: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro', description: 'Reasoning flagship, 1M context (preview)' },
+  { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', description: 'Most intelligent Flash (GA)' },
+  { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash', description: 'Fast Gemini 3 (preview)' },
+  { value: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite', description: 'Speed/cost optimized (GA)' },
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', description: 'Prior-gen flagship (GA)' },
+  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', description: 'Balanced workhorse (GA)' },
+  { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', description: 'Cheapest 2.5 tier (GA)' },
 ];
 
-// Gemini Image Generation Models
-export const GEMINI_IMAGE_MODELS: ModelOption[] = [
-  { value: 'gemini-3.1-flash-image-preview', label: 'Gemini 3.1 Flash Image (Preview)', description: 'Nano Banana 2 — balanced speed + quality, multi-size up to 4K (preview)' },
-  { value: 'gemini-3-pro-image-preview', label: 'Gemini 3 Pro Image (Preview)', description: 'Nano Banana Pro — studio quality, 4K, thinking (preview)' },
-  { value: 'gemini-2.5-flash-image', label: 'Gemini 2.5 Flash Image', description: 'Nano Banana — fast, stable, high-volume generation (GA)' },
-];
-
-// Gemini Video Generation Models
-export const GEMINI_VIDEO_MODELS: ModelOption[] = [
-  { value: 'veo-3.1-generate-preview', label: 'Veo 3.1', description: 'Flagship — native audio, 1080p (paid preview)' },
+// Claude (Anthropic) General Reasoning Models — TEXT only (no image/video). Verified 2026-06, newest first.
+export const CLAUDE_TEXT_MODELS: ModelOption[] = [
+  { value: 'claude-opus-4-8', label: 'Claude Opus 4.8', description: 'Most capable Opus, 1M context (default)' },
+  { value: 'claude-opus-4-7', label: 'Claude Opus 4.7', description: 'Previous-gen Opus, 1M context' },
+  { value: 'claude-opus-4-6', label: 'Claude Opus 4.6', description: 'Opus 4.6, 1M context' },
+  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', description: 'Best speed/intelligence balance' },
+  { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', description: 'Fastest, low-cost reasoning' },
+  { value: 'claude-opus-4-5', label: 'Claude Opus 4.5', description: 'Legacy Opus' },
+  { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5', description: 'Legacy Sonnet' },
 ];
 
 // fal.ai Image Generation Models (verified from fal-ai MCP 2026-04-14)
@@ -89,21 +83,21 @@ export const FAL_TEXT_MODELS: ModelOption[] = [
 ];
 
 // Helper to get all models for a provider
-export type LLMProviderKey = 'openai' | 'gemini' | 'fal';
+export type LLMProviderKey = 'openai' | 'gemini' | 'fal' | 'claude';
 
 export function getTextModelsForProvider(provider: LLMProviderKey): ModelOption[] {
   if (provider === 'fal') return FAL_TEXT_MODELS;
+  if (provider === 'claude') return CLAUDE_TEXT_MODELS;
   return provider === 'openai' ? OPENAI_TEXT_MODELS : GEMINI_TEXT_MODELS;
 }
 
+// Image + video are fal-only app-wide; non-fal providers return no models.
 export function getImageModelsForProvider(provider: LLMProviderKey): ModelOption[] {
-  if (provider === 'fal') return FAL_IMAGE_MODELS;
-  return provider === 'openai' ? OPENAI_IMAGE_MODELS : GEMINI_IMAGE_MODELS;
+  return provider === 'fal' ? FAL_IMAGE_MODELS : [];
 }
 
 export function getVideoModelsForProvider(provider: LLMProviderKey): ModelOption[] {
-  if (provider === 'fal') return FAL_VIDEO_MODELS;
-  return provider === 'openai' ? OPENAI_VIDEO_MODELS : GEMINI_VIDEO_MODELS;
+  return provider === 'fal' ? FAL_VIDEO_MODELS : [];
 }
 
 export function getDeepResearchModels(): ModelOption[] {
@@ -119,7 +113,7 @@ export const OPENAI_FILE_ANALYSIS_MODELS: ModelOption[] = [
 ];
 
 export const GEMINI_FILE_ANALYSIS_MODELS: ModelOption[] = [
-  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', description: 'Fast, reliable' },
+  { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash', description: 'Fast, current-gen vision' },
   { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', description: 'Balanced quality' },
   { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', description: 'Highest quality' },
 ];
@@ -129,12 +123,13 @@ export function getFileAnalysisModelsForProvider(provider: 'openai' | 'gemini'):
 }
 
 // Default models
-export const DEFAULT_OPENAI_TEXT_MODEL = 'gpt-4o';
+export const DEFAULT_OPENAI_TEXT_MODEL = 'gpt-5.4';
 export const DEFAULT_OPENAI_IMAGE_MODEL = 'gpt-image-1';
 export const DEFAULT_OPENAI_DEEP_RESEARCH_MODEL = 'o3-deep-research';
 export const DEFAULT_OPENAI_VIDEO_MODEL = 'sora-2';
-export const DEFAULT_GEMINI_TEXT_MODEL = 'gemini-2.5-flash';
+export const DEFAULT_GEMINI_TEXT_MODEL = 'gemini-3.5-flash';
 export const DEFAULT_GEMINI_IMAGE_MODEL = 'gemini-2.5-flash-image';
+export const DEFAULT_CLAUDE_TEXT_MODEL = 'claude-opus-4-8';
 export const DEFAULT_FAL_IMAGE_MODEL = 'fal-ai/flux-pro/v1.1-ultra';
 export const DEFAULT_FAL_VIDEO_MODEL = 'fal-ai/kling-video/v3/pro/text-to-video';
 export const DEFAULT_FAL_TEXT_MODEL = 'openrouter/router';

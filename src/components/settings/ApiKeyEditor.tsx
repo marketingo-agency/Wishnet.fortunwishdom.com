@@ -36,6 +36,7 @@ const PROVIDER_LABEL: Record<ProviderKeyProvider, string> = {
   openai: 'OpenAI API Key',
   gemini: 'Google Gemini API Key',
   fal: 'fal.ai API Key',
+  claude: 'Anthropic Claude API Key',
   pulse: 'upload-post.com API Key',
 };
 
@@ -43,6 +44,7 @@ const PROVIDER_PLACEHOLDER: Record<ProviderKeyProvider, string> = {
   openai: 'sk-...',
   gemini: 'AI...',
   fal: 'fal-key...',
+  claude: 'sk-ant-...',
   pulse: 'Your API key',
 };
 

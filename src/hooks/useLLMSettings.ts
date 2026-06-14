@@ -14,11 +14,8 @@ import type { LLMSettings, ChatRequest, DeepResearchRequest } from '@/types/llm'
 export {
   OPENAI_TEXT_MODELS,
   OPENAI_DEEP_RESEARCH_MODELS,
-  OPENAI_IMAGE_MODELS,
-  OPENAI_VIDEO_MODELS,
   GEMINI_TEXT_MODELS,
-  GEMINI_IMAGE_MODELS,
-  GEMINI_VIDEO_MODELS,
+  CLAUDE_TEXT_MODELS,
   FAL_TEXT_MODELS,
   FAL_IMAGE_MODELS,
   FAL_VIDEO_MODELS,
@@ -46,6 +43,8 @@ const LLM_SETTINGS_CLIENT_COLUMNS = [
   'fal_image_model',
   'fal_video_model',
   'fal_enabled',
+  'claude_text_model',
+  'claude_enabled',
   'active_text_provider',
   'active_image_provider',
   'active_deep_research_provider',
@@ -98,7 +97,7 @@ export function useUpdateLLMSettings() {
 export function useTestConnection() {
   return useMutation({
     onError: () => {}, // suppress React Query's internal console.error
-    mutationFn: async ({ provider, apiKey }: { provider: 'openai' | 'gemini' | 'fal'; apiKey: string }) => {
+    mutationFn: async ({ provider, apiKey }: { provider: 'openai' | 'gemini' | 'fal' | 'claude'; apiKey: string }) => {
       const headers = await getAuthHeaders();
       const response = await fetch(AI_CHAT_ENDPOINT, {
         method: 'POST',

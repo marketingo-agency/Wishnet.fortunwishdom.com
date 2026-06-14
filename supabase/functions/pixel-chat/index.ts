@@ -14,6 +14,7 @@ import { sanitizeForPrompt, stripDashes } from '../_shared/sanitize.ts';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
 import { TOKEN_BUDGETS } from '../_shared/token-budgets.ts';
+import { generateImageViaFal, generateVideoViaFal, uploadTempImageForFal, DEFAULT_FAL_EDIT_MODEL } from '../_shared/fal.ts';
 
 // SEC-004: 10 requests per minute per user (image generation, expensive)
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 10 });
@@ -505,16 +506,6 @@ async function buildPixelImagePrompt(
   return `${userMessage}${wishpediaSection}${visualKnowledge}${aestheticNote}${blueprintNote}${formatNote}${heartConstraints}\n\nStyle: creative, high-quality digital art, brand-consistent, appropriate for all audiences, ${settings.default_aesthetic} aesthetic.`;
 }
 
-function mapSizeToOpenAI(selectedSize?: { width: number; height: number; ratio: string }): string {
-  if (!selectedSize) return '1024x1024';
-  const { ratio } = selectedSize;
-  // gpt-image-1 valid sizes: 1024x1024, 1536x1024, 1024x1536, auto
-  if (ratio === '1:1') return '1024x1024';
-  if (ratio === '9:16' || ratio === '4:5') return '1024x1536';
-  if (ratio === '16:9' || ratio === '1.91:1' || ratio === '2.63:1') return '1536x1024';
-  return 'auto';
-}
-
 function mapRatioToGemini(selectedSize?: { width: number; height: number; ratio: string }): string | null {
   if (!selectedSize) return null;
   const { ratio } = selectedSize;
@@ -532,14 +523,6 @@ const VIDEO_POST_TYPES = new Set(['video', 'story', 'reel']);
 function isVideoPostType(postType?: string): boolean {
   if (!postType) return false;
   return VIDEO_POST_TYPES.has(postType);
-}
-
-function mapSizeToSora(selectedSize?: { width: number; height: number; ratio: string }): string {
-  if (!selectedSize) return '1920x1080';
-  const { ratio } = selectedSize;
-  if (ratio === '9:16' || ratio === '4:5') return '1080x1920';
-  if (ratio === '1:1') return '1080x1080';
-  return '1920x1080'; // 16:9 and other landscape
 }
 
 function mapRatioToVeo(selectedSize?: { width: number; height: number; ratio: string }): string {
@@ -866,8 +849,8 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
     const useGemini = !openaiKeyBP && !!geminiKeyBP;
     const textProvider = useGemini ? 'gemini' : 'openai';
     const textModel = useGemini
-      ? (llmSettingsBP?.gemini_text_model || 'gemini-2.5-flash')
-      : (llmSettingsBP?.openai_text_model || 'gpt-4o');
+      ? (llmSettingsBP?.gemini_text_model || 'gemini-3.5-flash')
+      : (llmSettingsBP?.openai_text_model || 'gpt-5.4');
 
     let blueprintJSON: Record<string, string> | null = null;
 
@@ -888,6 +871,7 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
         const jsonMatch = rawText.match(/\{[\s\S]*\}/);
         if (jsonMatch) blueprintJSON = JSON.parse(jsonMatch[0]);
       } else {
+        const isReasoningBP = textModel.startsWith('gpt-5') || /^o[0-9]/.test(textModel);
         const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKeyBP}` },
@@ -897,8 +881,7 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
               { role: 'system', content: 'You are a creative visual director AI. You respond only with valid JSON objects, no markdown, no code blocks.' },
               { role: 'user', content: generationPrompt },
             ],
-            temperature: 0.85,
-            max_tokens: TOKEN_BUDGETS.IMAGE_PROMPT,
+            ...(isReasoningBP ? { max_completion_tokens: TOKEN_BUDGETS.IMAGE_PROMPT, reasoning_effort: 'medium' } : { temperature: 0.85, max_tokens: TOKEN_BUDGETS.IMAGE_PROMPT }),
             response_format: { type: 'json_object' },
           }),
         });
@@ -935,7 +918,9 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
     });
   }
 
-  const { message, conversationHistory = [], attachments = [], selectedPostType, selectedSize } = body;
+  const { message, conversationHistory = [], selectedPostType, selectedSize } = body;
+  // DoS hardening: cap attachments per request (each is base64-decoded and, for i2i, uploaded to fal).
+  const attachments = (Array.isArray(body.attachments) ? body.attachments : []).slice(0, 10);
   if (!message) {
     return new Response(JSON.stringify({ error: 'message required' }), {
       status: 400,
@@ -981,8 +966,10 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
 
   const openaiKey = llmSettings?.openai_api_key || Deno.env.get('OPENAI_API_KEY') || '';
   const geminiKey = llmSettings?.gemini_api_key || Deno.env.get('GEMINI_API_KEY') || '';
+  const claudeKey = llmSettings?.claude_api_key || Deno.env.get('ANTHROPIC_API_KEY') || '';
+  const falKey = ((llmSettings?.fal_api_key as string | null) || Deno.env.get('FAL_KEY') || '').trim();
 
-  if (!openaiKey && !geminiKey) {
+  if (!openaiKey && !geminiKey && !claudeKey) {
     return new Response(JSON.stringify({ error: 'No AI provider configured. Ask an admin to configure LLM settings.' }), {
       status: 503,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -1056,10 +1043,9 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
 
   // ── Step 5a: Video generation for video post types ──────────────────────
   if (!wantsTextOnly && !wantsDiagram && (isVideoPostType(selectedPostType) || detectVideoIntent(message))) {
-    const videoProvider = llmSettings?.active_video_provider || 'openai';
-    const videoModel = videoProvider === 'gemini'
-      ? (llmSettings?.gemini_video_model || 'veo-3.1-generate-preview')
-      : (llmSettings?.openai_video_model || 'sora-2');
+    // fal.ai is the SOLE video engine (OpenAI Sora / Gemini Veo retired).
+    const videoProvider = 'fal';
+    const videoModel = llmSettings?.fal_video_model || 'fal-ai/kling-video/v3/pro/text-to-video';
 
     const enrichedVideoMessage = enrichMessageForRegeneration(message, conversationHistory);
     const videoPrompt = await buildPixelImagePrompt(
@@ -1071,123 +1057,19 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
     try {
       let videoBlob: Blob | null = null;
 
-      if (videoProvider === 'openai') {
-        if (!openaiKey) throw new Error('OpenAI API key not configured.');
-        console.log(`Pixel video gen: provider=openai, model=${videoModel}`);
-
-        const formData = new FormData();
-        formData.append('model', videoModel);
-        formData.append('prompt', videoPrompt);
-        const soraSize = mapSizeToSora(selectedSize);
-        formData.append('size', soraSize);
-        formData.append('n', '1');
-        console.log(`Sora params: size=${soraSize}`);
-
-        const submitRes = await fetch('https://api.openai.com/v1/videos', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${openaiKey}` },
-          body: formData,
-        });
-        if (!submitRes.ok) {
-          const errData = await submitRes.json().catch(() => ({ error: { message: 'Failed to submit video job' } }));
-          throw new Error(errData.error?.message || 'Video generation failed');
-        }
-        const submitData = await submitRes.json();
-        const videoId = submitData.id;
-        if (!videoId) throw new Error('No video job ID returned from OpenAI');
-        console.log(`Sora job submitted: id=${videoId}`);
-
-        // Poll for completion
-        const maxAttempts = 60;
-        let completed = false;
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-          await new Promise(r => setTimeout(r, 5000));
-          const pollRes = await fetch(`https://api.openai.com/v1/videos/${videoId}`, {
-            headers: { 'Authorization': `Bearer ${openaiKey}` },
-          });
-          if (!pollRes.ok) continue;
-          const pollData = await pollRes.json();
-          console.log(`Sora poll ${attempt + 1}: status=${pollData.status}`);
-          if (pollData.status === 'completed') {
-            // Download video content
-            const contentRes = await fetch(`https://api.openai.com/v1/videos/${videoId}/content`, {
-              headers: { 'Authorization': `Bearer ${openaiKey}` },
-            });
-            if (contentRes.ok) {
-              videoBlob = await contentRes.blob();
-            }
-            completed = true;
-            break;
-          }
-          if (pollData.status === 'failed' || pollData.status === 'cancelled') {
-            throw new Error(`Video generation ${pollData.status}: ${pollData.error?.message || 'Unknown error'}`);
-          }
-        }
-        if (!completed) throw new Error('Video generation timed out after 5 minutes');
-
-      } else if (videoProvider === 'gemini') {
-        if (!geminiKey) throw new Error('Gemini API key not configured.');
-        console.log(`Pixel video gen: provider=gemini, model=${videoModel}`);
-
-        const veoAspect = mapRatioToVeo(selectedSize);
-        const submitRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${videoModel}:predictLongRunning?key=${geminiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              instances: [{ prompt: videoPrompt }],
-              parameters: { aspectRatio: veoAspect, sampleCount: 1 },
-            }),
-          }
-        );
-        if (!submitRes.ok) {
-          const errData = await submitRes.json().catch(() => ({ error: { message: 'Veo submission failed' } }));
-          throw new Error(errData.error?.message || 'Veo video generation failed');
-        }
-        const submitData = await submitRes.json();
-        const operationName = submitData.name;
-        if (!operationName) throw new Error('No operation name returned from Gemini Veo');
-        console.log(`Veo operation: ${operationName}`);
-
-        const maxVeoAttempts = 60;
-        let completed = false;
-        for (let attempt = 0; attempt < maxVeoAttempts; attempt++) {
-          await new Promise(r => setTimeout(r, 10000));
-          const pollRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${geminiKey}`,
-          );
-          if (!pollRes.ok) continue;
-          const pollData = await pollRes.json();
-          console.log(`Veo poll ${attempt + 1}: done=${pollData.done}`);
-          if (pollData.done) {
-            if (pollData.error) throw new Error(`Veo failed: ${pollData.error.message || JSON.stringify(pollData.error)}`);
-            const videos = pollData.response?.videos || pollData.response?.generateVideoResponse?.generatedSamples;
-            const videoBytes = videos?.[0]?.video?.videoBytes || videos?.[0]?.videoBytes || null;
-            if (videoBytes) {
-              const binary = atob(videoBytes);
-              const bytes = new Uint8Array(binary.length);
-              for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-              videoBlob = new Blob([bytes], { type: 'video/mp4' });
-            } else {
-              const videoUri = videos?.[0]?.video?.uri || videos?.[0]?.uri || null;
-              if (videoUri) {
-                const separator = videoUri.includes('?') ? '&' : '?';
-                const dlRes = await fetch(`${videoUri}${separator}key=${geminiKey}`);
-                if (!dlRes.ok) {
-                  throw new Error(`Failed to download Veo video: HTTP ${dlRes.status}`);
-                }
-                videoBlob = await dlRes.blob();
-              }
-            }
-            completed = true;
-            break;
-          }
-        }
-        if (!completed) throw new Error('Veo video generation timed out after 10 minutes');
-      } else {
-        throw new Error(`Unsupported video provider: ${videoProvider}`);
-      }
+      // fal.ai is the SOLE video engine. Submit + poll-to-completion via the shared helper.
+      console.log(`Pixel video gen: provider=fal, model=${videoModel}`);
+      const media = await generateVideoViaFal({
+        falKey,
+        modelId: videoModel,
+        prompt: videoPrompt,
+        aspectRatio: mapRatioToVeo(selectedSize),
+      });
+      const falHost = new URL(media.url).hostname;
+      if (falHost !== 'fal.media' && !falHost.endsWith('.fal.media')) throw new Error('Unexpected fal video host');
+      const dlRes = await fetch(media.url, { signal: AbortSignal.timeout(120_000) });
+      if (!dlRes.ok) throw new Error(`Failed to download generated video (${dlRes.status})`);
+      videoBlob = await dlRes.blob();
 
       if (!videoBlob) throw new Error('No video data received');
 
@@ -1216,8 +1098,10 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
           .upload(videoPath, videoBlob, { contentType: 'video/mp4', upsert: false });
 
         if (!uploadErr) {
-          const { data: publicData } = supabaseServiceClient.storage.from('files').getPublicUrl(videoPath);
-          permanentVideoUrl = publicData.publicUrl;
+          // BUGFIX: the 'files' bucket is PRIVATE — getPublicUrl 403s. Mint a signed URL
+          // (mirrors the image path + osha-chat, 24h TTL) so the generated video is viewable.
+          const { data: signedData } = await supabaseServiceClient.storage.from('files').createSignedUrl(videoPath, 60 * 60 * 24);
+          permanentVideoUrl = signedData?.signedUrl || '';
 
           const { data: sectors } = await supabase.from('sectors').select('id, name').eq('user_id', userId);
           let pixelSectorId = sectors?.find((s: any) => s.name === 'Pixel AI')?.id;
@@ -1285,11 +1169,9 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
 
   // ── Step 5b: Media-first — generate image unless text-only intent ────────
   if (!wantsTextOnly && !wantsDiagram) {
-    // Use global Active Provider Selection for image generation
-    const imageProvider = llmSettings?.active_image_provider || 'openai';
-    const imageModel = imageProvider === 'gemini'
-      ? (llmSettings?.gemini_image_model || 'gemini-2.5-flash-image')
-      : (llmSettings?.openai_image_model || 'gpt-image-1');
+    // fal.ai is the SOLE image engine (OpenAI/Gemini image generation retired).
+    const imageProvider = 'fal';
+    const imageModel = llmSettings?.fal_image_model || 'fal-ai/flux-pro/v1.1-ultra';
 
     const enrichedImageMessage = enrichMessageForRegeneration(message, conversationHistory);
     const imagePrompt = await buildPixelImagePrompt(
@@ -1327,104 +1209,29 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
     try {
       let imageBlob: Blob;
 
-      if (imageProvider === 'gemini') {
-        if (!geminiKey) throw new Error('Gemini API key not configured.');
-        const geminiImgUrl = `https://generativelanguage.googleapis.com/v1beta/models/${imageModel}:generateContent?key=${geminiKey}`;
-
-        // Model-specific request format
-        const geminiAspect = mapRatioToGemini(selectedSize);
-        const geminiImgParts: object[] = [{ text: imagePrompt }];
-        for (const src of sourceImages) {
-          let b = '';
-          for (let i = 0; i < src.length; i++) b += String.fromCharCode(src[i]);
-          geminiImgParts.unshift({ inlineData: { mimeType: 'image/png', data: btoa(b) } });
-        }
-        const geminiBody: any = {
-          contents: [{ role: 'user', parts: geminiImgParts }],
-        };
-        if (imageModel === 'gemini-2.5-flash-image') {
-          // Standard body, no responseModalities needed
-          if (geminiAspect) {
-            geminiBody.generationConfig = { aspectRatio: geminiAspect };
-          }
-        } else {
-          const genConfig: any = { responseModalities: ['TEXT', 'IMAGE'] };
-          if (geminiAspect) genConfig.aspectRatio = geminiAspect;
-          geminiBody.generationConfig = genConfig;
-        }
-
-        const geminiImgRes = await fetch(geminiImgUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(geminiBody),
-        });
-        if (!geminiImgRes.ok) throw new Error(await geminiImgRes.text());
-        const geminiImgData = await geminiImgRes.json();
-        const parts = geminiImgData.candidates?.[0]?.content?.parts || [];
-        const imgPart = parts.find((p: any) => p.inlineData?.mimeType?.startsWith('image/'));
-        if (!imgPart?.inlineData?.data) throw new Error('Gemini did not return an image');
-        const binary = atob(imgPart.inlineData.data);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        imageBlob = new Blob([bytes], { type: imgPart.inlineData.mimeType || 'image/png' });
-      } else {
-        if (!openaiKey) throw new Error('OpenAI API key not configured.');
-        const openaiSize = mapSizeToOpenAI(selectedSize);
-        const runGeneration = () => fetch('https://api.openai.com/v1/images/generations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
-          body: JSON.stringify({ model: imageModel, prompt: imagePrompt, n: 1, size: openaiSize }),
-        });
-
-        let imageRes: Response;
-        if (sourceImages.length > 0) {
-          // Image-to-image (recreate / combine) via /v1/images/edits — multipart, image[].
-          const form = new FormData();
-          form.append('model', imageModel);
-          form.append('prompt', imagePrompt);
-          form.append('n', '1');
-          if (openaiSize) form.append('size', openaiSize);
-          sourceImages.forEach((src, i) => {
-            form.append('image[]', new File([src], `source_${i}.png`, { type: 'image/png' }));
-          });
-          imageRes = await fetch('https://api.openai.com/v1/images/edits', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${openaiKey}` },
-            body: form,
-          });
-          if (!imageRes.ok) {
-            console.error('Pixel image edit failed, falling back to text-to-image:', await imageRes.text());
-            imageRes = await runGeneration();
-          }
-        } else {
-          imageRes = await runGeneration();
-        }
-        if (!imageRes.ok) throw new Error(await imageRes.text());
-        const imageData = await imageRes.json();
-        const imageResult = imageData.data?.[0];
-        if (!imageResult) throw new Error('No image returned');
-        if (imageResult.url) {
-          // SEC-04: validate host + cap size before buffering the upstream image
-          const u = new URL(imageResult.url);
-          if (u.protocol !== 'https:' || !(u.hostname === 'api.openai.com' || u.hostname.endsWith('.blob.core.windows.net') || u.hostname.endsWith('.oaiusercontent.com'))) {
-            throw new Error('Unexpected image result host');
-          }
-          const imgResp = await fetch(imageResult.url);
-          if (!imgResp.ok) throw new Error('Failed to fetch generated image');
-          const cl = Number(imgResp.headers.get('content-length') || '0');
-          if (cl && cl > 20 * 1024 * 1024) throw new Error('Generated image too large');
-          const ab = await imgResp.arrayBuffer();
-          if (ab.byteLength > 20 * 1024 * 1024) throw new Error('Generated image too large');
-          imageBlob = new Blob([ab], { type: imgResp.headers.get('content-type') || 'image/png' });
-        } else if (imageResult.b64_json) {
-          const binary = atob(imageResult.b64_json);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-          imageBlob = new Blob([bytes], { type: 'image/png' });
-        } else {
-          throw new Error('No image URL or base64 data returned');
-        }
+      // fal.ai is the SOLE image engine. Image-to-image sources (attachments + retrieved
+      // Brain images) are uploaded to signed temp URLs so fal can fetch them; with sources
+      // present we route to the edit model so the canon subject is recreated faithfully.
+      const sourceUrls: string[] = [];
+      for (let i = 0; i < sourceImages.length; i++) {
+        const u = await uploadTempImageForFal(supabaseAdmin, userId, sourceImages[i], 'image/png', `pixel-${Date.now()}-${i}`);
+        if (u) sourceUrls.push(u);
       }
+      const falImageModel = sourceUrls.length > 0 ? DEFAULT_FAL_EDIT_MODEL : imageModel;
+      const media = await generateImageViaFal({
+        falKey,
+        modelId: falImageModel,
+        prompt: imagePrompt,
+        imageUrls: sourceUrls,
+        aspectRatio: mapRatioToGemini(selectedSize),
+      });
+      const falHost = new URL(media.url).hostname;
+      if (falHost !== 'fal.media' && !falHost.endsWith('.fal.media')) throw new Error('Unexpected fal image host');
+      const imgResp = await fetch(media.url, { signal: AbortSignal.timeout(60_000) });
+      if (!imgResp.ok) throw new Error('Failed to fetch generated image');
+      const ab = await imgResp.arrayBuffer();
+      if (ab.byteLength > 20 * 1024 * 1024) throw new Error('Generated image too large');
+      imageBlob = new Blob([ab], { type: imgResp.headers.get('content-type') || 'image/png' });
 
       // Persist to storage + Files Manager
       let permanentImageUrl = '';
@@ -1503,11 +1310,24 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
   }
 
   // ── Step 6: Text-only chat completion (fallback for text/diagram requests) ──
-  const useGemini = !openaiKey && !!geminiKey;
+  // Honor the globally selected text provider (active_text_provider), falling back to
+  // whatever key is configured — so a Claude or Gemini selection actually takes effect.
+  const activeTextProvider = llmSettings?.active_text_provider as string | undefined;
+  const textProvider: 'openai' | 'gemini' | 'claude' =
+    activeTextProvider === 'claude' && claudeKey ? 'claude'
+    : activeTextProvider === 'gemini' && geminiKey ? 'gemini'
+    : activeTextProvider === 'openai' && openaiKey ? 'openai'
+    : openaiKey ? 'openai'
+    : geminiKey ? 'gemini'
+    : 'claude';
+  const useGemini = textProvider === 'gemini';
+  const useClaude = textProvider === 'claude';
   let responseContent = '';
   let complianceStatus = 'pass';
-  const llmProvider = useGemini ? 'gemini' : 'openai';
-  const llmModel = useGemini ? (llmSettings?.gemini_text_model || 'gemini-1.5-pro') : (llmSettings?.openai_text_model || 'gpt-4o');
+  const llmProvider = textProvider;
+  const llmModel = textProvider === 'gemini' ? (llmSettings?.gemini_text_model || 'gemini-3.5-flash')
+    : textProvider === 'claude' ? (llmSettings?.claude_text_model || 'claude-opus-4-8')
+    : (llmSettings?.openai_text_model || 'gpt-5.4');
 
   try {
     if (useGemini) {
@@ -1533,6 +1353,32 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
       if (!geminiRes.ok) throw new Error(await geminiRes.text());
       const geminiData = await geminiRes.json();
       responseContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated.';
+    } else if (useClaude) {
+      // ── Anthropic Claude — Messages API (top-level system; first message must be user) ──
+      // Vision attachments degrade to text here (Brain RAG injects image descriptions).
+      const claudeText = Array.isArray(userContent)
+        ? ((userContent as Array<{ type?: string; text?: string }>).find((p) => p?.type === 'text')?.text || message)
+        : (userContent as string);
+      const claudeHistory = [...conversationHistory];
+      while (claudeHistory.length && claudeHistory[0].role !== 'user') claudeHistory.shift();
+      const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': claudeKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: llmModel,
+          max_tokens: TOKEN_BUDGETS.CHAT_RESPONSE,
+          system: systemPrompt,
+          messages: [
+            ...claudeHistory.map((m) => ({ role: m.role, content: m.content })),
+            { role: 'user', content: claudeText },
+          ],
+        }),
+      });
+      if (!claudeRes.ok) throw new Error(await claudeRes.text());
+      const claudeData = await claudeRes.json();
+      responseContent = Array.isArray(claudeData.content)
+        ? (claudeData.content as Array<{ type?: string; text?: string }>).filter((b) => b.type === 'text').map((b) => b.text || '').join('') || 'No response generated.'
+        : 'No response generated.';
     } else {
       const openaiMessages: { role: string; content: string | object[] }[] = [
         { role: 'system', content: systemPrompt },
@@ -1540,14 +1386,15 @@ Respond ONLY with valid JSON (no markdown code blocks, no explanation, just the 
         { role: 'user', content: userContent },
       ];
 
+      // Reasoning models (gpt-5.x / o-series) use max_completion_tokens + reasoning_effort and reject temperature.
+      const isReasoning = llmModel.startsWith('gpt-5') || /^o[0-9]/.test(llmModel);
       const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
         body: JSON.stringify({
           model: llmModel,
           messages: openaiMessages,
-          max_tokens: TOKEN_BUDGETS.CHAT_RESPONSE,
-          temperature: 0.8,
+          ...(isReasoning ? { max_completion_tokens: TOKEN_BUDGETS.CHAT_RESPONSE, reasoning_effort: 'medium' } : { max_tokens: TOKEN_BUDGETS.CHAT_RESPONSE, temperature: 0.8 }),
         }),
       });
 

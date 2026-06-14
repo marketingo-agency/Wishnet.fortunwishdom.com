@@ -11,6 +11,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
+import { generateImageViaFal, DEFAULT_FAL_EDIT_MODEL } from '../_shared/fal.ts';
 
 // SEC-12: rate-limit the cost-bearing image-generation endpoint.
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 15 });
@@ -31,17 +32,6 @@ async function fetchReferenceUrls(
   });
 }
 
-async function fetchReferenceBlobs(urls: string[], max: number): Promise<Blob[]> {
-  const blobs: Blob[] = [];
-  for (const url of urls.slice(0, max)) {
-    try {
-      const res = await fetch(url);
-      if (res.ok) blobs.push(await res.blob());
-    } catch { /* skip */ }
-  }
-  return blobs;
-}
-
 function sanitizeName(name: string): string {
   return name
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -59,10 +49,8 @@ interface GenerationContext {
   transparencyEnabled: boolean;
   customSystemPrompt: string;
   namingPattern: string;
-  imageProvider: string;
+  falKey: string;
   imageModel: string;
-  openaiKey: string;
-  geminiKey: string;
   aspectRatio: string;
   maxRefImages: number;
   anglePrompts: Record<string, string>;
@@ -74,6 +62,10 @@ function buildPromptForAngle(
   feedback?: string,
   customPrompt?: string,
 ): string {
+  // Newline-strip + length-cap the request-supplied fields before they enter the fal image prompt.
+  const safeFeedback = feedback ? feedback.replace(/[\r\n\t]+/g, ' ').slice(0, 500) : feedback;
+  const safeCustomPrompt = customPrompt ? customPrompt.replace(/[\r\n\t]+/g, ' ').slice(0, 1000) : customPrompt;
+
   const template = ctx.anglePrompts[angle];
   const angleInstruction = template
     ? template.replace(/\{name\}/g, ctx.characterName)
@@ -83,11 +75,11 @@ function buildPromptForAngle(
     ? '\nTRANSPARENT BACKGROUND: The image MUST have a fully transparent background (PNG alpha channel). Render the character completely isolated on transparency with NO background elements, NO shadows on ground, NO environment.'
     : '';
 
-  const feedbackInstruction = feedback
-    ? `\nCORRECTION: The previous generation was rejected because: "${feedback}". Please correct this in the new generation.`
+  const feedbackInstruction = safeFeedback
+    ? `\nCORRECTION: The previous generation was rejected because: "${safeFeedback}". Please correct this in the new generation.`
     : '';
 
-  const userAddition = customPrompt ? `\nAdditional direction: ${customPrompt}` : '';
+  const userAddition = safeCustomPrompt ? `\nAdditional direction: ${safeCustomPrompt}` : '';
   const preamble = ctx.customSystemPrompt ? `${ctx.customSystemPrompt}\n\n` : '';
 
   return `${preamble}${angleInstruction}${transparencyInstruction}${feedbackInstruction}${userAddition}\n\nStyle: ${ctx.stylePrompt}`;
@@ -95,90 +87,31 @@ function buildPromptForAngle(
 
 async function generateSingleImage(
   ctx: GenerationContext,
-  angle: string,
-  refBlobs: Blob[],
+  _angle: string,
   refUrls: string[],
   prompt: string,
 ): Promise<Blob> {
-  const genSizeMap: Record<string, string> = { '1:1': '1024x1024', '16:9': '1792x1024', '9:16': '1024x1792' };
-  const genSize = genSizeMap[ctx.aspectRatio] || '1024x1024';
+  // fal.ai is the SOLE image engine. Wishpedia reference art (public wishpedia-media URLs)
+  // maps straight to image_urls for image-to-image canon-angle recreation; with references
+  // present we route to the edit model so the canon character is recreated faithfully.
+  const refs = refUrls.slice(0, ctx.maxRefImages);
+  const modelId = refs.length > 0 ? DEFAULT_FAL_EDIT_MODEL : ctx.imageModel;
 
-  const editsSizeMap: Record<string, string> = { '1:1': '1024x1024', '16:9': '1536x1024', '9:16': '1024x1536' };
-  const editsSize = editsSizeMap[ctx.aspectRatio] || '1024x1024';
+  const media = await generateImageViaFal({
+    falKey: ctx.falKey,
+    modelId,
+    prompt,
+    imageUrls: refs,
+    aspectRatio: ctx.aspectRatio,
+  });
 
-  if (ctx.imageProvider === 'gemini' && ctx.geminiKey) {
-    const parts: any[] = [{ text: prompt }];
-    for (const url of refUrls.slice(0, ctx.maxRefImages)) {
-      try {
-        const imgRes = await fetch(url);
-        if (imgRes.ok) {
-          const buf = await imgRes.arrayBuffer();
-          const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-          const mime = imgRes.headers.get('content-type') || 'image/png';
-          parts.push({ inlineData: { mimeType: mime, data: b64 } });
-        }
-      } catch { /* skip */ }
-    }
-
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${ctx.imageModel}:generateContent?key=${ctx.geminiKey}`;
-    const geminiRes = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts }],
-        generationConfig: { responseModalities: ['image', 'text'] },
-      }),
-    });
-    if (!geminiRes.ok) throw new Error(await geminiRes.text());
-    const geminiData = await geminiRes.json();
-    const resParts = geminiData.candidates?.[0]?.content?.parts || [];
-    const imgPart = resParts.find((p: any) => p.inlineData?.mimeType?.startsWith('image/'));
-    if (!imgPart?.inlineData?.data) throw new Error('Gemini did not return an image');
-    const binary = atob(imgPart.inlineData.data);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return new Blob([bytes], { type: imgPart.inlineData.mimeType || 'image/png' });
-  } else {
-    if (!ctx.openaiKey) throw new Error('OpenAI API key not configured.');
-
-    let imageRes: Response;
-    if (refBlobs.length > 0) {
-      const formData = new FormData();
-      for (const blob of refBlobs) {
-        formData.append('image[]', blob, 'reference.png');
-      }
-      formData.append('prompt', prompt);
-      const editsModel = ctx.imageModel === 'gpt-image-1.5' ? 'gpt-image-1' : ctx.imageModel;
-      formData.append('model', editsModel);
-      formData.append('n', '1');
-      formData.append('size', editsSize);
-      imageRes = await fetch('https://api.openai.com/v1/images/edits', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${ctx.openaiKey}` },
-        body: formData,
-      });
-    } else {
-      imageRes = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ctx.openaiKey}` },
-        body: JSON.stringify({ model: ctx.imageModel, prompt, n: 1, size: genSize }),
-      });
-    }
-
-    if (!imageRes.ok) throw new Error(await imageRes.text());
-    const imageData = await imageRes.json();
-    const imageResult = imageData.data?.[0];
-    if (!imageResult) throw new Error('No image returned');
-    if (imageResult.b64_json) {
-      const binary = atob(imageResult.b64_json);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      return new Blob([bytes], { type: 'image/png' });
-    } else if (imageResult.url) {
-      return await fetch(imageResult.url).then(r => r.blob());
-    }
-    throw new Error('No image URL or base64 data returned');
+  const host = new URL(media.url).hostname;
+  if (host !== 'fal.media' && !host.endsWith('.fal.media')) {
+    throw new Error(`Unexpected fal image host: ${host}`);
   }
+  const res = await fetch(media.url, { signal: AbortSignal.timeout(60_000) });
+  if (!res.ok) throw new Error(`fal image download failed (${res.status})`);
+  return await res.blob();
 }
 
 async function saveMediaToStorage(
@@ -270,16 +203,13 @@ Deno.serve(async (req) => {
   ]);
   if (entryError || !entry) return json({ error: 'Entry not found' }, 404);
 
-  const openaiKey = Deno.env.get('OPENAI_API_KEY') || llmSettings?.openai_api_key || '';
-  const geminiKey = Deno.env.get('GEMINI_API_KEY') || llmSettings?.gemini_api_key || '';
-  if (!openaiKey && !geminiKey) return json({ error: 'No AI provider configured.' }, 503);
+  // fal.ai is the SOLE image engine (OpenAI/Gemini image generation retired).
+  const falKey = ((llmSettings?.fal_api_key as string | null) || Deno.env.get('FAL_KEY') || '').trim();
+  if (!falKey) return json({ error: 'fal.ai is not configured. Add a fal.ai API key in Settings > LLM Providers.' }, 503);
 
-  const imageProvider = llmSettings?.active_image_provider || 'openai';
-  const imageModel = imageProvider === 'gemini'
-    ? (llmSettings?.gemini_image_model || 'gemini-2.5-flash-image')
-    : (llmSettings?.openai_image_model || 'gpt-image-1');
+  const imageModel = llmSettings?.fal_image_model || 'fal-ai/flux-pro/v1.1-ultra';
 
-  const characterName = entryName || entry.name;
+  const characterName = (entryName || entry.name || '').replace(/[\r\n\t]+/g, ' ').slice(0, 80);
 
   const ctx: GenerationContext = {
     supabaseAdmin,
@@ -290,24 +220,21 @@ Deno.serve(async (req) => {
     transparencyEnabled: true,
     customSystemPrompt: '',
     namingPattern: '{name}_{angle}',
-    imageProvider,
+    falKey,
     imageModel,
-    openaiKey,
-    geminiKey,
     aspectRatio: aspectRatio || '1:1',
     maxRefImages: 3,
     anglePrompts: {},
   };
 
   const refUrls = await fetchReferenceUrls(supabaseAdmin, referenceMediaIds || []);
-  const refBlobs = await fetchReferenceBlobs(refUrls, ctx.maxRefImages);
 
   if (action === 'generate-image') {
     const angleSuffix = angle || 'generated';
     const prompt = buildPromptForAngle(ctx, angleSuffix, feedback, customPrompt);
 
     try {
-      const imageBlob = await generateSingleImage(ctx, angleSuffix, refBlobs, refUrls, prompt);
+      const imageBlob = await generateSingleImage(ctx, angleSuffix, refUrls, prompt);
       const result = await saveMediaToStorage(ctx, angleSuffix, imageBlob, prompt, entry.name);
       return json(result);
     } catch (e: any) {
@@ -325,7 +252,7 @@ Deno.serve(async (req) => {
     const results = await Promise.allSettled(
       batchAngles.map(async (ang: string) => {
         const prompt = buildPromptForAngle(ctx, ang, undefined, customPrompt);
-        const imageBlob = await generateSingleImage(ctx, ang, refBlobs, refUrls, prompt);
+        const imageBlob = await generateSingleImage(ctx, ang, refUrls, prompt);
         const saved = await saveMediaToStorage(ctx, ang, imageBlob, prompt, entry.name);
         return { angle: ang, ...saved };
       })

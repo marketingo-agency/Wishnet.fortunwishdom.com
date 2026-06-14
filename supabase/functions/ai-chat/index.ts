@@ -14,7 +14,7 @@ let corsHeaders: Record<string, string> = getCorsHeaders(null);
 
 interface RequestBody {
   action: 'chat' | 'test-connection' | 'generate-image' | 'generate-video' | 'start-research' | 'poll-research' | 'check-keys';
-  provider: 'openai' | 'gemini' | 'fal';
+  provider: 'openai' | 'gemini' | 'fal' | 'claude';
   model?: string;
   message?: string;
   apiKey?: string;
@@ -26,18 +26,20 @@ interface RequestBody {
   stream?: boolean; // AGENT-005: enable SSE streaming for chat action
 }
 
-// OpenAI capability mappings - specific models requested by user
-const OPENAI_TEXT_CAPABLE = ['gpt-5.2', 'gpt-5.1', 'gpt-5', 'gpt-4.1', 'gpt-4.1-mini', 'o4-mini', 'gpt-4o', 'gpt-4o-mini'];
+// OpenAI capability mappings — 10 latest reasoning models (verified 2026-06). Keep in lockstep
+// with OPENAI_TEXT_MODELS in src/config/llmModels.ts.
+const OPENAI_TEXT_CAPABLE = ['gpt-5.5', 'gpt-5.5-pro', 'gpt-5.4', 'gpt-5.4-pro', 'gpt-5.4-mini', 'gpt-5.4-nano', 'gpt-5.2', 'gpt-5.1', 'o3', 'gpt-4.1'];
 const OPENAI_DEEP_RESEARCH_CAPABLE = ['o3-deep-research', 'o4-mini-deep-research'];
-const OPENAI_IMAGE_CAPABLE = ['gpt-image-1.5', 'gpt-image-1', 'gpt-image-1-mini'];
-const OPENAI_VIDEO_CAPABLE = ['sora-2', 'sora-2-pro'];
 
-// Gemini capability mappings
-const GEMINI_TEXT_CAPABLE = ['gemini-3.1-pro-preview', 'gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'];
-const GEMINI_IMAGE_CAPABLE = ['gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview', 'gemini-2.5-flash-image'];
-const GEMINI_VIDEO_CAPABLE = ['veo-3.1-generate-preview'];
+// Claude (Anthropic) capability mappings — TEXT/reasoning only. Keep in lockstep with
+// CLAUDE_TEXT_MODELS in src/config/llmModels.ts.
+const CLAUDE_TEXT_CAPABLE = ['claude-opus-4-8', 'claude-opus-4-7', 'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5', 'claude-opus-4-5', 'claude-sonnet-4-5'];
 
-// fal.ai capability mappings (verified from fal-ai MCP)
+// Gemini capability mappings — current reasoning models (shut-down ids removed). Keep in lockstep
+// with GEMINI_TEXT_MODELS in src/config/llmModels.ts.
+const GEMINI_TEXT_CAPABLE = ['gemini-3.1-pro-preview', 'gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+
+// fal.ai is the SOLE image/video engine (OpenAI/Gemini image+video retired). verified from fal-ai MCP.
 const FAL_IMAGE_CAPABLE = ['fal-ai/flux-pro/v1.1-ultra', 'fal-ai/flux-pro/v1.1', 'fal-ai/flux/dev', 'fal-ai/flux/schnell', 'fal-ai/flux-2-max', 'fal-ai/ideogram/v3', 'fal-ai/recraft/v4/text-to-image', 'fal-ai/imagen4/preview'];
 const FAL_VIDEO_CAPABLE = ['fal-ai/kling-video/v3/pro/text-to-video', 'fal-ai/veo3.1', 'fal-ai/veo3.1/fast', 'fal-ai/wan/v2.7/text-to-video', 'bytedance/seedance-2.0/text-to-video'];
 
@@ -242,6 +244,7 @@ Deno.serve(async (req) => {
           openai: !!(settings.openai_api_key || Deno.env.get('OPENAI_API_KEY')),
           gemini: !!(settings.gemini_api_key || Deno.env.get('GEMINI_API_KEY')),
           fal: !!(settings.fal_api_key || Deno.env.get('FAL_KEY')),
+          claude: !!(settings.claude_api_key || Deno.env.get('ANTHROPIC_API_KEY')),
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -249,10 +252,12 @@ Deno.serve(async (req) => {
 
     // Handle test connection - uses provided API key OR DB key OR env secret
     if (action === 'test-connection') {
-      const testApiKey = providedApiKey || (provider === 'openai'
-        ? (settings.openai_api_key || Deno.env.get('OPENAI_API_KEY'))
+      const testApiKey = providedApiKey || (
+        provider === 'openai' ? (settings.openai_api_key || Deno.env.get('OPENAI_API_KEY'))
+        : provider === 'claude' ? (settings.claude_api_key || Deno.env.get('ANTHROPIC_API_KEY'))
+        : provider === 'fal' ? (settings.fal_api_key || Deno.env.get('FAL_KEY'))
         : (settings.gemini_api_key || Deno.env.get('GEMINI_API_KEY')));
-      
+
       if (!testApiKey) {
         return new Response(
           JSON.stringify({ error: `No API key configured for ${provider}. Please add it in LLM Settings or Supabase Edge Function secrets.` }),
@@ -298,6 +303,45 @@ Deno.serve(async (req) => {
             JSON.stringify({ 
               success: true, 
               message: 'OpenAI connection successful', 
+              models: modelIds.length,
+              availableModels: modelIds
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } else if (provider === 'claude') {
+          // Claude test - list models via the Anthropic Models API
+          const response = await fetch('https://api.anthropic.com/v1/models', {
+            method: 'GET',
+            headers: {
+              'x-api-key': testApiKey,
+              'anthropic-version': '2023-06-01',
+            },
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Claude test failed:', response.status, errorText);
+
+            if (response.status === 401) {
+              throw new Error('Invalid API key. Please check your Anthropic Claude API key.');
+            } else if (response.status === 429) {
+              throw new Error('Rate limit exceeded. Please try again later.');
+            } else {
+              throw new Error(`Anthropic API error: ${response.status}`);
+            }
+          }
+
+          const data = await response.json();
+          const modelIds = data.data?.map((m: { id: string }) => m.id) || [];
+          console.log(`Claude connection successful. Found ${modelIds.length} models.`);
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              message: 'Claude connection successful',
               models: modelIds.length,
               availableModels: modelIds
             }),
@@ -359,6 +403,8 @@ Deno.serve(async (req) => {
       ? (settings.openai_api_key || Deno.env.get('OPENAI_API_KEY'))
       : provider === 'fal'
       ? (settings.fal_api_key || Deno.env.get('FAL_KEY'))
+      : provider === 'claude'
+      ? (settings.claude_api_key || Deno.env.get('ANTHROPIC_API_KEY'))
       : (settings.gemini_api_key || Deno.env.get('GEMINI_API_KEY'));
 
     if (!apiKey) {
@@ -499,7 +545,11 @@ Deno.serve(async (req) => {
         );
       }
 
-      const selectedModel = model || (provider === 'openai' ? settings.openai_text_model : settings.gemini_text_model);
+      const selectedModel = model || (
+        provider === 'openai' ? settings.openai_text_model
+        : provider === 'claude' ? settings.claude_text_model
+        : settings.gemini_text_model
+      );
       console.log(`Chat: provider=${provider}, resolvedModel=${selectedModel}`);
 
       // Validate model capability (includes deep research models for text)
@@ -508,6 +558,9 @@ Deno.serve(async (req) => {
         console.warn(`Model ${selectedModel} not in verified text-capable list, proceeding anyway...`);
       }
       if (provider === 'gemini' && !GEMINI_TEXT_CAPABLE.includes(selectedModel)) {
+        console.warn(`Model ${selectedModel} not in verified text-capable list, proceeding anyway...`);
+      }
+      if (provider === 'claude' && !CLAUDE_TEXT_CAPABLE.includes(selectedModel)) {
         console.warn(`Model ${selectedModel} not in verified text-capable list, proceeding anyway...`);
       }
 
@@ -589,17 +642,20 @@ Deno.serve(async (req) => {
           );
         }
 
-        // Standard chat completions API for regular models
-        // Newer models (o4, gpt-5) use max_completion_tokens
-        const isNewerModel = selectedModel.startsWith('o4') || 
-                            selectedModel.startsWith('gpt-5');
-        
-        const tokenParam = isNewerModel
+        // Standard chat completions API for regular models.
+        // Reasoning models (gpt-5.x family + o-series) use max_completion_tokens and reasoning_effort,
+        // and REJECT temperature/top_p. Non-reasoning (gpt-4.1) uses max_tokens + temperature.
+        const isReasoningModel = selectedModel.startsWith('gpt-5') || /^o[0-9]/.test(selectedModel);
+
+        const tokenParam = isReasoningModel
           ? { max_completion_tokens: TOKEN_BUDGETS.CONTENT_GENERATION }
           : { max_tokens: TOKEN_BUDGETS.DEFAULT };
 
-        // Get temperature from already-parsed body; use augmented system prompt
-        const temperature = body.temperature ?? 0.7;
+        // Reasoning models: send reasoning_effort instead of temperature (temperature 400s on gpt-5.x).
+        const tuningParam = isReasoningModel
+          ? { reasoning_effort: 'medium' }
+          : { temperature: body.temperature ?? 0.7 };
+
         const systemPrompt = augmentedSystemPrompt;
 
         // Build multi-turn messages array with full conversation history
@@ -627,7 +683,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             model: selectedModel,
             messages,
-            temperature,
+            ...tuningParam,
             ...tokenParam,
             ...(wantStream ? { stream: true } : {}),
           }),
@@ -717,6 +773,130 @@ Deno.serve(async (req) => {
           JSON.stringify({ content: stripDashes(data.choices[0].message.content ?? '') }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+      } else if (provider === 'claude') {
+        // ── Anthropic Claude — Messages API ────────────────────────────────
+        // KEY DIFFERENCES vs OpenAI: system prompt is a TOP-LEVEL `system` field
+        // (NOT a {role:'system'} message); `thinking` is omitted (works on every
+        // listed model — adaptive-only models accept its absence, and Fable's
+        // always-on thinking is the recommended "omit the param" path); temperature
+        // is omitted (rejected on Opus 4.7/4.8/Fable). max_tokens is REQUIRED.
+        const systemPrompt = augmentedSystemPrompt;
+        const wantStream = body.stream === true;
+
+        const claudeHistory = (body.conversationHistory || []).map((m: { role: 'user' | 'assistant'; content: string }) => ({
+          role: m.role,
+          content: m.content,
+        }));
+        // Claude requires the first message to be 'user' — drop any leading assistant turns.
+        while (claudeHistory.length && claudeHistory[0].role !== 'user') claudeHistory.shift();
+        const claudeMessages = [
+          ...claudeHistory,
+          { role: 'user', content: message },
+        ];
+
+        const response = await fetchWithRetry('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey as string,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: selectedModel,
+            max_tokens: TOKEN_BUDGETS.CHAT_RESPONSE,
+            system: systemPrompt,
+            messages: claudeMessages,
+            ...(wantStream ? { stream: true } : {}),
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Claude chat error:', errorData);
+          const msg = (errorData as { error?: { message?: string } })?.error?.message || 'Anthropic API request failed';
+          if (msg.includes('not_found') || msg.includes('model:')) {
+            return new Response(
+              JSON.stringify({
+                error: `Model "${selectedModel}" not found`,
+                hint: 'Try claude-opus-4-8 or claude-sonnet-4-6. Run Test Connection to see available models.'
+              }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          throw new Error(msg);
+        }
+
+        if (wantStream && response.body) {
+          // Re-emit Anthropic SSE as the client's expected { content } chunks + [DONE]
+          const reader = response.body.getReader();
+          const encoder = new TextEncoder();
+          const decoder = new TextDecoder();
+
+          const stream = new ReadableStream({
+            async start(controller) {
+              try {
+                let buffer = '';
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  buffer += decoder.decode(value, { stream: true });
+                  const lines = buffer.split('\n');
+                  buffer = lines.pop() || '';
+                  for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed.startsWith('data:')) continue;
+                    const payload = trimmed.slice(5).trim();
+                    if (!payload || payload === '[DONE]') continue;
+                    try {
+                      const parsed = JSON.parse(payload);
+                      if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
+                        // Em-dash guarantee on the stream (matches the OpenAI path).
+                        const clean = (parsed.delta.text || '').replace(/\s*[‒–—―]\s*/g, ', ');
+                        if (clean) controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: clean })}\n\n`));
+                      } else if (parsed.type === 'message_stop') {
+                        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                      }
+                    } catch { /* skip malformed chunks */ }
+                  }
+                }
+              } catch (err) {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: String(err) })}\n\n`));
+              } finally {
+                controller.close();
+              }
+            },
+          });
+
+          return new Response(stream, {
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              'Connection': 'keep-alive',
+            },
+          });
+        }
+
+        const data = await response.json();
+        // Fable/Mythos safety classifiers can return HTTP 200 with stop_reason 'refusal' — check first.
+        if (data.stop_reason === 'refusal') {
+          return new Response(
+            JSON.stringify({ content: 'The request was declined by Claude safety filters. Please rephrase and try again.' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        // Claude returns content as an ARRAY of blocks — concatenate the text blocks.
+        const claudeText = Array.isArray(data.content)
+          ? data.content
+              .filter((b: { type?: string }) => b.type === 'text')
+              .map((b: { text?: string }) => b.text || '')
+              .join('')
+          : '';
+        // stripDashes: deterministic backstop for the "No em dashes" Heart rule.
+        return new Response(
+          JSON.stringify({ content: stripDashes(claudeText || 'No response generated') }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       } else {
         // Gemini - normalize model name
         const modelName = selectedModel.replace(/^models\//, '');
@@ -795,254 +975,60 @@ Deno.serve(async (req) => {
         );
       }
 
-      if (provider === 'openai') {
-        const selectedModel = model || settings.openai_image_model || 'gpt-image-1';
-        console.log(`Image gen: provider=openai, resolvedModel=${selectedModel}`);
-
-        // Validate model capability
-        if (!OPENAI_IMAGE_CAPABLE.includes(selectedModel)) {
-          return new Response(
-            JSON.stringify({ 
-              error: `Model "${selectedModel}" is not an image generation model`,
-              hint: 'Use gpt-image-1.5, gpt-image-1, or gpt-image-1-mini for image generation.'
-            }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        
-        const response = await fetchWithRetry('https://api.openai.com/v1/images/generations', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model: selectedModel,
-            prompt: message,
-            n: 1,
-            size: '1024x1024',
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error('OpenAI image error:', errorData);
-          
-          const msg = errorData.error?.message || 'Image generation failed';
-          
-          if (msg.includes('does not exist') || msg.includes('not found')) {
-            return new Response(
-              JSON.stringify({ 
-                error: `Model "${selectedModel}" not available`,
-                hint: 'Try gpt-image-1 or gpt-image-1.5. Run Test Connection to verify available models.'
-              }),
-              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-          
-          throw new Error(msg);
-        }
-
-        const data = await response.json();
-        
-        // Handle both URL and base64 responses
-        const imageData = data.data[0];
-        const imageUrl = imageData.url 
-          ? imageData.url 
-          : imageData.b64_json 
-            ? `data:image/png;base64,${imageData.b64_json}` 
-            : null;
-
-        if (!imageUrl) {
-          throw new Error('No image data received from OpenAI');
-        }
-
+      // fal.ai is the SOLE image engine (OpenAI/Gemini image generation retired).
+      const falApiKey = settings.fal_api_key || Deno.env.get('FAL_KEY');
+      if (!falApiKey) {
         return new Response(
-          JSON.stringify({ imageUrl }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      } else {
-        // Gemini native image generation
-        const selectedModel = model || settings.gemini_image_model || 'gemini-2.5-flash-image';
-        const modelName = selectedModel.replace(/^models\//, '');
-        
-        console.log(`Image gen: provider=gemini, resolvedModel=${modelName}`);
-
-        // Validate model capability — no fallback, each model is tested independently
-        if (!GEMINI_IMAGE_CAPABLE.includes(modelName)) {
-          return new Response(
-            JSON.stringify({ 
-              error: `Model "${modelName}" does not support native image generation`,
-              hint: 'Use gemini-2.5-flash-image, gemini-3.1-flash-image-preview, or gemini-3-pro-image-preview for Gemini image generation.'
-            }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        console.log(`Attempting Gemini image generation with model: ${modelName}`);
-
-        let geminiImageResponse: Response;
-
-        try {
-          // gemini-3-pro-image-preview (thinking model) requires responseModalities + longer timeout + slower retries
-          // gemini-2.5-flash-image (GA stable) uses plain contents body with 25s timeout
-          const isThinkingModel = modelName === 'gemini-3-pro-image-preview';
-          const timeoutMs = isThinkingModel ? 90000 : 25000;
-          const retryDelayMs = isThinkingModel ? 5000 : 1000;
-
-          const requestBody = isThinkingModel
-            ? JSON.stringify({
-                contents: [{ role: 'user', parts: [{ text: message }] }],
-                generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
-              })
-            : JSON.stringify({
-                contents: [{ parts: [{ text: message }] }],
-              });
-
-          geminiImageResponse = await fetchWithRetry(
-            `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: requestBody,
-              signal: AbortSignal.timeout(timeoutMs),
-            },
-            2,
-            retryDelayMs
-          );
-        } catch (fetchErr) {
-          const errName = fetchErr instanceof Error ? fetchErr.name : '';
-          const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-          const isTimeout = errName === 'TimeoutError' || errMsg.includes('timed out') || errMsg.includes('Signal timed out');
-          console.error(`Gemini image fetch error (model=${modelName}):`, errMsg);
-
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: isTimeout
-                ? `Model "${modelName}" did not respond in time. It may be experiencing high demand — please try again later.`
-                : 'Gemini image generation failed',
-              hint: 'Try switching to OpenAI image generation for more reliability.',
-            }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        if (!geminiImageResponse.ok) {
-          const errorData = await geminiImageResponse.json();
-          console.error(`Gemini image error (model=${modelName}):`, errorData);
-
-          const msg = (errorData as { error?: { message?: string } })?.error?.message || 'Gemini image generation failed';
-          const isModelNotFound = typeof msg === 'string' &&
-            (msg.includes('is not found') || msg.includes('not supported'));
-          const isHighDemand = (typeof msg === 'string' &&
-            (msg.includes('high demand') || msg.includes('UNAVAILABLE') || (errorData as { error?: { code?: number } })?.error?.code === 503)) ||
-            (errorData as { error?: { status?: string } })?.error?.status === 'UNAVAILABLE' ||
-            geminiImageResponse.status === 503;
-
-          if (isModelNotFound) {
-            return new Response(
-              JSON.stringify({
-                error: `Model "${modelName}" not found or not available for your API key.`,
-                hint: 'Use gemini-2.5-flash-image (GA stable), gemini-3.1-flash-image-preview (Nano Banana 2), or gemini-3-pro-image-preview (Nano Banana Pro). Run Test Connection to verify available models.'
-              }),
-              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-
-          if (isHighDemand) {
-            return new Response(
-              JSON.stringify({
-                success: false,
-                error: `Model "${modelName}" is currently experiencing high demand. Please try again in a few moments.`,
-                hint: 'This is a temporary Gemini API issue. Try again or switch to OpenAI image generation.'
-              }),
-              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-
-          throw new Error(msg);
-        }
-
-        const data = await geminiImageResponse.json();
-        console.log(`Gemini image response from model ${modelName}:`, Object.keys(data));
-        
-        // Extract image from response parts
-        const parts = data.candidates?.[0]?.content?.parts || [];
-        const imagePart = parts.find(
-          (part: { inlineData?: { mimeType?: string } }) => part.inlineData?.mimeType?.startsWith('image/')
-        );
-        
-        if (!imagePart?.inlineData?.data) {
-          const textPart = parts.find((part: { text?: string }) => part.text);
-          const errorMsg = textPart?.text || 'No image generated. The model may not support image generation or the prompt was filtered.';
-          
-          return new Response(
-            JSON.stringify({ 
-              error: errorMsg,
-              hint: 'Try a different prompt or check if your API key has image generation enabled.'
-            }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        
-        const mimeType = imagePart.inlineData.mimeType || 'image/png';
-        const imageUrl = `data:${mimeType};base64,${imagePart.inlineData.data}`;
-        
-        return new Response(
-          JSON.stringify({ imageUrl, usedModel: modelName }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'No fal.ai API key configured. Add it in LLM Settings or set the FAL_KEY secret.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      // ── fal.ai image generation via fal.run ─────────────────────────────
-      if (provider === 'fal') {
-        const selectedModel = model || settings.fal_image_model || 'fal-ai/flux-pro/v1.1-ultra';
-        console.log(`Image gen: provider=fal, resolvedModel=${selectedModel}`);
+      const selectedModel = model || settings.fal_image_model || 'fal-ai/flux-pro/v1.1-ultra';
+      console.log(`Image gen: provider=fal, resolvedModel=${selectedModel}`);
 
-        if (!FAL_IMAGE_CAPABLE.includes(selectedModel)) {
-          return new Response(
-            JSON.stringify({
-              error: `Model "${selectedModel}" is not a supported fal.ai image model`,
-              hint: 'Use one of the FLUX, Ideogram, Recraft, or Imagen models.',
-            }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+      if (!FAL_IMAGE_CAPABLE.includes(selectedModel)) {
+        return new Response(
+          JSON.stringify({
+            error: `Model "${selectedModel}" is not a supported fal.ai image model`,
+            hint: 'Use one of the FLUX, Ideogram, Recraft, or Imagen models.',
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      try {
+        const falRes = await fetch(`https://fal.run/${selectedModel}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Key ${falApiKey}`,
+          },
+          body: JSON.stringify({ prompt: message }),
+          signal: AbortSignal.timeout(45000),
+        });
+
+        if (!falRes.ok) {
+          const errData = await falRes.json().catch(() => ({}));
+          console.error(`fal.ai image error (model=${selectedModel}):`, errData);
+          throw new Error((errData as { detail?: string }).detail || 'fal.ai image generation failed');
         }
 
-        try {
-          const falRes = await fetch(`https://fal.run/${selectedModel}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Key ${apiKey}`,
-            },
-            body: JSON.stringify({ prompt: message }),
-            signal: AbortSignal.timeout(45000),
-          });
+        const data = await falRes.json();
+        const imageUrl = data.images?.[0]?.url || data.image?.url || null;
+        if (!imageUrl) throw new Error('No image URL returned from fal.ai');
 
-          if (!falRes.ok) {
-            const errData = await falRes.json().catch(() => ({}));
-            console.error(`fal.ai image error (model=${selectedModel}):`, errData);
-            throw new Error((errData as { detail?: string }).detail || 'fal.ai image generation failed');
-          }
-
-          const data = await falRes.json();
-          const imageUrl = data.images?.[0]?.url || data.image?.url || null;
-          if (!imageUrl) throw new Error('No image URL returned from fal.ai');
-
-          return new Response(
-            JSON.stringify({ imageUrl, usedModel: selectedModel }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          console.error(`fal.ai image fetch error:`, errMsg);
-          return new Response(
-            JSON.stringify({ error: errMsg, hint: 'Check your fal.ai API key and model availability.' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
+        return new Response(
+          JSON.stringify({ imageUrl, usedModel: selectedModel }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`fal.ai image fetch error:`, errMsg);
+        return new Response(
+          JSON.stringify({ error: errMsg, hint: 'Check your fal.ai API key and model availability.' }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
     }
 
@@ -1055,256 +1041,61 @@ Deno.serve(async (req) => {
         );
       }
 
-      // ── OpenAI Sora — /v1/videos polling flow ────────────────────────────
-      if (provider === 'openai') {
-        const selectedModel = model || settings.openai_video_model || 'sora-2';
-        console.log(`Video gen: provider=openai, resolvedModel=${selectedModel}`);
+      // fal.ai is the SOLE video engine (OpenAI Sora / Gemini Veo retired).
+      const falApiKey = settings.fal_api_key || Deno.env.get('FAL_KEY');
+      if (!falApiKey) {
+        return new Response(
+          JSON.stringify({ error: 'No fal.ai API key configured. Add it in LLM Settings or set the FAL_KEY secret.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
-        if (!OPENAI_VIDEO_CAPABLE.includes(selectedModel)) {
-          return new Response(
-            JSON.stringify({ 
-              error: `Model "${selectedModel}" is not a supported OpenAI video model.`,
-              hint: 'Use sora-2 or sora-2-pro.'
-            }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
+      const selectedModel = model || settings.fal_video_model || 'fal-ai/kling-video/v3/pro/text-to-video';
+      console.log(`Video gen: provider=fal, resolvedModel=${selectedModel}`);
 
-        // Step 1: Submit video generation job — POST /v1/videos with multipart form
-        console.log(`Submitting Sora video job: ${selectedModel}`);
-        const formData = new FormData();
-        formData.append('model', selectedModel);
-        formData.append('prompt', message);
+      if (!FAL_VIDEO_CAPABLE.includes(selectedModel)) {
+        return new Response(
+          JSON.stringify({
+            error: `Model "${selectedModel}" is not a supported fal.ai video model`,
+            hint: 'Use Kling 3.0, Veo 3.1, Wan 2.7, or Seedance 2.0.',
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
-        const submitRes = await fetch('https://api.openai.com/v1/videos', {
+      try {
+        const falRes = await fetch(`https://fal.run/${selectedModel}`, {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${apiKey}` },
-          body: formData,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Key ${falApiKey}`,
+          },
+          body: JSON.stringify({ prompt: message }),
+          signal: AbortSignal.timeout(300000),
         });
 
-        if (!submitRes.ok) {
-          const errorData = await submitRes.json().catch(() => ({ error: { message: 'Failed to submit video job' } }));
-          console.error('OpenAI video submit error:', errorData);
-          return new Response(
-            JSON.stringify({ error: 'Video generation failed', hint: 'Ensure your OpenAI account has Sora access.' }),
-            { status: submitRes.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+        if (!falRes.ok) {
+          const errData = await falRes.json().catch(() => ({}));
+          console.error(`fal.ai video error (model=${selectedModel}):`, errData);
+          throw new Error((errData as { detail?: string }).detail || 'fal.ai video generation failed');
         }
 
-        const submitData = await submitRes.json();
-        const videoId = submitData.id;
-        console.log(`Sora job submitted: id=${videoId}, status=${submitData.status}`);
-
-        if (!videoId) {
-          return new Response(
-            JSON.stringify({ error: 'No video job ID returned from OpenAI' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // If already completed (rare)
-        if (submitData.status === 'completed') {
-          const videoUrl = `https://api.openai.com/v1/videos/${videoId}/content`;
-          return new Response(JSON.stringify({ videoUrl, requiresAuth: true, openaiVideoId: videoId }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-        }
-
-        // Step 2: Poll GET /v1/videos/{id} every 5s, max 5 minutes
-        const maxAttempts = 60;
-        for (let i = 0; i < maxAttempts; i++) {
-          await new Promise(r => setTimeout(r, 5000));
-
-          const pollRes = await fetch(`https://api.openai.com/v1/videos/${videoId}`, {
-            headers: { 'Authorization': `Bearer ${apiKey}` },
-          });
-
-          if (!pollRes.ok) {
-            console.error(`Sora poll error (attempt ${i + 1}):`, pollRes.status);
-            continue;
-          }
-
-          const pollData = await pollRes.json();
-          console.log(`Sora poll ${i + 1}: status=${pollData.status}`);
-
-          if (pollData.status === 'completed') {
-            // Per OpenAI docs: download content via GET /v1/videos/{id}/content
-            const videoUrl = `https://api.openai.com/v1/videos/${videoId}/content`;
-            return new Response(JSON.stringify({ videoUrl, requiresAuth: true, openaiVideoId: videoId }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-          }
-
-          if (pollData.status === 'failed' || pollData.status === 'cancelled') {
-            return new Response(
-              JSON.stringify({ error: `Video generation ${pollData.status}` }),
-              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-          // status: 'queued' | 'in_progress' — keep polling
-        }
+        const data = await falRes.json();
+        const videoUrl = data.video?.url || data.videos?.[0]?.url || null;
+        if (!videoUrl) throw new Error('No video URL returned from fal.ai');
 
         return new Response(
-          JSON.stringify({ error: 'Video generation timed out after 5 minutes' }),
-          { status: 504, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ videoUrl }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
-      }
-
-      // ── Gemini Veo — predictLongRunning polling flow ──────────────────────
-      if (provider === 'gemini') {
-        const selectedModel = model || settings.gemini_video_model || 'veo-3.1-generate-preview';
-        console.log(`Video gen: provider=gemini, resolvedModel=${selectedModel}`);
-
-        if (!GEMINI_VIDEO_CAPABLE.includes(selectedModel)) {
-          return new Response(
-            JSON.stringify({ 
-              error: `Model "${selectedModel}" is not a supported Gemini video model.`,
-              hint: 'Only veo-3.1-generate-preview is supported for predictLongRunning.'
-            }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Step 1: Start long-running video generation
-        console.log(`Submitting Veo job: ${selectedModel}`);
-        const submitRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:predictLongRunning?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              instances: [{ prompt: message }],
-              parameters: { aspectRatio: '16:9', sampleCount: 1 },
-            }),
-          }
-        );
-
-        if (!submitRes.ok) {
-          const errorData = await submitRes.json().catch(() => ({ error: { message: 'Failed to submit Veo job' } }));
-          console.error('Gemini Veo submit error:', errorData);
-          return new Response(
-            JSON.stringify({ error: 'Veo video generation failed', hint: 'Ensure your Google API account has Veo access.' }),
-            { status: submitRes.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        const submitData = await submitRes.json();
-        const operationName = submitData.name;
-        console.log(`Veo operation started: ${operationName}`);
-
-        if (!operationName) {
-          return new Response(
-            JSON.stringify({ error: 'No operation name returned from Gemini Veo' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Step 2: Poll operation status every 10s, max 10 minutes
-        const maxVeoAttempts = 60;
-        for (let i = 0; i < maxVeoAttempts; i++) {
-          await new Promise(r => setTimeout(r, 10000));
-
-          const pollRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${apiKey}`,
-            { method: 'GET' }
-          );
-
-          if (!pollRes.ok) {
-            console.error(`Veo poll error (attempt ${i + 1}):`, pollRes.status);
-            continue;
-          }
-
-          const pollData = await pollRes.json();
-          console.log(`Veo poll ${i + 1}: done=${pollData.done}`);
-
-          if (pollData.done) {
-            if (pollData.error) {
-              return new Response(
-                JSON.stringify({ error: 'Veo generation failed' }),
-                { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-              );
-            }
-
-            // Extract video bytes from response
-            const videos = pollData.response?.videos || pollData.response?.generateVideoResponse?.generatedSamples;
-            const videoBytes = videos?.[0]?.video?.videoBytes || videos?.[0]?.videoBytes || null;
-
-            if (!videoBytes) {
-              // Check for a URI instead
-              const videoUri = videos?.[0]?.video?.uri || videos?.[0]?.uri || null;
-              if (videoUri) {
-                return new Response(JSON.stringify({ videoUrl: videoUri }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-              }
-              console.log('Veo completed response structure:', JSON.stringify(pollData, null, 2));
-              return new Response(
-                JSON.stringify({ error: 'Veo generation completed but no video bytes returned', rawResponse: pollData }),
-                { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-              );
-            }
-
-            // Convert base64 to data URL
-            const videoUrl = `data:video/mp4;base64,${videoBytes}`;
-            return new Response(JSON.stringify({ videoUrl }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-          }
-          // Not done yet — keep polling
-        }
-
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`fal.ai video fetch error:`, errMsg);
         return new Response(
-          JSON.stringify({ error: 'Veo video generation timed out after 10 minutes' }),
-          { status: 504, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: errMsg, hint: 'Check your fal.ai API key and model availability.' }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-
-      // ── fal.ai video generation via fal.run ──────────────────────────────
-      if (provider === 'fal') {
-        const selectedModel = model || settings.fal_video_model || 'fal-ai/kling-video/v3/pro/text-to-video';
-        console.log(`Video gen: provider=fal, resolvedModel=${selectedModel}`);
-
-        if (!FAL_VIDEO_CAPABLE.includes(selectedModel)) {
-          return new Response(
-            JSON.stringify({
-              error: `Model "${selectedModel}" is not a supported fal.ai video model`,
-              hint: 'Use Kling 3.0, Veo 3.1, Wan 2.7, or Seedance 2.0.',
-            }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        try {
-          const falRes = await fetch(`https://fal.run/${selectedModel}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Key ${apiKey}`,
-            },
-            body: JSON.stringify({ prompt: message }),
-            signal: AbortSignal.timeout(300000),
-          });
-
-          if (!falRes.ok) {
-            const errData = await falRes.json().catch(() => ({}));
-            console.error(`fal.ai video error (model=${selectedModel}):`, errData);
-            throw new Error((errData as { detail?: string }).detail || 'fal.ai video generation failed');
-          }
-
-          const data = await falRes.json();
-          const videoUrl = data.video?.url || data.videos?.[0]?.url || null;
-          if (!videoUrl) throw new Error('No video URL returned from fal.ai');
-
-          return new Response(
-            JSON.stringify({ videoUrl }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          console.error(`fal.ai video fetch error:`, errMsg);
-          return new Response(
-            JSON.stringify({ error: errMsg, hint: 'Check your fal.ai API key and model availability.' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
-
-      return new Response(
-        JSON.stringify({ error: 'Unsupported provider for video generation' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     }
 
     return new Response(

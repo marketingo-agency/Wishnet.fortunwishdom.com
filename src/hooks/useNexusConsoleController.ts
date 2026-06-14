@@ -7,10 +7,10 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   LLMSettings,
   OPENAI_TEXT_MODELS,
-  OPENAI_IMAGE_MODELS,
   OPENAI_DEEP_RESEARCH_MODELS,
   GEMINI_TEXT_MODELS,
-  GEMINI_IMAGE_MODELS,
+  CLAUDE_TEXT_MODELS,
+  FAL_IMAGE_MODELS,
   useAIChat,
   useDeepResearch,
   useStreamingChat,
@@ -41,7 +41,7 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
   const [hasInitializedFromDb, setHasInitializedFromDb] = useState(false);
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<'text' | 'image' | 'research'>(initialMode || 'text');
-  const [provider, setProvider] = useState<'openai' | 'gemini'>('openai');
+  const [provider, setProvider] = useState<'openai' | 'gemini' | 'claude' | 'fal'>('openai');
   const [model, setModel] = useState<string>('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -69,19 +69,24 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
   const { data: keyStatus, isLoading: providersLoading } = useProviderKeyStatus();
   const hasOpenAIKey = hasProviderKey(keyStatus?.openai);
   const hasGeminiKey = hasProviderKey(keyStatus?.gemini);
+  const hasClaudeKey = hasProviderKey(keyStatus?.claude);
+  const hasFalKey = hasProviderKey(keyStatus?.fal);
+  // Text providers are selectable in the console; image is always fal, research is OpenAI.
   const availableProviders = [
     hasOpenAIKey && 'openai',
     hasGeminiKey && 'gemini',
-  ].filter(Boolean) as ('openai' | 'gemini')[];
+    hasClaudeKey && 'claude',
+  ].filter(Boolean) as ('openai' | 'gemini' | 'claude')[];
 
   const currentModels = (() => {
-    if (mode === 'research') return provider === 'openai' ? OPENAI_DEEP_RESEARCH_MODELS : [];
-    return provider === 'openai'
-      ? (mode === 'text' ? OPENAI_TEXT_MODELS : OPENAI_IMAGE_MODELS)
-      : (mode === 'text' ? GEMINI_TEXT_MODELS : GEMINI_IMAGE_MODELS);
+    if (mode === 'research') return OPENAI_DEEP_RESEARCH_MODELS;
+    if (mode === 'image') return FAL_IMAGE_MODELS; // fal is the sole image engine
+    return provider === 'gemini' ? GEMINI_TEXT_MODELS
+      : provider === 'claude' ? CLAUDE_TEXT_MODELS
+      : OPENAI_TEXT_MODELS;
   })();
 
-  const isDisabled = availableProviders.length === 0;
+  const isDisabled = availableProviders.length === 0 && !hasFalKey;
 
   // ── Effects ────────────────────────────────────────────────────────────
 
@@ -105,27 +110,33 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
       }
       return;
     }
-    if (mode === 'text' && settings.active_text_provider) {
-      const tp = settings.active_text_provider;
-      if ((tp === 'openai' && keyStatus.openai) || (tp === 'gemini' && keyStatus.gemini)) setProvider(tp);
-    } else if (mode === 'image' && settings.active_image_provider) {
-      const tp = settings.active_image_provider;
-      if ((tp === 'openai' && keyStatus.openai) || (tp === 'gemini' && keyStatus.gemini)) setProvider(tp);
+    if (mode === 'image') {
+      setProvider('fal'); // image generation is fal-only
+      return;
     }
+    // text — honor the globally selected text provider (openai/gemini/claude)
+    const tp = settings.active_text_provider;
+    if (tp === 'openai' && keyStatus.openai) setProvider('openai');
+    else if (tp === 'gemini' && keyStatus.gemini) setProvider('gemini');
+    else if (tp === 'claude' && keyStatus.claude) setProvider('claude');
   }, [settings, mode, keyStatus]);
 
   // Model init
   useEffect(() => {
-    if (settings && currentModels.length > 0) {
-      if (mode === 'research') { setModel(currentModels[0].value); return; }
-      let savedModel: string | undefined;
-      if (provider === 'openai') savedModel = mode === 'text' ? settings.openai_text_model : settings.openai_image_model;
-      else savedModel = mode === 'text' ? settings.gemini_text_model : settings.gemini_image_model;
-      const exists = currentModels.some(m => m.value === savedModel);
-      setModel(exists && savedModel ? savedModel : currentModels[0].value);
-    } else if (currentModels.length > 0) {
-      setModel(currentModels[0].value);
+    if (currentModels.length === 0) return;
+    if (mode === 'research') { setModel(currentModels[0].value); return; }
+    if (mode === 'image') {
+      const saved = settings?.fal_image_model;
+      setModel(currentModels.some(m => m.value === saved) && saved ? saved : currentModels[0].value);
+      return;
     }
+    // text
+    let savedModel: string | undefined;
+    if (provider === 'openai') savedModel = settings?.openai_text_model;
+    else if (provider === 'gemini') savedModel = settings?.gemini_text_model;
+    else if (provider === 'claude') savedModel = settings?.claude_text_model;
+    const exists = currentModels.some(m => m.value === savedModel);
+    setModel(exists && savedModel ? savedModel : currentModels[0].value);
   }, [provider, mode, settings, currentModels]);
 
   // Initial prompt
@@ -185,8 +196,8 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
           .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
       : undefined;
 
-    // AGENT-005: use SSE streaming for text chat with OpenAI
-    if (mode === 'text' && provider === 'openai') {
+    // AGENT-005: use SSE streaming for text chat (OpenAI + Claude both re-emit { content } chunks)
+    if (mode === 'text' && (provider === 'openai' || provider === 'claude')) {
       const streamMsgId = (Date.now() + 1).toString();
       // Add empty assistant message that will be filled progressively
       const streamMsg: ConsoleMessage = {
@@ -360,6 +371,8 @@ export function useNexusConsoleController({ settings, initialPrompt, initialMode
     if (newMode === 'research' && hasOpenAIKey) {
       setProvider('openai');
       if (OPENAI_DEEP_RESEARCH_MODELS.length > 0) setModel(OPENAI_DEEP_RESEARCH_MODELS[0].value);
+    } else if (newMode === 'image') {
+      setProvider('fal'); // image generation is fal-only
     }
   }, [hasOpenAIKey]);
 

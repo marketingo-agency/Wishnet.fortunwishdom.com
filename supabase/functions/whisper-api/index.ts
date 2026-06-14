@@ -16,6 +16,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
 import { stripDashes } from '../_shared/sanitize.ts';
+import { generateImageViaFal, persistFalMedia } from '../_shared/fal.ts';
 
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 30 });
 const ELEVEN_BASE = 'https://api.elevenlabs.io';
@@ -142,13 +143,6 @@ function toBase64(buf: ArrayBuffer): string {
 }
 
 /** Synthesize one line via ElevenLabs TTS → mp3 ArrayBuffer. */
-function fromBase64(b64: string): Uint8Array {
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
-}
-
 async function ttsLine(key: string, voiceId: string, text: string, modelId: string, settings?: Record<string, unknown>): Promise<ArrayBuffer> {
   const voiceSettings: Record<string, unknown> = {};
   if (settings) {
@@ -394,49 +388,34 @@ Deno.serve(async (req) => {
       return jsonResponse(showNotes);
     }
 
-    // ── generate-cover (episode cover art via OpenAI images) ──────────
+    // ── generate-cover (episode cover art via fal.ai) ──────────
     if (action === 'generate-cover') {
       const { episodeId } = body as { episodeId?: string };
       if (!episodeId) return errorResponse('episodeId is required', 400);
       const { data: ep } = await supabaseAdmin.from('whisper_episodes').select('id, title, show_notes').eq('id', episodeId).maybeSingle();
       if (!ep) return errorResponse('Episode not found', 404);
-      const { data: llm } = await supabaseAdmin.from('llm_settings').select('openai_api_key, openai_image_model').limit(1).maybeSingle();
-      const openaiKey = ((llm as Record<string, unknown> | null)?.openai_api_key as string) || Deno.env.get('OPENAI_API_KEY') || '';
-      if (!openaiKey) return errorResponse('OpenAI key not configured (needed for cover art)', 400);
-      const imageModel = ((llm as Record<string, unknown> | null)?.openai_image_model as string) || 'gpt-image-1';
+      const { data: llm } = await supabaseAdmin.from('llm_settings').select('fal_api_key, fal_image_model').limit(1).maybeSingle();
+      const falKey = (((llm as Record<string, unknown> | null)?.fal_api_key as string) || Deno.env.get('FAL_KEY') || '').trim();
+      if (!falKey) return errorResponse('fal.ai key not configured (needed for cover art)', 400);
+      const imageModel = ((llm as Record<string, unknown> | null)?.fal_image_model as string) || 'fal-ai/flux-pro/v1.1-ultra';
 
-      const title = ((ep as { title?: string }).title) ?? 'Podcast episode';
+      // Newline-strip + length-cap admin/LLM text before interpolating into the fal image prompt.
+      const title = (((ep as { title?: string }).title) ?? 'Podcast episode').replace(/[\r\n\t]+/g, ' ').slice(0, 120);
       const notes = (ep as { show_notes?: { description?: string } }).show_notes;
-      const desc = notes?.description ?? '';
+      const desc = (notes?.description ?? '').replace(/[\r\n\t]+/g, ' ').slice(0, 400);
       const prompt = `Podcast cover art for an episode titled "${title}". ${desc} Bold, modern, eye-catching, high-contrast, professional. No text or lettering.`.slice(0, 900);
 
       try {
-        const resp = await fetch('https://api.openai.com/v1/images/generations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
-          body: JSON.stringify({ model: imageModel, prompt, size: '1024x1024', n: 1 }),
+        const media = await generateImageViaFal({ falKey, modelId: imageModel, prompt });
+        // persistFalMedia host-validates *.fal.media, size-caps, and uploads into whisper-audio.
+        const persisted = await persistFalMedia(supabaseAdmin, {
+          bucket: 'whisper-audio',
+          basePath: `covers/${episodeId}`,
+          falUrl: media.url,
+          contentType: media.contentType,
         });
-        const data = await resp.json().catch(() => ({}));
-        if (!resp.ok) return errorResponse((data as { error?: { message?: string } })?.error?.message ?? `Cover generation failed (${resp.status})`, 502);
-        const first = ((data as { data?: Array<{ b64_json?: string; url?: string }> }).data ?? [])[0];
-        let bytes: Uint8Array | null = null;
-        if (first?.b64_json) {
-          bytes = fromBase64(first.b64_json);
-        } else if (first?.url) {
-          // SEC: the URL comes from the (DB-configurable) image endpoint's response — treat as untrusted.
-          const img = await safeFetch(first.url);
-          if (img?.ok && (img.headers.get('content-type') ?? '').includes('image')) {
-            const ab = await img.arrayBuffer();
-            if (ab.byteLength <= MAX_FETCH_BYTES) bytes = new Uint8Array(ab);
-          }
-        }
-        if (!bytes) return errorResponse('No image returned', 502);
-
-        const path = `covers/${episodeId}.png`;
-        const { error: upErr } = await supabaseAdmin.storage.from('whisper-audio').upload(path, new Blob([bytes], { type: 'image/png' }), { contentType: 'image/png', upsert: true });
-        if (upErr) throw new Error(upErr.message);
-        await supabaseAdmin.from('whisper_episodes').update({ cover_path: path, updated_at: new Date().toISOString() }).eq('id', episodeId);
-        return jsonResponse({ cover_path: path });
+        await supabaseAdmin.from('whisper_episodes').update({ cover_path: persisted.storagePath, updated_at: new Date().toISOString() }).eq('id', episodeId);
+        return jsonResponse({ cover_path: persisted.storagePath });
       } catch (e) {
         return errorResponse(e instanceof Error ? e.message : 'Cover generation failed', 502);
       }

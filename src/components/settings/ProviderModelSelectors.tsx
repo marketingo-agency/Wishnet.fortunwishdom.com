@@ -26,12 +26,14 @@ interface TestButtonState {
 }
 
 interface ProviderModelSelectorsProps {
-  textModel: string;
-  imageModel: string;
-  textModels: ModelOption[];
-  imageModels: ModelOption[];
-  onTextModelChange: (model: string) => void;
-  onImageModelChange: (model: string) => void;
+  // All sections are optional — reasoning-only providers (OpenAI/Gemini/Claude) omit image;
+  // the media engine (fal) omits reasoning. A section renders only when its models are provided.
+  textModel?: string;
+  imageModel?: string;
+  textModels?: ModelOption[];
+  imageModels?: ModelOption[];
+  onTextModelChange?: (model: string) => void;
+  onImageModelChange?: (model: string) => void;
   showDeepResearch?: boolean;
   deepResearchModel?: string;
   deepResearchModels?: ModelOption[];
@@ -76,27 +78,29 @@ export function ProviderModelSelectors({
   return (
     <>
       {/* General Reasoning */}
-      <div className="space-y-2">
-        <Label className="text-sm font-medium">General Reasoning</Label>
-        <div className="flex gap-2">
-          <Select value={textModel} onValueChange={onTextModelChange}>
-            <SelectTrigger className="flex-1">
-              <SelectValue placeholder="Select a model" />
-            </SelectTrigger>
-            <SelectContent>
-              {textModels.map((model) => (
-                <SelectItem key={model.value} value={model.value} className="py-2.5">
-                  <div className="flex flex-col items-start gap-0.5">
-                    <span className="font-medium">{model.label}</span>
-                    <span className="text-xs text-muted-foreground leading-tight">{model.description}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {renderTestBtn(textModel, 'text')}
+      {textModels && onTextModelChange && (
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">General Reasoning</Label>
+          <div className="flex gap-2">
+            <Select value={textModel} onValueChange={onTextModelChange}>
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Select a model" />
+              </SelectTrigger>
+              <SelectContent>
+                {textModels.map((model) => (
+                  <SelectItem key={model.value} value={model.value} className="py-2.5">
+                    <div className="flex flex-col items-start gap-0.5">
+                      <span className="font-medium">{model.label}</span>
+                      <span className="text-xs text-muted-foreground leading-tight">{model.description}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {textModel && renderTestBtn(textModel, 'text')}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Deep Research */}
       {showDeepResearch && deepResearchModels && onDeepResearchModelChange && (
@@ -124,27 +128,29 @@ export function ProviderModelSelectors({
       )}
 
       {/* Image Generation */}
-      <div className="space-y-2">
-        <Label className="text-sm font-medium">Image Generation</Label>
-        <div className="flex gap-2">
-          <Select value={imageModel} onValueChange={onImageModelChange}>
-            <SelectTrigger className="flex-1">
-              <SelectValue placeholder="Select an image model" />
-            </SelectTrigger>
-            <SelectContent>
-              {imageModels.map((model) => (
-                <SelectItem key={model.value} value={model.value} className="py-2.5">
-                  <div className="flex flex-col items-start gap-0.5">
-                    <span className="font-medium">{model.label}</span>
-                    <span className="text-xs text-muted-foreground leading-tight">{model.description}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {renderTestBtn(imageModel, 'image')}
+      {imageModels && onImageModelChange && (
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Image Generation</Label>
+          <div className="flex gap-2">
+            <Select value={imageModel} onValueChange={onImageModelChange}>
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Select an image model" />
+              </SelectTrigger>
+              <SelectContent>
+                {imageModels.map((model) => (
+                  <SelectItem key={model.value} value={model.value} className="py-2.5">
+                    <div className="flex flex-col items-start gap-0.5">
+                      <span className="font-medium">{model.label}</span>
+                      <span className="text-xs text-muted-foreground leading-tight">{model.description}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {imageModel && renderTestBtn(imageModel, 'image')}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Video Generation */}
       {videoModels && onVideoModelChange && (

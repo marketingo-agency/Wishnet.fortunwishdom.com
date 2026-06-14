@@ -13,14 +13,17 @@ import { Sparkles } from 'lucide-react';
 import {
   OPENAI_TEXT_MODELS,
   GEMINI_TEXT_MODELS,
+  CLAUDE_TEXT_MODELS,
 } from '@/hooks/useLLMSettings';
 
+type AgentProvider = 'openai' | 'gemini' | 'claude';
+
 interface AgentModelConfigProps {
-  provider: 'openai' | 'gemini';
+  provider: AgentProvider;
   primaryModel: string;
   temperature: number[];
   maxTokens: string;
-  onProviderChange: (provider: 'openai' | 'gemini') => void;
+  onProviderChange: (provider: AgentProvider) => void;
   onModelChange: (model: string) => void;
   onTemperatureChange: (value: number[]) => void;
   onMaxTokensChange: (value: string) => void;
@@ -36,7 +39,7 @@ export function AgentModelConfig({
   onTemperatureChange,
   onMaxTokensChange,
 }: AgentModelConfigProps) {
-  const allModels = provider === 'openai' ? OPENAI_TEXT_MODELS : GEMINI_TEXT_MODELS;
+  const allModels = provider === 'gemini' ? GEMINI_TEXT_MODELS : provider === 'claude' ? CLAUDE_TEXT_MODELS : OPENAI_TEXT_MODELS;
 
   return (
     <>
@@ -50,13 +53,14 @@ export function AgentModelConfig({
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label className="text-xs">Provider</Label>
-            <Select value={provider} onValueChange={(v) => onProviderChange(v as 'openai' | 'gemini')}>
+            <Select value={provider} onValueChange={(v) => onProviderChange(v as AgentProvider)}>
               <SelectTrigger className="h-9">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="openai">OpenAI</SelectItem>
                 <SelectItem value="gemini">Gemini</SelectItem>
+                <SelectItem value="claude">Claude</SelectItem>
               </SelectContent>
             </Select>
           </div>

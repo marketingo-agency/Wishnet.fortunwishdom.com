@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Bot, Paperclip, Image as ImageIcon, Bell, Save, Loader2, Plus, Trash2, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 import { useUpsertOshaSettings, type OshaSettings } from '@/hooks/useOsha';
-import { getImageModelsForProvider, getFileAnalysisModelsForProvider } from '@/config/llmModels';
+import { getFileAnalysisModelsForProvider } from '@/config/llmModels';
 import { cn } from '@/lib/utils';
 
 interface OshaSettingsProps {
@@ -186,35 +186,8 @@ export function OshaSettings({ settings }: OshaSettingsProps) {
                 </FormRow>
                 {watch('image_generation_enabled') && (
                   <>
-                    <FormRow label="Image Provider" description="AI provider used to generate images">
-                      <Select
-                        value={watch('image_provider')}
-                        onValueChange={v => {
-                          setValue('image_provider', v);
-                          const models = getImageModelsForProvider(v as 'openai' | 'gemini');
-                          setValue('image_model', models[0]?.value || '');
-                        }}
-                      >
-                        <SelectTrigger className="w-[140px] sm:w-[180px] h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="openai">OpenAI</SelectItem>
-                          <SelectItem value="gemini">Gemini</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormRow>
-                    <FormRow label="Image Model" description="Model used for image generation">
-                      <Select value={watch('image_model')} onValueChange={v => setValue('image_model', v)}>
-                        <SelectTrigger className="w-[140px] sm:w-[180px] h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {getImageModelsForProvider((watch('image_provider') || 'openai') as 'openai' | 'gemini').map(m => (
-                            <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <FormRow label="Image Engine" description="Image generation is powered exclusively by fal.ai — pick the fal image model in Settings → LLM Providers">
+                      <Badge variant="outline" className="text-xs">fal.ai</Badge>
                     </FormRow>
                     <FormRow label="Default Image Size">
                       <Select value={watch('image_default_size')} onValueChange={v => setValue('image_default_size', v)}>

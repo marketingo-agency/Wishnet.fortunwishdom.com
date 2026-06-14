@@ -11,6 +11,7 @@ import {
   type LLMSettings,
   OPENAI_TEXT_MODELS,
   GEMINI_TEXT_MODELS,
+  CLAUDE_TEXT_MODELS,
   useAIChat,
 } from '@/hooks/useLLMSettings';
 import { useAgentSettings, useUpsertAgentSettings } from '@/hooks/useAgentSettings';
@@ -44,7 +45,7 @@ export function AgentConfigPanel({ agentId, settings }: AgentConfigPanelProps) {
   const aiChat = useAIChat();
 
   const [isActive, setIsActive]         = useState(true);
-  const [provider, setProvider]         = useState<'openai' | 'gemini'>('openai');
+  const [provider, setProvider]         = useState<'openai' | 'gemini' | 'claude'>('openai');
   const [primaryModel, setPrimaryModel] = useState('gpt-4o');
   const [temperature, setTemperature]   = useState([0.7]);
   const [maxTokens, setMaxTokens]       = useState('2048');
@@ -66,7 +67,7 @@ export function AgentConfigPanel({ agentId, settings }: AgentConfigPanelProps) {
     isInitialLoad.current = true;
     if (savedSettings) {
       setIsActive(savedSettings.is_active);
-      setProvider(savedSettings.provider as 'openai' | 'gemini');
+      setProvider(savedSettings.provider as 'openai' | 'gemini' | 'claude');
       setPrimaryModel(savedSettings.model);
       setTemperature([Number(savedSettings.temperature)]);
       setMaxTokens(String(savedSettings.max_tokens));
@@ -86,7 +87,7 @@ export function AgentConfigPanel({ agentId, settings }: AgentConfigPanelProps) {
 
   useEffect(() => {
     if (isInitialLoad.current) return;
-    const models = provider === 'openai' ? OPENAI_TEXT_MODELS : GEMINI_TEXT_MODELS;
+    const models = provider === 'gemini' ? GEMINI_TEXT_MODELS : provider === 'claude' ? CLAUDE_TEXT_MODELS : OPENAI_TEXT_MODELS;
     const firstModel = models[0]?.value;
     if (firstModel) setPrimaryModel(firstModel);
   }, [provider]);

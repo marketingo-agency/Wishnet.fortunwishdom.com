@@ -22,7 +22,6 @@ export function ProviderStatus({ settings }: ProviderStatusProps) {
       connected: hasProviderKey(keyStatus?.openai),
       activeFor: [
         settings?.active_text_provider === 'openai' && 'Text',
-        settings?.active_image_provider === 'openai' && 'Image',
         settings?.active_deep_research_provider === 'openai' && 'Research',
       ].filter(Boolean),
     },
@@ -32,8 +31,22 @@ export function ProviderStatus({ settings }: ProviderStatusProps) {
       connected: hasProviderKey(keyStatus?.gemini),
       activeFor: [
         settings?.active_text_provider === 'gemini' && 'Text',
-        settings?.active_image_provider === 'gemini' && 'Image',
       ].filter(Boolean),
+    },
+    {
+      id: 'claude',
+      name: 'Anthropic Claude',
+      connected: hasProviderKey(keyStatus?.claude),
+      activeFor: [
+        settings?.active_text_provider === 'claude' && 'Text',
+      ].filter(Boolean),
+    },
+    {
+      id: 'fal',
+      name: 'fal.ai',
+      connected: hasProviderKey(keyStatus?.fal),
+      // fal is the sole image + video engine app-wide.
+      activeFor: ['Image', 'Video'],
     },
   ];
 
@@ -81,7 +94,7 @@ export function ProviderStatus({ settings }: ProviderStatusProps) {
               ) : (
                 <Badge 
                   variant="outline" 
-                  className={`text-xs ${provider.connected ? 'text-muted-foreground' : 'text-amber-700 border-amber-300 dark:text-amber-300 dark:border-amber-800'}`}
+                  className={`text-xs ${provider.connected ? 'text-muted-foreground' : 'text-amber-800 border-amber-300 dark:text-amber-300 dark:border-amber-800'}`}
                 >
                   {provider.connected ? 'Standby' : 'Not Connected'}
                 </Badge>

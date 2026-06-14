@@ -20,8 +20,12 @@ interface NexusHeaderProps {
 export function NexusHeader({ settings }: NexusHeaderProps) {
   const router = useRouter();
   const { data: keyStatus } = useProviderKeyStatus();
-  const hasOpenAI = hasProviderKey(keyStatus?.openai);
-  const hasGemini = hasProviderKey(keyStatus?.gemini);
+  const providerChips = [
+    { label: 'OpenAI', on: hasProviderKey(keyStatus?.openai) },
+    { label: 'Gemini', on: hasProviderKey(keyStatus?.gemini) },
+    { label: 'Claude', on: hasProviderKey(keyStatus?.claude) },
+    { label: 'fal.ai', on: hasProviderKey(keyStatus?.fal) },
+  ];
 
   return (
     <div className="px-4 sm:px-6 py-4 sm:py-6 border-b border-border">
@@ -43,28 +47,21 @@ export function NexusHeader({ settings }: NexusHeaderProps) {
           </div>
         </div>
         
-        <div className="flex items-center gap-2 shrink-0">
-          <Badge 
-            variant="outline" 
-            className={`text-xs sm:text-sm ${hasOpenAI 
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-              : 'bg-muted text-muted-foreground'
-            }`}
-          >
-            <span className={`h-1.5 w-1.5 rounded-full mr-1 sm:mr-1.5 ${hasOpenAI ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground'}`} />
-            OpenAI
-          </Badge>
-          <Badge 
-            variant="outline" 
-            className={`text-xs sm:text-sm ${hasGemini 
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-              : 'bg-muted text-muted-foreground'
-            }`}
-          >
-            <span className={`h-1.5 w-1.5 rounded-full mr-1 sm:mr-1.5 ${hasGemini ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground'}`} />
-            Gemini
-          </Badge>
-          
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {providerChips.map((chip) => (
+            <Badge
+              key={chip.label}
+              variant="outline"
+              className={`text-xs sm:text-sm ${chip.on
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-muted text-muted-foreground'
+              }`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full mr-1 sm:mr-1.5 ${chip.on ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground'}`} />
+              {chip.label}
+            </Badge>
+          ))}
+
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

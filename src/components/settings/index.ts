@@ -2,7 +2,6 @@
  * Settings Component Barrel Exports
  */
 
-export { AITestConsole } from './AITestConsole';
 export { AccountSettings } from './AccountSettings';
 export { BrandingSettings } from './BrandingSettings';
 export { EditUserSheet } from './EditUserSheet';
