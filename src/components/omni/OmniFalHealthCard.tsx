@@ -26,10 +26,14 @@ export function OmniFalHealthCard() {
   const [testResult, setTestResult] = useState<FalTestResult | null>(null);
   const creditBalance = credits.data?.available && credits.data.balance != null ? credits.data.balance : null;
   const creditReason = credits.data?.reason;
+  // fal serves the credit balance ONLY from /account/billing, which requires an
+  // Admin-scope key (the inference key that works for generation is API-scope and
+  // gets 403'd). Surface that as an actionable state, not a dead "N/A".
+  const scopeBlocked = creditReason === 'http_401' || creditReason === 'http_403';
   const creditHint =
     creditReason === 'no_key' ? 'No fal API key is configured.'
-    : creditReason === 'http_401' || creditReason === 'http_403'
-      ? 'The fal key lacks billing (Admin) scope — add an Admin-scope fal key to read credits.'
+    : scopeBlocked
+      ? 'The fal key is API-scope; reading credits needs an Admin-scope key. Create one at fal.ai/dashboard/keys (scope: Admin) and save it in Settings → LLM Providers → fal.'
     : creditReason === 'unparsed' ? 'fal returned an unexpected billing format.'
     : creditReason === 'fetch_error' || creditReason === 'request_failed' ? 'Could not reach fal billing right now.'
     : 'Live fal credit balance is unavailable right now.';
@@ -99,6 +103,15 @@ export function OmniFalHealthCard() {
               >
                 <Wallet className="h-3.5 w-3.5" />
                 {formatUsd(creditBalance)} credits
+              </span>
+            ) : scopeBlocked ? (
+              <span
+                aria-label={creditHint}
+                title={creditHint}
+                className="flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400"
+              >
+                <Wallet className="h-3.5 w-3.5" />
+                Credits need Admin key
               </span>
             ) : (
               <span
