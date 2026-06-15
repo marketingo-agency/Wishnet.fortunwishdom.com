@@ -13,9 +13,10 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import * as Sentry from '@sentry/nextjs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { callContentLibrary } from '@/lib/contentLibraryApi';
 import { getAssetSignedUrl } from '@/hooks/omni';
 import type { OmniAsset, OmniImagesState, OmniRun, OmniRunStatus } from '@/hooks/omni';
-import { isRunDeletable } from './historyRouting';
+import { isRunFinalized } from './historyRouting';
 
 export function useOmniRunsList() {
   return useQuery<OmniRun[]>({
@@ -108,6 +109,27 @@ async function listRunFolder(folder: string): Promise<string[]> {
 }
 
 async function deleteOneRun(run: OmniRun, userId: string): Promise<void> {
+  // A finalized run backs a Content Library item whose posts read this run's
+  // assets live; remove the linked item(s) first so Pulse isn't left with
+  // broken-image entries. Posts cascade with the item server-side. Admin-only:
+  // a non-admin's query returns nothing (RLS) and the run still deletes.
+  if (isRunFinalized(run)) {
+    const { data: items } = await supabase
+      .from('content_library_items')
+      .select('id')
+      .eq('source_run_id', run.id);
+    for (const item of ((items ?? []) as { id: string }[])) {
+      try {
+        await callContentLibrary('delete-item', { item_id: item.id });
+      } catch (e) {
+        // Non-admin (RLS) or transient edge failure: leave the item rather than
+        // block the run delete. The library degrades gracefully (the cron marks
+        // a post 'failed' when its asset is gone).
+        Sentry.captureException(e, { tags: { feature: 'omni-history-delete-library' }, extra: { runId: run.id, itemId: item.id } });
+      }
+    }
+  }
+
   const folder = `${userId}/omni-images/${run.id}`;
   const paths = await listRunFolder(folder);
   if (paths.length > 0) {
@@ -132,8 +154,9 @@ async function deleteOneRun(run: OmniRun, userId: string): Promise<void> {
 
 /**
  * Hard delete: run rows (assets cascade) + each run's own storage folder,
- * sparing files referenced by other runs. Pass 'all' to clear every deletable
- * run server-side (the on-screen list is capped at 200).
+ * sparing files referenced by other runs. Finalized runs also drop their linked
+ * Content Library item (deleteOneRun). Pass 'all' to clear every run server-side
+ * (the on-screen list is capped at 200).
  */
 export function useDeleteRuns() {
   const invalidate = useInvalidateHistory();
@@ -144,18 +167,15 @@ export function useDeleteRuns() {
       const userId = userData.user.id;
 
       let runs: OmniRun[];
-      let skipped = 0;
       if (target === 'all') {
         const { data, error } = await supabase
           .from('omni_runs')
           .select('*')
-          .in('status', ['active', 'failed'])
           .limit(1000);
         if (error) throw error;
         runs = (data ?? []) as OmniRun[];
       } else {
-        runs = target.filter(isRunDeletable);
-        skipped = target.length - runs.length;
+        runs = target;
       }
 
       let deleted = 0;
@@ -169,16 +189,12 @@ export function useDeleteRuns() {
           Sentry.captureException(e, { tags: { feature: 'omni-history-delete' }, extra: { runId: run.id } });
         }
       }
-      return { deleted, skipped, failed };
+      return { deleted, failed };
     },
-    onSuccess: ({ deleted, skipped, failed }) => {
+    onSuccess: ({ deleted, failed }) => {
       invalidate();
-      const parts = [`${deleted} deleted`];
-      if (skipped > 0) parts.push(`${skipped} skipped (saved to the Content Library; archive them instead)`);
-      if (failed > 0) parts.push(`${failed} failed`);
-      const message = parts.join('. ');
+      const message = failed > 0 ? `${deleted} deleted. ${failed} failed` : `${deleted} deleted`;
       if (failed > 0) toast.error(message);
-      else if (skipped > 0) toast.info(message);
       else toast.success(message);
     },
     onError: (e: Error) => toast.error(e.message),

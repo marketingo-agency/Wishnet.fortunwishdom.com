@@ -174,3 +174,17 @@ export function useSetConnection() {
     onError: (e: Error) => toast.error(e.message),
   });
 }
+
+/** Delete a library entry (its per-network posts cascade-delete server-side).
+ *  Non-destructive to the source Omni run/assets (FK links are SET NULL). */
+export function useDeleteLibraryItem() {
+  const invalidate = useInvalidateLibrary();
+  return useMutation({
+    mutationFn: (itemId: string) => callContentLibrary('delete-item', { item_id: itemId }),
+    onSuccess: () => {
+      invalidate();
+      toast.success('Library entry deleted');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}

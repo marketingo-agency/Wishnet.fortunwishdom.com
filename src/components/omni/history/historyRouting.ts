@@ -100,11 +100,8 @@ export const RUN_STATUS_META: Record<string, { label: string; badge: string }> =
   archived: { label: 'Archived', badge: 'bg-muted text-muted-foreground' },
 };
 
-/**
- * Completed runs back Content Library items (finalize is the only path to
- * 'completed'), and archived runs were completed before archiving, so both
- * are protected from hard delete to keep library images intact.
- */
-export function isRunDeletable(run: OmniRun): boolean {
-  return run.status === 'active' || run.status === 'failed';
+/** Whether a finalized run (completed/archived) backs a Content Library item —
+ *  deleting such a run also removes that linked item (see useOmniHistory). */
+export function isRunFinalized(run: OmniRun): boolean {
+  return run.status === 'completed' || run.status === 'archived';
 }

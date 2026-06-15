@@ -6,6 +6,7 @@
  */
 
 import { useMemo } from 'react';
+import { Loader2, Trash2 } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -13,11 +14,23 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/components/settings/pulsePlatforms';
 import { NETWORK_META, isLibraryNetwork } from './libraryStatus';
 import { LibraryPostRow } from './LibraryPostRow';
-import { useLibraryAssetUrls, type ContentLibraryItem } from './useContentLibrary';
+import { useDeleteLibraryItem, useLibraryAssetUrls, type ContentLibraryItem } from './useContentLibrary';
 
 interface LibraryItemSheetProps {
   item: ContentLibraryItem | null;
@@ -42,6 +55,11 @@ export function LibraryItemSheet({ item, onOpenChange }: LibraryItemSheetProps) 
     const postAssetIds = new Set(item.content_library_posts.map((p) => p.asset_id).filter(Boolean));
     return (item.metadata.asset_ids ?? []).filter((id) => !postAssetIds.has(id));
   }, [item]);
+
+  const deleteItem = useDeleteLibraryItem();
+  const posts = item?.content_library_posts ?? [];
+  const publishedCount = posts.filter((p) => p.status === 'posted').length;
+  const scheduledCount = posts.filter((p) => p.status === 'scheduled').length;
 
   return (
     <Sheet open={item !== null} onOpenChange={onOpenChange}>
@@ -98,6 +116,46 @@ export function LibraryItemSheet({ item, onOpenChange }: LibraryItemSheetProps) 
                   This item was saved without network posts. Run it through Images Repurposing to create per-network variants.
                 </p>
               )}
+
+              <div className="border-t pt-4">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full cursor-pointer gap-2 border-destructive/30 text-destructive transition-colors duration-200 hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete library entry
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete this library entry?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        <span className="font-medium text-foreground">{item.title}</span>
+                        {posts.length > 0 ? ` and its ${posts.length} post${posts.length === 1 ? '' : 's'}` : ''} will be removed from the Content Library. The source Omni run and its images are not affected.
+                        {publishedCount > 0 && ` ${publishedCount} already-published post${publishedCount === 1 ? '' : 's'} will stay live on the network — only the local record is removed.`}
+                        {scheduledCount > 0 && ` ${scheduledCount} scheduled post${scheduledCount === 1 ? '' : 's'} will no longer be published.`}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={(e) => {
+                          // Keep the dialog open while the delete runs so the spinner
+                          // shows; the Sheet closes on success (unmounting the dialog).
+                          e.preventDefault();
+                          if (!deleteItem.isPending) deleteItem.mutate(item.id, { onSuccess: () => onOpenChange(false) });
+                        }}
+                        disabled={deleteItem.isPending}
+                        className="cursor-pointer gap-1.5 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        {deleteItem.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete entry'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </div>
           </>
         )}

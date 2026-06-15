@@ -340,6 +340,27 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ urls });
     }
 
+    // ── delete-item (remove a library entry; its posts cascade via FK) ───────
+    if (action === 'delete-item') {
+      const itemId = body.item_id;
+      if (typeof itemId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(itemId)) {
+        return jsonResponse({ error: 'A valid item_id is required' }, 400);
+      }
+      // content_library_posts.item_id → items is ON DELETE CASCADE, so the posts
+      // are removed automatically. Omni links (source_run_id, asset_id) are SET
+      // NULL, so the source run/assets are untouched. Deleting a `posted` post's
+      // record does NOT unpublish it from the network — the client warns first.
+      const { error } = await supabaseAdmin
+        .from('content_library_items')
+        .delete()
+        .eq('id', itemId);
+      if (error) {
+        console.error('Content Library: delete-item error:', error.message);
+        return jsonResponse({ error: 'Failed to delete the library entry' }, 500);
+      }
+      return jsonResponse({ success: true });
+    }
+
     return jsonResponse({ error: 'Invalid action' }, 400);
   } catch (e) {
     console.error('Content Library: unhandled error:', e instanceof Error ? e.message : String(e));

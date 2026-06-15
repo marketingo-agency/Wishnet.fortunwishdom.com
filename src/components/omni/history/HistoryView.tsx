@@ -3,8 +3,8 @@
 /**
  * History (Mode 6): the registry of every image-mode run.
  * Search and filters, resume and retake per entry, selective delete and
- * clear-all with confirmation. Completed and archived runs are protected
- * from deletion because their images back Content Library items.
+ * clear-all with confirmation. Deleting a finalized run also removes its linked
+ * Content Library item (the item's images live with the run).
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { OmniRun } from '@/hooks/omni';
-import { RUN_MODE_META, RUN_STATUS_META, isRunDeletable } from './historyRouting';
+import { RUN_MODE_META, RUN_STATUS_META, isRunFinalized } from './historyRouting';
 import { useDeleteRuns, useOmniRunsList, useRunCovers } from './useOmniHistory';
 import { HistoryRunCard } from './HistoryRunCard';
 
@@ -90,8 +90,8 @@ export function HistoryView({ onOpenRun, onExit }: HistoryViewProps) {
     return runs.data ?? [];
   }, [deleteTarget, filtered, runs.data, selectedIds]);
 
-  const deletableCount = runsToDelete.filter(isRunDeletable).length;
-  const protectedCount = runsToDelete.length - deletableCount;
+  const deleteCount = runsToDelete.length;
+  const finalizedCount = runsToDelete.filter(isRunFinalized).length;
 
   const confirmDelete = () => {
     // 'all' resolves server-side in the mutation: the on-screen list is
@@ -157,12 +157,12 @@ export function HistoryView({ onOpenRun, onExit }: HistoryViewProps) {
             </p>
             <div className="flex items-center gap-2">
               {selectedIds.size > 0 && (
-                <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs text-destructive" onClick={() => setDeleteTarget({ kind: 'selected' })}>
+                <Button size="sm" variant="outline" className="h-8 cursor-pointer gap-1.5 text-xs text-destructive" onClick={() => setDeleteTarget({ kind: 'selected' })}>
                   <Trash2 className="h-3.5 w-3.5" /> Delete selected ({selectedIds.size})
                 </Button>
               )}
               {(runs.data?.length ?? 0) > 0 && (
-                <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-destructive" onClick={() => setDeleteTarget({ kind: 'all' })}>
+                <Button size="sm" variant="ghost" className="h-8 cursor-pointer gap-1.5 text-xs text-muted-foreground hover:text-destructive" onClick={() => setDeleteTarget({ kind: 'all' })}>
                   <Trash2 className="h-3.5 w-3.5" /> Clear history
                 </Button>
               )}
@@ -212,18 +212,19 @@ export function HistoryView({ onOpenRun, onExit }: HistoryViewProps) {
               {deleteTarget?.kind === 'all' ? 'Clear the whole history?' : deleteTarget?.kind === 'selected' ? `Delete ${runsToDelete.length} selected entries?` : 'Delete this run?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {deletableCount > 0
-                ? `This permanently removes ${deletableCount} ${deletableCount === 1 ? 'run' : 'runs'} with all generated images from storage. This cannot be undone.`
-                : 'Nothing here can be deleted.'}
-              {protectedCount > 0 && ` ${protectedCount} ${protectedCount === 1 ? 'run is' : 'runs are'} protected because their images are saved to the Content Library; they will be skipped (archive them to hide them instead).`}
+              {deleteCount > 0
+                ? `This permanently removes ${deleteCount} ${deleteCount === 1 ? 'run' : 'runs'} with all generated images from storage. This cannot be undone.`
+                : 'There is nothing to delete.'}
+              {deleteTarget?.kind === 'all' && ' This clears the entire history, including any runs not shown above.'}
+              {finalizedCount > 0 && ` ${finalizedCount} ${finalizedCount === 1 ? 'run is' : 'runs are'} saved to the Content Library and will also be removed from it, including any scheduled posts.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
-              disabled={deleteRuns.isPending || deletableCount === 0}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteRuns.isPending || deleteCount === 0}
+              className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteRuns.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete'}
             </AlertDialogAction>

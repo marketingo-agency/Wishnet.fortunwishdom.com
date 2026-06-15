@@ -13,7 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/components/settings/pulsePlatforms';
 import { useUpdateOmniRun, type OmniRun } from '@/hooks/omni';
-import { RUN_MODE_META, RUN_STATUS_META, isRunDeletable, resumableStepsForRun, runProgress } from './historyRouting';
+import { RUN_MODE_META, RUN_STATUS_META, isRunFinalized, resumableStepsForRun, runProgress } from './historyRouting';
 import { useArchiveRun, useRetakeRun } from './useOmniHistory';
 
 interface HistoryRunCardProps {
@@ -93,7 +93,7 @@ export function HistoryRunCard({ run, coverUrl, selected, onToggleSelect, onOpen
           </div>
         </div>
 
-        <div className="ml-auto flex shrink-0 items-center gap-1">
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
           <Button
             size="sm"
             onClick={() => onOpen(run)}
@@ -125,18 +125,8 @@ export function HistoryRunCard({ run, coverUrl, selected, onToggleSelect, onOpen
           >
             {retake.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
           </Button>
-          {isRunDeletable(run) ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onRequestDelete(run)}
-              disabled={busy}
-              aria-label="Delete this run"
-              className="h-8 w-8 cursor-pointer text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          ) : (
+          {/* Finalized runs keep Archive (hide without deleting) alongside Delete. */}
+          {isRunFinalized(run) && (
             <Button
               variant="ghost"
               size="icon"
@@ -148,6 +138,16 @@ export function HistoryRunCard({ run, coverUrl, selected, onToggleSelect, onOpen
               {run.status === 'archived' ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onRequestDelete(run)}
+            disabled={busy}
+            aria-label="Delete this run"
+            className="h-8 w-8 cursor-pointer text-muted-foreground hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
