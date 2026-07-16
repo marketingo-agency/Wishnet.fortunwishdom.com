@@ -91,7 +91,7 @@ export function runProgress(run: OmniRun): { position: number; total: number } {
 }
 
 export const RUN_MODE_META: Record<OmniMode, { label: string; badge: string }> = {
-  omni_images: { label: 'Omni Images', badge: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300' },
+  omni_images: { label: 'Studio', badge: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300' },
   transform_upscale: { label: 'Transform and Upscale', badge: 'bg-blue-500/15 text-blue-600 dark:text-blue-300' },
   repurposing: { label: 'Images Repurposing', badge: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' },
   surprise_me: { label: 'Surprise Me', badge: 'bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300' },

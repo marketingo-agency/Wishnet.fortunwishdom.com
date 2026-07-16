@@ -44,7 +44,7 @@ export function WizardChrome({ step, onBack, onExit, children }: WizardChromePro
           )}
           <div className="min-w-0">
             <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Omni Images · Step {position >= 0 ? position + 1 : step} of {STEP_SEQUENCE.length}
+              Studio · Step {position >= 0 ? position + 1 : step} of {STEP_SEQUENCE.length}
             </p>
             <h1 className="truncate text-sm font-semibold sm:text-base">{WIZARD_STEP_TITLES[step] ?? ''}</h1>
           </div>

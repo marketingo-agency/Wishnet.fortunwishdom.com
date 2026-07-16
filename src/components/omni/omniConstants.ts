@@ -88,9 +88,11 @@ export interface OmniModeDef {
  *  wizard's step 1 as "Inspire me" — its legacy runs still open from History. */
 export const OMNI_IMAGE_MODES: OmniModeDef[] = [
   {
+    // Label-only rename (D2): the persisted mode value stays 'omni_images'
+    // (omni_runs.mode has a DB CHECK) — only the display name is "Studio".
     id: 'omni_images',
-    label: 'Omni Images',
-    description: 'The full creation wizard: prompt, models, variants, live generation, descriptions, networks, repurposing.',
+    label: 'Studio',
+    description: 'The full creation pipeline: brief, models, live generation, distribution formats, captions, finalize.',
     icon: Sparkles,
     accent: 'text-cyan-400',
     available: true,

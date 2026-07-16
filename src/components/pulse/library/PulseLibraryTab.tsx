@@ -126,7 +126,7 @@ export function PulseLibraryTab() {
             <p className="text-xs text-muted-foreground">
               {items && items.length > 0
                 ? 'Adjust the search or filters to see more.'
-                : 'Finalize an Omni Images run to fill the Content Library.'}
+                : 'Finalize an Omni Studio run to fill the Content Library.'}
             </p>
           </div>
         </div>
