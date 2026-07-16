@@ -8,7 +8,9 @@
     "dev:webpack": "next dev -p 8000 --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint src middleware.ts"
+    "lint": "eslint src middleware.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "engines": {
     "node": "22.x"
@@ -93,6 +95,7 @@
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.38.0"
+    "typescript-eslint": "^8.38.0",
+    "vitest": "^4.1.10"
   }
 }
