@@ -26,16 +26,18 @@ import { OmniImagesWizard } from '@/components/omni/wizard/OmniImagesWizard';
 import { TransformWizard } from '@/components/omni/transform/TransformWizard';
 import { RepurposeModeWizard } from '@/components/omni/repurpose-mode/RepurposeModeWizard';
 import { HistoryView } from '@/components/omni/history/HistoryView';
-import { SurpriseMeView } from '@/components/omni/surprise/SurpriseMeView';
 import { BrainstormView } from '@/components/omni/brainstorm/BrainstormView';
 import { resolveSurfaceForRun } from '@/components/omni/history/historyRouting';
 import { OMNI_TRACKS } from '@/components/omni/omniConstants';
 
 type OmniTheme = 'light' | 'dark';
 type OmniView = 'home' | OmniTrack;
-type ImagesMode = 'hub' | 'omni_images' | 'transform_upscale' | 'repurposing' | 'history' | 'surprise_me' | 'brainstorming';
+// surprise_me is no longer a surface: it folded into the wizard's step 1 as
+// "Inspire me". ?mode=surprise_me deep links land on the hub (legacy alias);
+// legacy surprise runs open in the wizard via resolveSurfaceForRun as before.
+type ImagesMode = 'hub' | 'omni_images' | 'transform_upscale' | 'repurposing' | 'history' | 'brainstorming';
 
-const IMAGES_MODE_IDS: ImagesMode[] = ['omni_images', 'transform_upscale', 'repurposing', 'history', 'surprise_me', 'brainstorming'];
+const IMAGES_MODE_IDS: ImagesMode[] = ['omni_images', 'transform_upscale', 'repurposing', 'history', 'brainstorming'];
 
 const TRACK_IDS = OMNI_TRACKS.map((t) => t.id) as string[];
 
@@ -78,10 +80,15 @@ export default function OmniAgent() {
     } else if (track && TRACK_IDS.includes(track)) {
       setView(track as OmniTrack);
     }
-    const mode = params.get('mode');
-    if (mode && (IMAGES_MODE_IDS as string[]).includes(mode)) setImagesMode(mode as ImagesMode);
-    const run = params.get('run');
-    if (run) setWizardRunId(run);
+    // ?mode/?run belong to the images surfaces only (F6): parsing them for
+    // other tracks would leave phantom state behind a coming-soon view.
+    const imagesTrack = track === 'images' || track === 'brainstorming';
+    if (imagesTrack) {
+      const mode = params.get('mode');
+      if (mode && (IMAGES_MODE_IDS as string[]).includes(mode)) setImagesMode(mode as ImagesMode);
+      const run = params.get('run');
+      if (run) setWizardRunId(run);
+    }
   }, []);
 
   const syncUrl = useCallback((next: OmniView, mode: ImagesMode, runId: string | null) => {
@@ -227,19 +234,11 @@ export default function OmniAgent() {
                 />
               )}
 
-              {view === 'images' && imagesMode === 'surprise_me' && (
-                <SurpriseMeView
-                  onRunStarted={handleHistoryOpenRun}
-                  onExit={() => selectView('images')}
-                />
-              )}
-
               {view === 'images' && imagesMode === 'brainstorming' && (
                 <BrainstormView
                   runId={wizardRunId}
                   onRunCreated={handleRunCreated('brainstorming')}
                   onLocked={handleHistoryOpenRun}
-                  onSwitchToSurprise={() => openImagesMode('surprise_me')}
                   onExit={() => selectView('images')}
                 />
               )}

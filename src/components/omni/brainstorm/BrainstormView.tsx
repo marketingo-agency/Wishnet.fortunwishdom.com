@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BrainCircuit, Dices, Lightbulb, Lock, X } from 'lucide-react';
+import { BrainCircuit, Lightbulb, Lock, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,11 +31,10 @@ interface BrainstormViewProps {
   runId: string | null;
   onRunCreated: (runId: string) => void;
   onLocked: (run: OmniRun) => void;
-  onSwitchToSurprise: () => void;
   onExit: () => void;
 }
 
-export function BrainstormView({ runId, onRunCreated, onLocked, onSwitchToSurprise, onExit }: BrainstormViewProps) {
+export function BrainstormView({ runId, onRunCreated, onLocked, onExit }: BrainstormViewProps) {
   const run = useOmniRun(runId);
   const createRun = useCreateBrainstormRun();
   const updateRun = useUpdateOmniRun();
@@ -150,9 +149,6 @@ export function BrainstormView({ runId, onRunCreated, onLocked, onSwitchToSurpri
               ))}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={onSwitchToSurprise} className="h-8 cursor-pointer gap-1.5 text-xs">
-            <Dices className="h-3.5 w-3.5" /> Surprise Me
-          </Button>
           <Button
             size="sm"
             onClick={() => void handleLock()}

@@ -10,6 +10,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { OMNI_TRACKS, type OmniTrackDef } from './omniConstants';
+import { OmniFalHealthCard } from './OmniFalHealthCard';
 import type { OmniTrack } from '@/hooks/omni';
 
 interface OmniEntryTilesProps {
@@ -40,7 +41,11 @@ const AVAILABILITY_BADGE: Record<OmniTrackDef['availability'], { label: string; 
 
 export function OmniEntryTiles({ onSelectTrack }: OmniEntryTilesProps) {
   return (
-    <div className="flex h-full flex-col items-center justify-center overflow-y-auto px-4 py-8 sm:px-8">
+    // my-auto (not justify-center) on the content: a centered flex container
+    // with overflow clips its top edge on short viewports (375px, F2); auto
+    // margins center when there is room and top-align when content overflows.
+    <div className="flex h-full flex-col items-center overflow-y-auto px-4 py-8 sm:px-8">
+      <div className="my-auto flex w-full flex-col items-center">
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -75,13 +80,17 @@ export function OmniEntryTiles({ onSelectTrack }: OmniEntryTilesProps) {
               key={track.id}
               variants={tileVariants}
               whileHover={isComingSoon ? undefined : { y: -4, transition: { duration: 0.2 } }}
-              onClick={() => onSelectTrack(track.id)}
+              onClick={isComingSoon ? undefined : () => onSelectTrack(track.id)}
+              disabled={isComingSoon}
+              aria-disabled={isComingSoon || undefined}
               aria-label={`${track.label}${badge ? ` (${badge.label})` : ''}`}
               className={cn(
                 'group relative overflow-hidden rounded-2xl border border-border bg-card p-5 text-left',
                 'transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                // Coming-soon tiles are genuinely inert (F5): no navigation,
+                // no pointer affordance — the badge already says why.
                 isComingSoon
-                  ? 'cursor-pointer opacity-80 hover:opacity-100'
+                  ? 'cursor-default opacity-70'
                   : 'cursor-pointer hover:border-cyan-500/40 hover:shadow-xl hover:shadow-cyan-500/10',
               )}
             >
@@ -118,6 +127,10 @@ export function OmniEntryTiles({ onSelectTrack }: OmniEntryTilesProps) {
           );
         })}
       </motion.div>
+
+      {/* fal.ai engine status bar (status only — the paid test CTA lives in the hub). */}
+      <OmniFalHealthCard showTestButton={false} />
+      </div>
     </div>
   );
 }

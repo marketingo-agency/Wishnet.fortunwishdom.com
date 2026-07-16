@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useOptimizeDraft } from '@/hooks/promptor';
 import type { OmniWishReferenceRef } from '@/hooks/omni';
+import { InspireMe } from './InspireMe';
 import { OmniWishReferencePicker } from './OmniWishReferencePicker';
 
 interface StepObjectiveProps {
@@ -64,7 +65,9 @@ export function StepObjective({ initialValue, initialReferences, onNext }: StepO
 
       <OmniWishReferencePicker value={references} onChange={setReferences} disabled={isOptimizing} />
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-3">
+        {/* Surprise Me lives here now: mined ideas fill the objective field. */}
+        <InspireMe onPick={(objective) => setValue(objective)} disabled={isOptimizing} />
         <Button
           onClick={() => onNext(value.trim(), references)}
           disabled={!value.trim() || isOptimizing}

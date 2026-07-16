@@ -51,7 +51,7 @@ export function OmniImagesHub({ onBack, onSelectMode }: OmniImagesHubProps) {
           <span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">Images</span>
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Six ways to create. Pick the mode that fits where you are.
+          Pick the mode that fits where you are.
         </p>
       </motion.div>
 
@@ -81,7 +81,7 @@ export function OmniImagesHub({ onBack, onSelectMode }: OmniImagesHubProps) {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/50">
-                    <Icon className={cn('h-4.5 w-4.5 h-[18px] w-[18px]', mode.accent)} />
+                    <Icon className={cn('h-[18px] w-[18px]', mode.accent)} />
                   </div>
                   <h2 className="text-sm font-semibold">{mode.label}</h2>
                 </div>
