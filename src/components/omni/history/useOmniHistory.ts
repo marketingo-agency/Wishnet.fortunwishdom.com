@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { callContentLibrary } from '@/lib/contentLibraryApi';
 import { getAssetSignedUrl } from '@/hooks/omni';
 import type { OmniAsset, OmniImagesState, OmniRun, OmniRunStatus } from '@/hooks/omni';
+import { REPURPOSING_FLOOR_STEP, V1_TRANSFORM_RESEED_STEP } from '../stepRegistry';
 import { isRunFinalized } from './historyRouting';
 
 export function useOmniRunsList() {
@@ -272,7 +273,7 @@ export function useRetakeRun() {
         };
         const { data, error } = await supabase
           .from('omni_runs')
-          .update({ current_step: 2, step_state: seed as never })
+          .update({ current_step: V1_TRANSFORM_RESEED_STEP, step_state: seed as never })
           .eq('id', run.id)
           .select('*')
           .single();
@@ -296,7 +297,7 @@ export function useRetakeRun() {
         };
         const { data, error } = await supabase
           .from('omni_runs')
-          .update({ current_step: 7, step_state: seed as never })
+          .update({ current_step: REPURPOSING_FLOOR_STEP, step_state: seed as never })
           .eq('id', run.id)
           .select('*')
           .single();
@@ -304,13 +305,19 @@ export function useRetakeRun() {
         return { run: data as OmniRun };
       }
 
-      // omni_images (and future modes): restart at step 1 with the creative inputs.
+      // omni_images / surprise_me / brainstorming: restart at step 1 with the
+      // creative inputs. Brainstorm clones keep their conversation and lock
+      // flag (HIST-03): without idea_locked the clone routed to an EMPTY chat
+      // even though the source had already locked its idea into the wizard.
       const run = await insertRun(
         {
           objective: state.objective,
           optimized_prompt: state.optimized_prompt,
           locked_prompt: state.locked_prompt,
           model_selections: state.model_selections,
+          ...(source.mode === 'brainstorming'
+            ? { messages: state.messages, idea_locked: state.idea_locked }
+            : {}),
         },
         1,
       );

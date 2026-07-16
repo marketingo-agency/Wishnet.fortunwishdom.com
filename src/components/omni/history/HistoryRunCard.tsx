@@ -7,12 +7,14 @@
 
 import { useState } from 'react';
 import { Archive, ArchiveRestore, ChevronDown, ImageOff, ListOrdered, Loader2, Play, RotateCcw, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/components/settings/pulsePlatforms';
 import { useUpdateOmniRun, type OmniRun } from '@/hooks/omni';
+import { validateJumpTarget } from '../stepRegistry';
 import { RUN_MODE_META, RUN_STATUS_META, isRunFinalized, resumableStepsForRun, runProgress } from './historyRouting';
 import { useArchiveRun, useRetakeRun } from './useOmniHistory';
 
@@ -43,11 +45,19 @@ export function HistoryRunCard({ run, coverUrl, selected, onToggleSelect, onOpen
 
   const jumpToStep = async (step: number) => {
     if (busy) return;
+    // Registry-validated: only legitimately resumable steps are ever written
+    // to current_step (translates legacy relics, enforces floors/high-water).
+    const target = validateJumpTarget(run, step);
+    if (target == null) {
+      toast.error('That step is not resumable for this run.');
+      return;
+    }
     try {
-      const updated = await updateRun.mutateAsync({ runId: run.id, current_step: step });
+      const updated = await updateRun.mutateAsync({ runId: run.id, current_step: target });
       onOpen(updated);
-    } catch {
-      // useUpdateOmniRun surfaces nothing itself; the open simply does not happen.
+    } catch (e) {
+      // HIST-11: a failed jump used to be silent — the click just did nothing.
+      toast.error(`Could not jump to that step: ${e instanceof Error ? e.message : 'unknown error'}`);
     }
   };
 

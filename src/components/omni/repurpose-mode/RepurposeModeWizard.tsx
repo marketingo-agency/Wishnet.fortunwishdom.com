@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { useCreateOmniRun, useUpdateOmniRun, uploadSourceAsset, referenceLibraryImage } from '@/hooks/omni';
+import { REPURPOSING_FLOOR_STEP } from '../stepRegistry';
 import { RepurposeSourcePicker } from './RepurposeSourcePicker';
 import { referenceContentLibraryAsset, type PendingSource } from './useRepurposeSources';
 
@@ -76,7 +77,7 @@ export function RepurposeModeWizard({ onExit, onHandoff }: RepurposeModeWizardPr
 
       await updateRun.mutateAsync({
         runId: run.id,
-        current_step: 7,
+        current_step: REPURPOSING_FLOOR_STEP,
         step_state: {
           objective: trimmed,
           locked_prompt: trimmed,

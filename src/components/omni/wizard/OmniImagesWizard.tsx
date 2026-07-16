@@ -17,6 +17,7 @@ import {
   type OmniImagesState, type OmniRepurposedRef,
 } from '@/hooks/omni';
 import type { OmniNetworkId } from '../omniNetworkPresets';
+import { TRANSFORM_BOUNDARY_STEP, normalizeV1Step, v1BackTarget, v1NextStep } from '../stepRegistry';
 import { WizardChrome } from './WizardChrome';
 import { StepObjective } from './StepObjective';
 import { StepLockPrompt } from './StepLockPrompt';
@@ -29,8 +30,6 @@ import { StepNetworks } from './StepNetworks';
 import { StepDimensions } from './StepDimensions';
 import { StepRepurpose } from './StepRepurpose';
 import { StepFinalize } from './StepFinalize';
-
-const BACK_TARGET: Record<number, number> = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 7, 9: 8, 10: 9, 11: 10 };
 
 interface OmniImagesWizardProps {
   runId: string | null;
@@ -51,9 +50,9 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
   const [localState, setLocalState] = useState<OmniImagesState | null>(null);
 
   const rawStep = localStep ?? run.data?.current_step ?? 1;
-  // Approval merged into step 10 and Finalize moved 12 → 11; map any lingering
-  // step-12 value (runs created before the merge) onto the new Finalize step.
-  const step = rawStep === 12 ? 11 : rawStep;
+  // Registry-normalized: maps the legacy step-12 relic onto Finalize (render
+  // only, never heals the DB).
+  const step = normalizeV1Step(rawStep);
   const state: OmniImagesState = useMemo(
     () => localState ?? ((run.data?.step_state ?? {}) as OmniImagesState),
     [localState, run.data],
@@ -69,7 +68,7 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
     setLocalStep(nextStep);
     // Steps after generation read asset records (dims, storage paths); the
     // cached snapshot predates generation, so refresh it on advance.
-    if (runId && nextStep >= 7) {
+    if (runId && nextStep >= TRANSFORM_BOUNDARY_STEP) {
       void queryClient.invalidateQueries({ queryKey: ['omni-assets', runId] });
     }
     try {
@@ -110,7 +109,7 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
   // step 1 with a prefilled objective and walk the full sequence.
   const runMode = run.data?.mode;
   const ownsEarlySteps = runMode == null || runMode === 'omni_images' || runMode === 'surprise_me' || runMode === 'brainstorming';
-  const backTarget = step === 7 && !ownsEarlySteps ? undefined : BACK_TARGET[step];
+  const backTarget = step === TRANSFORM_BOUNDARY_STEP && !ownsEarlySteps ? undefined : v1BackTarget(step);
 
   const goBack = () => {
     if (backTarget) {
@@ -136,14 +135,14 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
           <StepObjective
             initialValue={state.objective ?? ''}
             initialReferences={state.reference_image_refs ?? []}
-            onNext={(objective, references) => void persist(2, { objective, reference_image_refs: references })}
+            onNext={(objective, references) => void persist(v1NextStep(step), { objective, reference_image_refs: references })}
           />
         )}
         {step === 2 && (
           <StepLockPrompt
             objective={state.objective ?? ''}
             initialOptimized={state.optimized_prompt ?? ''}
-            onLock={(optimized, locked) => void persist(3, { optimized_prompt: optimized, locked_prompt: locked })}
+            onLock={(optimized, locked) => void persist(v1NextStep(step), { optimized_prompt: optimized, locked_prompt: locked })}
           />
         )}
         {step === 3 && (
@@ -151,14 +150,14 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
             initialSelections={state.model_selections ?? []}
             hasReferences={(state.reference_image_refs?.length ?? 0) > 0}
             referenceCount={state.reference_image_refs?.length ?? 0}
-            onNext={(selections) => void persist(4, { model_selections: selections })}
+            onNext={(selections) => void persist(v1NextStep(step), { model_selections: selections })}
           />
         )}
         {step === 4 && (
           <StepSpecs
             selections={state.model_selections ?? []}
             initialSpecs={state.model_specs ?? {}}
-            onNext={(specs) => void persist(5, { model_specs: specs })}
+            onNext={(specs) => void persist(v1NextStep(step), { model_specs: specs })}
           />
         )}
         {step === 5 && (
@@ -166,7 +165,7 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
             lockedPrompt={state.locked_prompt ?? ''}
             selections={state.model_selections ?? []}
             modelSpecs={state.model_specs ?? {}}
-            onGenerate={() => void persist(6, {})}
+            onGenerate={() => void persist(v1NextStep(step), {})}
           />
         )}
         {step === 6 && (
@@ -183,7 +182,7 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
               initialSelected={state.selected_asset_ids ?? []}
               referenceImageIds={(state.reference_image_refs ?? []).map((r) => r.wishpediaImageId)}
               onNext={(generatedIds, selectedIds) =>
-                void persist(7, { generated_asset_ids: generatedIds, selected_asset_ids: selectedIds })
+                void persist(v1NextStep(step), { generated_asset_ids: generatedIds, selected_asset_ids: selectedIds })
               }
             />
           ) : (
@@ -195,7 +194,7 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
         {step === 7 && (
           <StepNetworks
             initialNetworks={state.networks ?? []}
-            onNext={(networks) => void persist(8, { networks })}
+            onNext={(networks) => void persist(v1NextStep(step), { networks })}
           />
         )}
         {step === 8 && runId && (
@@ -208,7 +207,7 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
             initialOptions={state.caption_options ?? {}}
             initialChosen={state.chosen_captions ?? {}}
             onLock={(options, chosen) =>
-              void persist(9, { caption_options: options, chosen_captions: chosen, description_locked: true })
+              void persist(v1NextStep(step), { caption_options: options, chosen_captions: chosen, description_locked: true })
             }
           />
         )}
@@ -216,7 +215,7 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
           <StepDimensions
             networks={(state.networks ?? []) as OmniNetworkId[]}
             initialSelections={state.preset_selections ?? {}}
-            onNext={(selections) => void persist(10, { preset_selections: selections })}
+            onNext={(selections) => void persist(v1NextStep(step), { preset_selections: selections })}
           />
         )}
         {step === 10 && runId && (
@@ -237,7 +236,7 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
               presetSelections={state.preset_selections ?? {}}
               onProgress={(repurposed: OmniRepurposedRef[]) => void persistRepurposedProgress(repurposed)}
               onNext={(repurposed: OmniRepurposedRef[], approved: string[]) =>
-                void persist(11, { repurposed, approved_asset_ids: approved })
+                void persist(v1NextStep(step), { repurposed, approved_asset_ids: approved })
               }
             />
           )

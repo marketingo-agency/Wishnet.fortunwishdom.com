@@ -9,22 +9,12 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { V1_WIZARD_SEQUENCE, V1_WIZARD_STEP_TITLES } from '../stepRegistry';
 
-export const WIZARD_STEP_TITLES: Record<number, string> = {
-  1: 'Describe the objective',
-  2: 'Review and lock the prompt',
-  3: 'Pick your models',
-  4: 'Image specs',
-  5: 'Recap',
-  6: 'Live generation',
-  7: 'Target networks',
-  8: 'Social descriptions',
-  9: 'Dimension presets',
-  10: 'Repurpose & approve',
-  11: 'Finalize',
-};
+// Step knowledge lives in the registry (D-REG); re-exported for back-compat.
+export const WIZARD_STEP_TITLES = V1_WIZARD_STEP_TITLES;
 
-const STEP_SEQUENCE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+const STEP_SEQUENCE = V1_WIZARD_SEQUENCE;
 
 interface WizardChromeProps {
   step: number;

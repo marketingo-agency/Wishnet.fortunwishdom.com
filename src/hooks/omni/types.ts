@@ -134,6 +134,10 @@ export interface OmniAnalysis {
 }
 
 export interface OmniImagesState {
+  /** Step-state schema version: absent/1 = the legacy 11-step flow; 2 = the
+   *  7-stage Studio flow (current_step then holds a stage ordinal). Reads
+   *  migrate through stepRegistry.migrateStepState. */
+  schema_version?: number;
   objective?: string;
   optimized_prompt?: string;
   locked_prompt?: string;

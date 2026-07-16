@@ -23,8 +23,7 @@ import { TStepBrief } from './TStepBrief';
 import { TStepFinalize } from './TStepFinalize';
 import { StepModels } from '../wizard/StepModels';
 import { StepGeneration } from '../wizard/StepGeneration';
-
-const BACK_TARGET: Record<number, number> = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5 };
+import { TRANSFORM_BOUNDARY_STEP, v1TransformBackTarget, v1TransformNextStep } from '../stepRegistry';
 
 interface TransformWizardProps {
   runId: string | null;
@@ -53,7 +52,7 @@ export function TransformWizard({ runId, onRunCreated, onExit, onHandoffToRepurp
   // optimistic local step, so it can never fire before the persist lands.
   const serverStep = run.data?.current_step ?? 0;
   useEffect(() => {
-    if (serverStep >= 7) onHandoffToRepurposing();
+    if (serverStep >= TRANSFORM_BOUNDARY_STEP) onHandoffToRepurposing();
   }, [serverStep, onHandoffToRepurposing]);
 
   const persist = async (nextStep: number, patch: Partial<OmniImagesState>, targetRunId?: string) => {
@@ -81,7 +80,7 @@ export function TransformWizard({ runId, onRunCreated, onExit, onHandoffToRepurp
   };
 
   const goBack = () => {
-    const target = BACK_TARGET[step];
+    const target = v1TransformBackTarget(step);
     if (target) {
       setLocalStep(target);
       if (runId) void updateRun.mutateAsync({ runId, current_step: target });
@@ -107,11 +106,11 @@ export function TransformWizard({ runId, onRunCreated, onExit, onHandoffToRepurp
       ...state,
       objective: state.analysis?.description ?? state.transform_prompt ?? 'Transformed image',
       locked_prompt: state.transform_prompt || (state.analysis?.description ?? ''),
-      max_step_reached: Math.max(state.max_step_reached ?? 0, 7),
+      max_step_reached: Math.max(state.max_step_reached ?? 0, TRANSFORM_BOUNDARY_STEP),
     };
     setLocalState(nextState);
     try {
-      await updateRun.mutateAsync({ runId, current_step: 7, step_state: nextState });
+      await updateRun.mutateAsync({ runId, current_step: TRANSFORM_BOUNDARY_STEP, step_state: nextState });
       onHandoffToRepurposing();
     } catch (e) {
       toast.error(`Could not save your progress: ${e instanceof Error ? e.message : 'unknown error'}`);
@@ -120,11 +119,11 @@ export function TransformWizard({ runId, onRunCreated, onExit, onHandoffToRepurp
 
   return (
     <AnimatePresence mode="wait">
-      <TransformChrome key="chrome" step={step} onBack={BACK_TARGET[step] ? goBack : undefined} onExit={onExit}>
+      <TransformChrome key="chrome" step={step} onBack={v1TransformBackTarget(step) ? goBack : undefined} onExit={onExit}>
         {step === 1 && (
           <TStepSource
             createRunIfNeeded={createRunIfNeeded}
-            onSourceReady={(id, assetId) => void persist(2, { source_asset_id: assetId }, id)}
+            onSourceReady={(id, assetId) => void persist(v1TransformNextStep(step), { source_asset_id: assetId }, id)}
           />
         )}
         {step === 2 && state.source_asset_id && (
@@ -132,14 +131,14 @@ export function TransformWizard({ runId, onRunCreated, onExit, onHandoffToRepurp
             sourceAssetId={state.source_asset_id}
             initialAnalysis={state.analysis ?? null}
             onNext={(analysis: OmniAnalysis, prefillBrief: string) =>
-              void persist(3, { analysis, transform_prompt: prefillBrief || state.transform_prompt })
+              void persist(v1TransformNextStep(step), { analysis, transform_prompt: prefillBrief || state.transform_prompt })
             }
           />
         )}
         {step === 3 && (
           <TStepBrief
             initialValue={state.transform_prompt ?? ''}
-            onNext={(brief) => void persist(4, { transform_prompt: brief })}
+            onNext={(brief) => void persist(v1TransformNextStep(step), { transform_prompt: brief })}
           />
         )}
         {step === 4 && (
@@ -147,7 +146,7 @@ export function TransformWizard({ runId, onRunCreated, onExit, onHandoffToRepurp
             initialSelections={state.model_selections ?? []}
             capability="image-to-image"
             showUpscaleToggle
-            onNext={(selections) => void persist(5, { model_selections: selections })}
+            onNext={(selections) => void persist(v1TransformNextStep(step), { model_selections: selections })}
           />
         )}
         {step === 5 && runId && state.source_asset_id && (
@@ -158,7 +157,7 @@ export function TransformWizard({ runId, onRunCreated, onExit, onHandoffToRepurp
             initialSelected={state.selected_asset_ids ?? []}
             sourceAssetId={state.source_asset_id}
             onNext={(generatedIds, selectedIds) =>
-              void persist(6, { generated_asset_ids: generatedIds, selected_asset_ids: selectedIds })
+              void persist(v1TransformNextStep(step), { generated_asset_ids: generatedIds, selected_asset_ids: selectedIds })
             }
           />
         )}

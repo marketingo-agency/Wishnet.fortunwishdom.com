@@ -5,22 +5,27 @@
  * so the surface must be resolved per target step, never from mode alone.
  */
 
-import { TRANSFORM_STEP_TITLES } from '../transform/TransformChrome';
-import { WIZARD_STEP_TITLES } from '../wizard/WizardChrome';
+import {
+  REPURPOSING_FLOOR_STEP,
+  TRANSFORM_BOUNDARY_STEP,
+  V1_HANDOFF_SEQUENCE,
+  V1_TRANSFORM_SEQUENCE,
+  V1_TRANSFORM_STEP_TITLES,
+  V1_WIZARD_SEQUENCE,
+  V1_WIZARD_STEP_TITLES,
+  surfaceForStep,
+} from '../stepRegistry';
+import type { WizardSurface } from '../stepRegistry';
 import type { OmniImagesState, OmniMode, OmniRun } from '@/hooks/omni';
 
-export type WizardSurface = 'omni_images' | 'transform_upscale' | 'repurposing' | 'brainstorming';
+export type { WizardSurface } from '../stepRegistry';
 
-const OMNI_IMAGES_SEQUENCE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-const TRANSFORM_SEQUENCE = [1, 2, 3, 4, 5, 6];
-const HANDOFF_SEQUENCE = [7, 8, 9, 10, 11];
+const OMNI_IMAGES_SEQUENCE = V1_WIZARD_SEQUENCE;
+const TRANSFORM_SEQUENCE = V1_TRANSFORM_SEQUENCE;
+const HANDOFF_SEQUENCE = V1_HANDOFF_SEQUENCE;
 
-export function resolveSurfaceForStep(mode: OmniMode, step: number): WizardSurface {
-  if (mode === 'transform_upscale') return step <= 6 ? 'transform_upscale' : 'omni_images';
-  // A persisted repurposing run always starts at step 7 (the gathering screen
-  // is pre-persist), so it is rendered by the Omni Images wizard.
-  return 'omni_images';
-}
+/** Registry-backed surface resolution (kept as the module's public name). */
+export const resolveSurfaceForStep = surfaceForStep;
 
 /**
  * Run-aware resolver: a brainstorming run lives in the chat surface until its
@@ -47,7 +52,7 @@ export interface ResumableStep {
 export function stepReached(run: OmniRun): number {
   const highWater = (run.step_state as OmniImagesState)?.max_step_reached ?? 0;
   const reached = Math.max(run.current_step, highWater);
-  return run.mode === 'repurposing' ? Math.max(reached, 7) : reached;
+  return run.mode === 'repurposing' ? Math.max(reached, REPURPOSING_FLOOR_STEP) : reached;
 }
 
 /** Every step of the run's effective sequence up to where it has reached. */
@@ -57,14 +62,14 @@ export function resumableStepsForRun(run: OmniRun): ResumableStep[] {
   let titles: (step: number) => string;
 
   if (run.mode === 'transform_upscale') {
-    sequence = reached >= 7 ? [...TRANSFORM_SEQUENCE, ...HANDOFF_SEQUENCE] : TRANSFORM_SEQUENCE;
-    titles = (s) => (s <= 6 ? TRANSFORM_STEP_TITLES[s] : WIZARD_STEP_TITLES[s]) ?? `Step ${s}`;
+    sequence = reached >= TRANSFORM_BOUNDARY_STEP ? [...TRANSFORM_SEQUENCE, ...HANDOFF_SEQUENCE] : [...TRANSFORM_SEQUENCE];
+    titles = (s) => (s < TRANSFORM_BOUNDARY_STEP ? V1_TRANSFORM_STEP_TITLES[s] : V1_WIZARD_STEP_TITLES[s]) ?? `Step ${s}`;
   } else if (run.mode === 'repurposing') {
-    sequence = HANDOFF_SEQUENCE;
-    titles = (s) => WIZARD_STEP_TITLES[s] ?? `Step ${s}`;
+    sequence = [...HANDOFF_SEQUENCE];
+    titles = (s) => V1_WIZARD_STEP_TITLES[s] ?? `Step ${s}`;
   } else {
-    sequence = OMNI_IMAGES_SEQUENCE;
-    titles = (s) => WIZARD_STEP_TITLES[s] ?? `Step ${s}`;
+    sequence = [...OMNI_IMAGES_SEQUENCE];
+    titles = (s) => V1_WIZARD_STEP_TITLES[s] ?? `Step ${s}`;
   }
 
   return sequence
@@ -77,7 +82,7 @@ export function runProgress(run: OmniRun): { position: number; total: number } {
   const reached = stepReached(run);
   const all =
     run.mode === 'transform_upscale'
-      ? reached >= 7 ? [...TRANSFORM_SEQUENCE, ...HANDOFF_SEQUENCE] : TRANSFORM_SEQUENCE
+      ? reached >= TRANSFORM_BOUNDARY_STEP ? [...TRANSFORM_SEQUENCE, ...HANDOFF_SEQUENCE] : TRANSFORM_SEQUENCE
       : run.mode === 'repurposing'
         ? HANDOFF_SEQUENCE
         : OMNI_IMAGES_SEQUENCE;
