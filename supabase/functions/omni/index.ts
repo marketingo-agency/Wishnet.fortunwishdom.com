@@ -20,9 +20,11 @@ import { fetchFalCatalog, findFalModel, isFalCapability } from './fal-catalog.ts
 import { applySpecToInput, modelSupportsNumImages, snapAspectRatio } from './fal-specs.ts';
 import { FalUserError, falResult, falStatus, falSubmit } from './fal-runner.ts';
 import { persistFalImage, registerInFilesManager, signStoragePath } from './storage.ts';
-import { analyzeImage, retrieveKnowledge } from './analysis.ts';
+import { analyzeImage } from './analysis.ts';
 import { mineSurpriseIdeas } from './surprise.ts';
 import { chatBrainstorm, lockIdea, type BrainstormAttachment, type BrainstormMessageInput } from './brainstorm.ts';
+import { buildHeartDigest, fetchHeartRules, retrieveKnowledge } from './context.ts';
+import { generateCaptions } from './captions.ts';
 
 // 60/min: the generation workspace polls in-flight variants every ~3s.
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 60 });
@@ -67,50 +69,9 @@ function sanitizeSettingsInput(raw: unknown): OmniSettingsInput {
   return out;
 }
 
-// ── Heart rules (AGENT key "omni") ───────────────────────────────────────────
-
-export interface HeartRule {
-  name: string;
-  content: string;
-  priority: string;
-}
-
-const PRIORITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-
-/**
- * Fetch ALL active Heart rules that are global or assigned to "omni".
- * Errors are surfaced to the caller, never silently degraded to zero rules:
- * a fetch failure blocks generation rather than producing non-compliant output.
- * Rules are sorted high priority first so the most important rules are injected
- * first and are never the ones dropped by any downstream truncation.
- * `priority` is a text column, so ordering happens in code via a rank map.
- */
-export async function fetchHeartRules(
-  supabaseAdmin: ReturnType<typeof createClient>,
-): Promise<HeartRule[]> {
-  const { data, error } = await supabaseAdmin
-    .from('heart_rules')
-    .select('name, rule_content, priority, sort_order, is_global, assigned_agents, is_active')
-    .eq('is_active', true)
-    .or('is_global.eq.true,assigned_agents.cs.{"omni"}');
-
-  if (error) {
-    console.error('Omni: Heart rules fetch error:', error.message);
-    throw new Error('Heart rules could not be loaded. Generation is blocked to guarantee brand compliance. Please try again.');
-  }
-
-  const rank = (p: string) => PRIORITY_RANK[p.toLowerCase()] ?? 2;
-
-  return (data || [])
-    .map((r: { name?: string; rule_content?: string; priority?: string; sort_order?: number }) => ({
-      name: sanitizeForPrompt(r.name ?? ''),
-      content: sanitizeForPrompt(r.rule_content ?? ''),
-      priority: r.priority ?? 'medium',
-      sortOrder: r.sort_order ?? 0,
-    }))
-    .sort((a, b) => rank(a.priority) - rank(b.priority) || a.sortOrder - b.sortOrder)
-    .map(({ name, content, priority }) => ({ name, content, priority }));
-}
+// Heart rules + knowledge grounding live in the context engine (context.ts):
+// fetchHeartRules keeps its throw-on-error semantics — a Heart fetch failure
+// blocks generation, it never silently degrades.
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -642,6 +603,34 @@ Deno.serve(async (req: Request) => {
         input.prompt = `Using the provided reference image(s) of the Fortun Wishnet canon subject(s): ${subjects}. Recreate ${referenceNames.length > 1 ? 'them' : 'it'} faithfully, preserving the exact appearance, colors, shapes, and proportions shown in the references. ${input.prompt}`;
       }
 
+      // KB-GAP-1/2: ground EVERY paid image in the Heart rules — server-side,
+      // so no client detour can skip brand compliance. OPT-IN via
+      // prompt_provenance: the old prod client never sends the field, so its
+      // behavior is byte-identical; prompts already engineered by Promptor
+      // (provenance 'promptor') are Heart-grounded upstream and are not
+      // double-injected. A Heart fetch failure blocks the paid submit.
+      const promptProvenance = typeof body.prompt_provenance === 'string' ? body.prompt_provenance : null;
+      if (promptProvenance && promptProvenance !== 'promptor' && typeof input.prompt === 'string') {
+        let digestRules;
+        try {
+          digestRules = await fetchHeartRules(supabaseAdmin);
+        } catch (e) {
+          return jsonResponse({ error: e instanceof Error ? e.message : 'Heart rules unavailable' }, 503);
+        }
+        const digest = buildHeartDigest(digestRules);
+        if (digest) {
+          const combined = `${digest}\n${input.prompt}`;
+          // Respect the 8000-char prompt cap: the digest gives way, never the
+          // user's prompt. Skip injection when there is no meaningful room.
+          if (combined.length <= 8000) {
+            input.prompt = combined;
+          } else {
+            const room = 8000 - (input.prompt as string).length - 1;
+            if (room > 40) input.prompt = `${digest.slice(0, room)}\n${input.prompt}`;
+          }
+        }
+      }
+
       const { data: asset, error: assetError } = await supabaseAdmin
         .from('omni_assets')
         .insert({
@@ -938,7 +927,7 @@ Deno.serve(async (req: Request) => {
 
       const { data: llm } = await supabaseAdmin
         .from('llm_settings')
-        .select('openai_api_key, gemini_api_key, openai_text_model, gemini_text_model')
+        .select('openai_api_key, gemini_api_key, openai_text_model, gemini_text_model, active_text_provider')
         .single();
       const openaiKey = ((llm?.openai_api_key as string | null) || Deno.env.get('OPENAI_API_KEY') || '').trim();
       const geminiKey = ((llm?.gemini_api_key as string | null) || Deno.env.get('GEMINI_API_KEY') || '').trim();
@@ -947,32 +936,40 @@ Deno.serve(async (req: Request) => {
       }
 
       // Per-message picker: provider/model from the request, validated against
-      // available keys; falls back to the configured text model defaults.
+      // available keys. The FALLBACK honors llm_settings.active_text_provider
+      // (SIB-06) instead of silently preferring whichever key exists; a
+      // configured provider omni has no branch for (claude) falls through to
+      // key availability.
       const requestedProvider = body.provider === 'gemini' || body.provider === 'openai' ? body.provider : null;
+      const configuredRaw = (llm?.active_text_provider as string | null) ?? null;
+      const configuredProvider = configuredRaw === 'gemini' && geminiKey ? 'gemini'
+        : configuredRaw === 'openai' && openaiKey ? 'openai'
+        : null;
       const provider = requestedProvider === 'gemini' && geminiKey ? 'gemini'
         : requestedProvider === 'openai' && openaiKey ? 'openai'
-        : openaiKey ? 'openai' : 'gemini';
+        : configuredProvider ?? (openaiKey ? 'openai' : 'gemini');
       const requestedModel = typeof body.model === 'string' && body.model.length <= 200 ? body.model : null;
       const model = requestedModel || (provider === 'gemini'
         ? ((llm?.gemini_text_model as string | null) || 'gemini-2.5-flash')
         : ((llm?.openai_text_model as string | null) || 'gpt-4o'));
-
-      if (action === 'brainstorm-lock') {
-        try {
-          const result = await lockIdea({ provider, model, keys: { openaiKey, geminiKey }, messages });
-          return jsonResponse(result);
-        } catch (e) {
-          const message = e instanceof Error ? e.message : 'Lock failed';
-          console.error('Omni: brainstorm-lock error:', message);
-          return jsonResponse({ error: message }, 502);
-        }
-      }
 
       let heartRules;
       try {
         heartRules = await fetchHeartRules(supabaseAdmin);
       } catch (e) {
         return jsonResponse({ error: e instanceof Error ? e.message : 'Heart rules unavailable' }, 503);
+      }
+
+      if (action === 'brainstorm-lock') {
+        try {
+          // KB-GAP-4: the distilled brief seeds the whole run — Heart-grounded.
+          const result = await lockIdea({ provider, model, keys: { openaiKey, geminiKey }, messages, heartRules });
+          return jsonResponse(result);
+        } catch (e) {
+          const message = e instanceof Error ? e.message : 'Lock failed';
+          console.error('Omni: brainstorm-lock error:', message);
+          return jsonResponse({ error: message }, 502);
+        }
       }
 
       // Embeddings need OpenAI; without that key the chat degrades honestly
@@ -996,6 +993,68 @@ Deno.serve(async (req: Request) => {
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Brainstorm reply failed';
         console.error('Omni: brainstorm-chat error:', message);
+        return jsonResponse({ error: message }, 502);
+      }
+    }
+
+    // ── generate-captions (one image → captions for all its networks) ─────────
+    if (action === 'generate-captions') {
+      const runId = body.run_id;
+      if (typeof runId !== 'string') return jsonResponse({ error: 'run_id is required' }, 400);
+      const { data: run } = await supabaseAdmin
+        .from('omni_runs')
+        .select('id')
+        .eq('id', runId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!run) return jsonResponse({ error: 'Run not found' }, 404);
+
+      const networks = Array.isArray(body.networks)
+        ? (body.networks as unknown[]).filter((n): n is string => typeof n === 'string' && NETWORKS.has(n)).slice(0, 6)
+        : [];
+      if (networks.length === 0) return jsonResponse({ error: 'At least one valid network is required' }, 400);
+      const objective = typeof body.objective === 'string' ? body.objective.slice(0, 2000) : '';
+      const imagePrompt = typeof body.image_prompt === 'string' ? body.image_prompt.slice(0, 4000) : '';
+      const optionsPerNetwork = typeof body.options_per_network === 'number'
+        && Number.isInteger(body.options_per_network)
+        && body.options_per_network >= 1 && body.options_per_network <= 3
+        ? body.options_per_network
+        : 1;
+
+      const { data: llm } = await supabaseAdmin
+        .from('llm_settings')
+        .select('openai_api_key, gemini_api_key, openai_text_model, gemini_text_model, active_text_provider')
+        .single();
+      const openaiKey = ((llm?.openai_api_key as string | null) || Deno.env.get('OPENAI_API_KEY') || '').trim();
+      const geminiKey = ((llm?.gemini_api_key as string | null) || Deno.env.get('GEMINI_API_KEY') || '').trim();
+      if (!openaiKey && !geminiKey) {
+        return jsonResponse({ error: 'An OpenAI or Gemini API key is required for caption generation. Configure one in Settings > LLM Providers.' }, 503);
+      }
+      const configuredText = (llm?.active_text_provider as string | null) ?? null;
+      const provider = configuredText === 'gemini' && geminiKey ? 'gemini'
+        : configuredText === 'openai' && openaiKey ? 'openai'
+        : openaiKey ? 'openai' : 'gemini';
+      const model = provider === 'gemini'
+        ? ((llm?.gemini_text_model as string | null) || 'gemini-2.5-flash')
+        : ((llm?.openai_text_model as string | null) || 'gpt-4o');
+
+      // Captions run under OMNI's Heart scope (KB-GAP-3), not Promptor's.
+      let heartRules;
+      try {
+        heartRules = await fetchHeartRules(supabaseAdmin);
+      } catch (e) {
+        return jsonResponse({ error: e instanceof Error ? e.message : 'Heart rules unavailable' }, 503);
+      }
+
+      try {
+        const captions = await generateCaptions({
+          provider, model, keys: { openaiKey, geminiKey },
+          heartRules, objective, imagePrompt, networks, optionsPerNetwork,
+        });
+        return jsonResponse({ captions });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Caption generation failed';
+        console.error('Omni: generate-captions error:', message);
         return jsonResponse({ error: message }, 502);
       }
     }
