@@ -394,8 +394,17 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ ...page, falConfigured: falKey !== null });
     }
 
-    // ── fal-submit ───────────────────────────────────────────────────────────
+    // ── fal-submit (admin-only raw passthrough; KB-GAP-5) ────────────────────
+    // No shipped client surface calls this action (grep-verified 2026-07-16):
+    // every user funnel goes through variant-submit, which creates asset rows
+    // and grounds prompts. Raw submits stay available to admins for debugging
+    // only, with the same prompt cap the governed path enforces.
     if (action === 'fal-submit') {
+      const { data: isSubmitAdmin, error: submitAdminErr } = await supabaseAdmin.rpc('is_admin', { _user_id: userId });
+      if (submitAdminErr || !isSubmitAdmin) {
+        return jsonResponse({ error: 'Admin access required' }, 403);
+      }
+
       const falKey = await getFalKey(supabaseAdmin);
       if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
 
@@ -403,6 +412,10 @@ Deno.serve(async (req: Request) => {
       const input = body.input;
       if (typeof modelId !== 'string' || !input || typeof input !== 'object' || Array.isArray(input)) {
         return jsonResponse({ error: 'model_id (string) and input (object) are required' }, 400);
+      }
+      const rawPrompt = (input as Record<string, unknown>).prompt;
+      if (typeof rawPrompt === 'string' && rawPrompt.length > 8000) {
+        return jsonResponse({ error: 'Prompt is too long (8000 char cap)' }, 400);
       }
 
       const model = await findFalModel(modelId, falKey);
@@ -1007,11 +1020,17 @@ Deno.serve(async (req: Request) => {
 
       const { data: run } = await supabaseAdmin
         .from('omni_runs')
-        .select('id, status, step_state')
+        .select('id, status, step_state, mode')
         .eq('id', runId)
         .eq('user_id', userId)
         .maybeSingle();
       if (!run) return jsonResponse({ error: 'Run not found' }, 404);
+      // The item metadata records the run's REAL mode (GAP-6): repurposing and
+      // surprise runs were previously mislabeled 'omni_images'. Write-only field
+      // today (Pulse reads only asset_ids), so correcting it is safe.
+      const runMode = typeof (run as { mode?: string }).mode === 'string'
+        ? (run as { mode: string }).mode
+        : 'omni_images';
 
       // Idempotency: finalize is the only path to 'completed'. Re-finalizing
       // a completed run (resume at step 12, double click) returns the
@@ -1052,8 +1071,8 @@ Deno.serve(async (req: Request) => {
           networks,
           status: 'ready',
           metadata: itemOnly
-            ? { mode: 'transform_upscale', asset_ids: itemAssetIds }
-            : { mode: 'omni_images' },
+            ? { mode: runMode, asset_ids: itemAssetIds }
+            : { mode: runMode },
           created_by: userId,
         })
         .select('id')

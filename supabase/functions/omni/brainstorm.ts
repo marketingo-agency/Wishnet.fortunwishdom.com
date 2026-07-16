@@ -12,6 +12,7 @@
 
 import { TOKEN_BUDGETS } from '../_shared/token-budgets.ts';
 import { stripDashes } from '../_shared/sanitize.ts';
+import { openAiTuning } from './llm.ts';
 import type { HeartRule } from './index.ts';
 
 export interface BrainstormMessageInput {
@@ -89,8 +90,8 @@ async function callOpenAiChat(
     body: JSON.stringify({
       model,
       messages: [{ role: 'system', content: system }, ...mapped],
-      max_tokens: maxTokens,
-      temperature: 0.8,
+      // SIB-01: reasoning models (gpt-5.x/o-series) reject max_tokens + temperature.
+      ...openAiTuning(model, maxTokens, 0.8),
     }),
     signal: AbortSignal.timeout(60_000),
   });
@@ -203,8 +204,8 @@ export async function lockIdea(params: {
       body: JSON.stringify({
         model: params.model,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: TOKEN_BUDGETS.OMNI_BRAINSTORM_LOCK,
-        temperature: 0.3,
+        // SIB-01: reasoning models (gpt-5.x/o-series) reject max_tokens + temperature.
+        ...openAiTuning(params.model, TOKEN_BUDGETS.OMNI_BRAINSTORM_LOCK, 0.3),
         response_format: { type: 'json_object' },
       }),
       signal: AbortSignal.timeout(60_000),

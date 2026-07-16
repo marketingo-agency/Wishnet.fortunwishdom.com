@@ -11,6 +11,7 @@
 import type { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 import { sanitizeForPrompt, stripDashes } from '../_shared/sanitize.ts';
 import { TOKEN_BUDGETS } from '../_shared/token-budgets.ts';
+import { openAiTuning } from './llm.ts';
 import type { HeartRule } from './index.ts';
 
 type AdminClient = ReturnType<typeof createClient>;
@@ -137,8 +138,8 @@ async function generateIdeas(
     body: JSON.stringify({
       model,
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: TOKEN_BUDGETS.OMNI_SURPRISE_IDEAS,
-      temperature: 0.9,
+      // SIB-01: reasoning models (gpt-5.x/o-series) reject max_tokens + temperature.
+      ...openAiTuning(model, TOKEN_BUDGETS.OMNI_SURPRISE_IDEAS, 0.9),
       response_format: { type: 'json_object' },
     }),
     signal: AbortSignal.timeout(60_000),
