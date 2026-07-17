@@ -212,6 +212,21 @@ export interface OmniImagesState {
   video_variants?: Record<string, OmniVideoVariantRef>;
   /** Stage 8 (Phase 7): per-preset caption overrides. */
   video_captions?: Record<string, string>;
+  /** Animate mode (Phase 9). */
+  animate_path?: 'motion' | 'talk';
+  animate_refs?: OmniAnimateRef[];
+  animate_prompt?: string;
+  animate_script?: string;
+  animate_voice_id?: string;
+  animate_vo_asset_id?: string;
+}
+
+export interface OmniAnimateRef {
+  /** wishpedia_entry_images.id (resolved server-side, never a raw URL). */
+  wishpedia_image_id: string;
+  /** Public wishpedia-media URL, persisted for preview only. */
+  url: string;
+  label: string;
 }
 
 export interface OmniVideoVariantRef {

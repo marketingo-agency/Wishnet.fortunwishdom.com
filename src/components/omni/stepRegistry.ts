@@ -406,7 +406,8 @@ export const VIDEO_MODES: Record<VideoModeId, VideoModeDef> = {
   },
   video_animate: {
     mode: 'video_animate',
-    builtThrough: 0,
+    // Phase 9: source / direction / generate / finalize all live.
+    builtThrough: 4,
     stages: videoStages([
       ['source', 'Source'],
       ['direction', 'Motion or talk'],

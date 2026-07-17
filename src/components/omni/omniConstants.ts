@@ -196,8 +196,8 @@ export const OMNI_VIDEO_MODES: OmniVideoModeDef[] = [
     description: 'Bring any image to life: motion from a prompt, character consistency from canon references, or a talking character with a brand voice.',
     icon: PersonStanding,
     accent: 'text-indigo-400',
-    available: false,
-    availabilityNote: 'Lands in Phase 9 of this build.',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'video_repurpose',
