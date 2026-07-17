@@ -3,7 +3,7 @@
  *
  * Translates an OmniVariantSpec (from the client step-4 Image specs) into the
  * correct fal input params for each model's sizing convention. Mirrors the UI
- * config at src/config/falSpecs.ts — keep the two consistent.
+ * config at src/config/falSpecs.ts - keep the two consistent.
  *
  * Conventions (verified via fal-ai MCP get_model_schema 2026-06-14):
  *  - image_size       : preset string OR { width, height }   (FLUX family, Recraft, Ideogram, Seedream/Qwen/FLUX.2 edit)
@@ -46,7 +46,7 @@ const RESOLUTIONS = new Set(['0.5K', '1K', '2K', '4K']);
 const PIXEL_SIZES = new Set(['auto', '1024x1024', '1536x1024', '1024x1536']);
 const ASPECT_RE = /^[1-9]\d?:[1-9]\d?$/;
 
-// Per-model accepted aspect_ratio enums — the load-bearing fix for fal's
+// Per-model accepted aspect_ratio enums - the load-bearing fix for fal's
 // "Input should be 'auto', '21:9', ..." rejections. fal validates aspect_ratio
 // against a FIXED per-model enum, so a format-valid-but-out-of-enum value (e.g.
 // 2:1 / 3:1 from a 1.91:1 target) is rejected. Every 'aspect_resolution' model in
@@ -73,10 +73,10 @@ function ratioValue(r: string): number | null {
 
 /**
  * Snap an aspect_ratio to the model's accepted enum so fal never rejects it.
- *  - model with a known enum  → the value if already accepted, else the NEAREST
+ *  - model with a known enum  -> the value if already accepted, else the NEAREST
  *    accepted ratio by numeric value ('auto' only when explicitly requested).
- *  - known model with NO aspect_ratio param → null (caller omits aspect_ratio).
- *  - unknown live-catalog model → the value unchanged if format-valid, else null
+ *  - known model with NO aspect_ratio param -> null (caller omits aspect_ratio).
+ *  - unknown live-catalog model -> the value unchanged if format-valid, else null
  *    (preserves legacy pass-through). Pure + never throws.
  */
 export function snapAspectRatio(modelId: string, ar: unknown): string | null {
@@ -104,7 +104,7 @@ export function snapAspectRatio(modelId: string, ar: unknown): string | null {
   return ASPECT_RE.test(ar) ? ar : null;
 }
 
-// Allowed values per quality knob — membership-validated so only known enum
+// Allowed values per quality knob - membership-validated so only known enum
 // values reach fal (same discipline as PRESETS/RESOLUTIONS/PIXEL_SIZES).
 const QUALITY_VALUES: Record<string, Set<string>> = {
   quality: new Set(['low', 'medium', 'high']),

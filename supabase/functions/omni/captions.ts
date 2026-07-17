@@ -1,9 +1,9 @@
 /**
- * Social caption generation (Plan 1 Phase 5 — the `generate-captions` action).
+ * Social caption generation (Plan 1 Phase 5 - the `generate-captions` action).
  *
  * One LLM call per IMAGE covers ALL of its networks (structured JSON out),
  * replacing the legacy per-cell Promptor detour (27 sequential calls for a
- * 3-image × 3-network set become ≤3). Runs under OMNI's Heart scope
+ * 3-image x 3-network set become <=3). Runs under OMNI's Heart scope
  * (KB-GAP-3: captions used to inherit Promptor's scope, so rules assigned to
  * "omni" never reached them).
  */
@@ -108,7 +108,7 @@ async function callLlm(
   }
 }
 
-/** One image → captions for every requested network: {[networkId]: string[]}. */
+/** One image -> captions for every requested network: {[networkId]: string[]}. */
 export async function generateCaptions(params: {
   provider: string;
   model: string;

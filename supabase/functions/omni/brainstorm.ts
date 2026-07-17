@@ -165,7 +165,7 @@ export async function lockIdea(params: {
   model: string;
   keys: BrainstormKeys;
   messages: BrainstormMessageInput[];
-  /** KB-GAP-4: the lock distillation seeds the whole run — it must be
+  /** KB-GAP-4: the lock distillation seeds the whole run - it must be
    *  Heart-grounded like the chat that produced it. */
   heartRules: HeartRule[];
 }): Promise<{ title: string; objective: string }> {

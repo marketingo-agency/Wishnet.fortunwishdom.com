@@ -31,7 +31,7 @@ const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 60 });
 
 let corsHeaders: Record<string, string> = getCorsHeaders(null);
 
-// ── Settings ─────────────────────────────────────────────────────────────────
+// -- Settings -----
 
 interface OmniSettingsInput {
   analysis_provider?: string;
@@ -70,10 +70,10 @@ function sanitizeSettingsInput(raw: unknown): OmniSettingsInput {
 }
 
 // Heart rules + knowledge grounding live in the context engine (context.ts):
-// fetchHeartRules keeps its throw-on-error semantics — a Heart fetch failure
+// fetchHeartRules keeps its throw-on-error semantics - a Heart fetch failure
 // blocks generation, it never silently degrades.
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// -- Helpers -----
 
 function jsonResponse(payload: unknown, status = 200, extraHeaders: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(payload), {
@@ -143,7 +143,7 @@ function extractCreditBalance(data: unknown): { balance: number | null; currency
   const currency = currencyOf(co) ?? currencyOf(root) ?? 'USD';
   const candidates: unknown[] = [
     credits,
-    // fal's documented shape is { credits: { current_balance, currency } } — most
+    // fal's documented shape is { credits: { current_balance, currency } } - most
     // specific path FIRST so it matches deterministically (not via the fallback).
     co?.current_balance, co?.balance, co?.amount, co?.available, co?.remaining, co?.total, co?.credits,
     root.current_balance, root.balance, root.credit_balance, root.available_credits, root.amount,
@@ -157,7 +157,7 @@ function extractCreditBalance(data: unknown): { balance: number | null; currency
 
 const FAL_NOT_CONFIGURED = 'fal.ai is not configured. Add a fal.ai API key in Settings > LLM Providers.';
 const TEST_MODEL_ID = 'fal-ai/flux/schnell';
-// Tier-2 AI extend (Plan 1 D-TIER): schema verified live 2026-07-16 — singular
+// Tier-2 AI extend (Plan 1 D-TIER): schema verified live 2026-07-16 - singular
 // image_url + expand_{top,bottom,left,right} px, NO prompt, interior pixels
 // untouched, ~$0.03/processed MP. bria/expand + ideogram/v3/reframe remain
 // documented alternatives pending the delivery A/B.
@@ -261,7 +261,7 @@ async function falImageToDataUri(url: string, contentType: string | null): Promi
   }
 }
 
-// ── Server ───────────────────────────────────────────────────────────────────
+// -- Server -----
 
 Deno.serve(async (req: Request) => {
   corsHeaders = getCorsHeaders(req.headers.get('Origin'));
@@ -302,7 +302,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => ({} as Record<string, unknown>));
     const action = typeof body?.action === 'string' ? body.action : '';
 
-    // ── get-settings ─────────────────────────────────────────────────────────
+    // -- get-settings -----
     if (action === 'get-settings') {
       const { data: settings, error } = await supabaseAdmin
         .from('omni_settings')
@@ -317,7 +317,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ settings: settings ?? null });
     }
 
-    // ── save-settings ────────────────────────────────────────────────────────
+    // -- save-settings -----
     if (action === 'save-settings') {
       const clean = sanitizeSettingsInput(body.settings);
 
@@ -348,7 +348,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: true });
     }
 
-    // ── list-fal-models ──────────────────────────────────────────────────────
+    // -- list-fal-models -----
     if (action === 'list-fal-models') {
       const capability = isFalCapability(body.capability) ? body.capability : undefined;
       const q = typeof body.q === 'string' ? body.q : undefined;
@@ -360,7 +360,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ ...page, falConfigured: falKey !== null });
     }
 
-    // ── fal-submit (admin-only raw passthrough; KB-GAP-5) ────────────────────
+    // -- fal-submit (admin-only raw passthrough; KB-GAP-5) -----
     // No shipped client surface calls this action (grep-verified 2026-07-16):
     // every user funnel goes through variant-submit, which creates asset rows
     // and grounds prompts. Raw submits stay available to admins for debugging
@@ -393,7 +393,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ request_id: submission.requestId, queue_position: submission.queuePosition });
     }
 
-    // ── fal-status ───────────────────────────────────────────────────────────
+    // -- fal-status -----
     if (action === 'fal-status') {
       const falKey = await getFalKey(supabaseAdmin);
       if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
@@ -420,7 +420,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // ── fal-test-generate (admin-only health check) ──────────────────────────
+    // -- fal-test-generate (admin-only health check) -----
     if (action === 'fal-test-generate') {
       const { data: isAdmin, error: adminErr } = await supabaseAdmin.rpc('is_admin', { _user_id: userId });
       if (adminErr || !isAdmin) {
@@ -458,8 +458,8 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: 'Test generation timed out after 60 seconds.' }, 504);
     }
 
-    // ── variant-submit (one fal job per variant; supports regenerate lineage) ─
-    // ── fal account credit balance (Recap cost card, admin-only) ──────────────
+    // -- variant-submit (one fal job per variant; supports regenerate lineage) -
+    // -- fal account credit balance (Recap cost card, admin-only) -----
     if (action === 'fal-credits') {
       // Org financial data: admin-gated. Non-admins get the estimate-only view
       // (the client degrades gracefully to "Unavailable").
@@ -474,7 +474,7 @@ Deno.serve(async (req: Request) => {
         });
         if (!res.ok) {
           // A 401/403 here almost always means the stored fal key lacks Admin
-          // (billing) scope — the inference key that works for generation is not
+          // (billing) scope - the inference key that works for generation is not
           // guaranteed to cover /account/billing. The reason is admin-only + carries
           // no secret, so the UI can surface a precise hint.
           console.warn(`Omni fal-credits: billing returned HTTP ${res.status}`);
@@ -584,7 +584,7 @@ Deno.serve(async (req: Request) => {
           input.image_urls = imageUrls;
         }
       }
-      // The generation flow sends a per-variant spec → model-correct size/quality
+      // The generation flow sends a per-variant spec -> model-correct size/quality
       // params. The repurpose flow sends no spec and steers with a legacy
       // aspect_ratio (only meaningful when there is a source/reference image).
       if (spec) {
@@ -608,7 +608,7 @@ Deno.serve(async (req: Request) => {
         input.prompt = `Using the provided reference image(s) of the Fortun Wishnet canon subject(s): ${subjects}. Recreate ${referenceNames.length > 1 ? 'them' : 'it'} faithfully, preserving the exact appearance, colors, shapes, and proportions shown in the references. ${input.prompt}`;
       }
 
-      // KB-GAP-1/2: ground EVERY paid image in the Heart rules — server-side,
+      // KB-GAP-1/2: ground EVERY paid image in the Heart rules - server-side,
       // so no client detour can skip brand compliance. OPT-IN via
       // prompt_provenance: the old prod client never sends the field, so its
       // behavior is byte-identical; prompts already engineered by Promptor
@@ -674,9 +674,9 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // ── repurpose-submit (tier-2 AI extend: pixel-preserving outpaint) ────────
+    // -- repurpose-submit (tier-2 AI extend: pixel-preserving outpaint) -----
     // Dedicated action (Plan 1 D-TIER): variant-submit's input inference must
-    // not learn a third family — outpainters take singular image_url + pixel
+    // not learn a third family - outpainters take singular image_url + pixel
     // expand geometry and no prompt. The expand math runs SERVER-side from the
     // source asset's STORED dimensions (client pixel math is never trusted).
     if (action === 'repurpose-submit') {
@@ -717,7 +717,7 @@ Deno.serve(async (req: Request) => {
       const srcW = source.width ?? 0;
       const srcH = source.height ?? 0;
       if (srcW < 16 || srcH < 16) {
-        return jsonResponse({ error: 'Source dimensions are unknown — reopen or re-add the source image first' }, 400);
+        return jsonResponse({ error: 'Source dimensions are unknown - reopen or re-add the source image first' }, 400);
       }
 
       // Expand to the TARGET ASPECT at the source's own scale; the client
@@ -737,7 +737,7 @@ Deno.serve(async (req: Request) => {
         expandBottom = dy - expandTop;
       }
       if (expandLeft + expandRight + expandTop + expandBottom < 8) {
-        return jsonResponse({ error: 'The aspect already matches — use the free Smart crop instead' }, 400);
+        return jsonResponse({ error: 'The aspect already matches - use the free Smart crop instead' }, 400);
       }
 
       const sourceUrl = await signStoragePath(supabaseAdmin, source.storage_path, 60 * 60);
@@ -787,7 +787,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // ── variants-poll (batched; persists completed images, idempotent) ────────
+    // -- variants-poll (batched; persists completed images, idempotent) -----
     if (action === 'variants-poll') {
       const falKey = await getFalKey(supabaseAdmin);
       if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
@@ -851,7 +851,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ results });
     }
 
-    // ── asset-url (fresh signed URL for an owned, persisted asset) ────────────
+    // -- asset-url (fresh signed URL for an owned, persisted asset) -----
     if (action === 'asset-url') {
       const assetId = body.asset_id;
       if (typeof assetId !== 'string') return jsonResponse({ error: 'asset_id is required' }, 400);
@@ -867,7 +867,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ url });
     }
 
-    // ── save-asset-to-files (register in Files Manager / Omni AI sector) ──────
+    // -- save-asset-to-files (register in Files Manager / Omni AI sector) -----
     if (action === 'save-asset-to-files') {
       const assetId = body.asset_id;
       if (typeof assetId !== 'string') return jsonResponse({ error: 'asset_id is required' }, 400);
@@ -891,7 +891,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: true });
     }
 
-    // ── analyze-image (vision + RAG + universe-relation conclusion) ───────────
+    // -- analyze-image (vision + RAG + universe-relation conclusion) -----
     if (action === 'analyze-image') {
       const assetId = body.asset_id;
       if (typeof assetId !== 'string') return jsonResponse({ error: 'asset_id is required' }, 400);
@@ -967,7 +967,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(result);
     }
 
-    // ── surprise-ideas (mine the knowledge base for creation ideas) ───────────
+    // -- surprise-ideas (mine the knowledge base for creation ideas) -----
     if (action === 'surprise-ideas') {
       const { data: omniSettings } = await supabaseAdmin
         .from('omni_settings')
@@ -1016,7 +1016,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // ── brainstorm-chat / brainstorm-lock (Mode 6: RAG-grounded creative chat) ─
+    // -- brainstorm-chat / brainstorm-lock (Mode 6: RAG-grounded creative chat) -
     if (action === 'brainstorm-chat' || action === 'brainstorm-lock') {
       const runId = body.run_id;
       if (typeof runId !== 'string') return jsonResponse({ error: 'run_id is required' }, 400);
@@ -1080,7 +1080,7 @@ Deno.serve(async (req: Request) => {
 
       if (action === 'brainstorm-lock') {
         try {
-          // KB-GAP-4: the distilled brief seeds the whole run — Heart-grounded.
+          // KB-GAP-4: the distilled brief seeds the whole run - Heart-grounded.
           const result = await lockIdea({ provider, model, keys: { openaiKey, geminiKey }, messages, heartRules });
           return jsonResponse(result);
         } catch (e) {
@@ -1115,7 +1115,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // ── generate-captions (one image → captions for all its networks) ─────────
+    // -- generate-captions (one image -> captions for all its networks) -----
     if (action === 'generate-captions') {
       const runId = body.run_id;
       if (typeof runId !== 'string') return jsonResponse({ error: 'run_id is required' }, 400);
@@ -1177,7 +1177,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // ── finalize-run (save the approved set into the Pulse Content Library) ───
+    // -- finalize-run (save the approved set into the Pulse Content Library) ---
     if (action === 'finalize-run') {
       const runId = body.run_id;
       const title = typeof body.title === 'string' ? body.title.trim().slice(0, 200) : '';

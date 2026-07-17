@@ -5,10 +5,10 @@
  * Absorbs the three previously-duplicated prompt builders (analysis /
  * brainstorm / surprise) and owns:
  *  - fetchHeartRules  : priority-ordered, sanitized, THROWS on fetch error by
- *    design — a Heart failure blocks generation, it never silently degrades.
+ *    design - a Heart failure blocks generation, it never silently degrades.
  *  - buildHeartBlock  : the "## MANDATORY HEART RULES" prompt section,
  *    char-capped (priority order guarantees critical/high survive truncation).
- *  - buildHeartDigest : ≤600-char critical/high-only digest for injection into
+ *  - buildHeartDigest : <=600-char critical/high-only digest for injection into
  *    fal image prompts (variant-submit, opt-in via prompt_provenance).
  *  - buildKnowledgeBlock : the fenced UNTRUSTED context section.
  *  - retrieveKnowledge   : hybrid match_knowledge retrieval (agent scope
@@ -140,7 +140,7 @@ export function buildKnowledgeBlock(chunks: string[], options: KnowledgeBlockOpt
   return fenceUntrusted(title, chunks.map((k, i) => `[${i + 1}] ${k}`).join('\n'));
 }
 
-// ── Retrieval (hybrid match_knowledge) ────────────────────────────────────────
+// -- Retrieval (hybrid match_knowledge) -----
 
 async function generateEmbedding(text: string, openaiKey: string): Promise<number[] | null> {
   try {
@@ -162,7 +162,7 @@ async function generateEmbedding(text: string, openaiKey: string): Promise<numbe
 /**
  * Hybrid retrieval over the full vector store (brain + wishpedia), sanitized.
  * filter_agent_id scopes restricted_agents metadata to omni (rows restricted
- * to other agents are excluded, unrestricted rows pass — the RPC's model).
+ * to other agents are excluded, unrestricted rows pass - the RPC's model).
  */
 export async function retrieveKnowledge(
   supabaseAdmin: AdminClient,
@@ -188,7 +188,7 @@ export async function retrieveKnowledge(
     .filter(Boolean);
 }
 
-// ── Query-less sampling (Surprise / Inspire mining) ───────────────────────────
+// -- Query-less sampling (Surprise / Inspire mining) -----
 
 const CHUNK_CHAR_CAP = 600;
 const WINDOWS_PER_SOURCE = 3;
@@ -233,7 +233,7 @@ export async function sampleKnowledge(supabaseAdmin: AdminClient, sourceType: st
     }
     for (const row of (data as { id: string; content: string | null; metadata: unknown }[] | null) ?? []) {
       if (seen.has(row.id) || !row.content) continue;
-      // Random sampling bypasses the RPC — apply its restriction rule here.
+      // Random sampling bypasses the RPC - apply its restriction rule here.
       if (!isAccessibleToOmni(row.metadata)) continue;
       seen.add(row.id);
       chunks.push(sanitizeForPrompt(row.content).slice(0, CHUNK_CHAR_CAP));
