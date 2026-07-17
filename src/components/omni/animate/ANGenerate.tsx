@@ -12,12 +12,19 @@ import { useState } from 'react';
 import { Loader2, Play, RefreshCw, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import { callOmniVideo } from '@/lib/omniApi';
 import { usePolledAsset, useVideoAudioActions } from '@/hooks/omni/useVideoAudio';
 import type { OmniImagesState } from '@/hooks/omni';
 
 const MOTION_MODEL = 'bytedance/seedance-2.0/reference-to-video';
-const AVATAR_MODEL = 'fal-ai/kling-video/ai-avatar/v2/pro';
+const AVATAR_TIERS = [
+  { id: 'pro', modelId: 'fal-ai/kling-video/ai-avatar/v2/pro', label: 'Kling Avatar v2 Pro', priceLabel: '$0.115/s of audio' },
+  { id: 'standard', modelId: 'fal-ai/kling-video/ai-avatar/v2/standard', label: 'Kling Avatar v2 Standard (half price)', priceLabel: '$0.056/s of audio' },
+] as const;
+const MOTION_DURATIONS = [4, 5, 6, 8, 10, 12, 15];
 
 interface ANGenerateProps {
   runId: string;
@@ -38,6 +45,9 @@ export function ANGenerate({ runId, state, chosenClipId, onVoStarted, onClipStar
   const isTalk = state.animate_path === 'talk';
   const voBusy = vo.status === 'generating' || vo.status === 'persisting';
   const clipBusy = clip.status === 'generating' || clip.status === 'persisting';
+  const [avatarTierId, setAvatarTierId] = useState<'pro' | 'standard'>('pro');
+  const [motionDuration, setMotionDuration] = useState(8);
+  const avatarTier = AVATAR_TIERS.find((t) => t.id === avatarTierId) ?? AVATAR_TIERS[0];
 
   const startVoice = async () => {
     if (!state.animate_script || !state.animate_voice_id) return;
@@ -55,7 +65,7 @@ export function ANGenerate({ runId, state, chosenClipId, onVoStarted, onClipStar
       const body: Record<string, unknown> = isTalk
         ? {
           run_id: runId,
-          model_id: AVATAR_MODEL,
+          model_id: avatarTier.modelId,
           prompt: '.',
           prompt_provenance: 'promptor',
           tier: 'hero',
@@ -69,7 +79,7 @@ export function ANGenerate({ runId, state, chosenClipId, onVoStarted, onClipStar
           prompt_provenance: 'raw',
           tier: 'hero',
           wishpedia_image_ids: refs.map((r) => r.wishpedia_image_id),
-          params: { duration: 8, aspect: '9:16', resolution: '1080p' },
+          params: { duration: motionDuration, aspect: '9:16', resolution: '1080p' },
         };
       const res = await callOmniVideo<{ asset_id: string }>('video-submit', body);
       onClipStarted(res.asset_id);
@@ -112,6 +122,30 @@ export function ANGenerate({ runId, state, chosenClipId, onVoStarted, onClipStar
       <section className="space-y-2 rounded-xl border border-border bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold">{isTalk ? '2 · Talking clip (Kling AI Avatar)' : 'Motion clip (Seedance, character-anchored)'}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {isTalk ? (
+              <Select value={avatarTierId} onValueChange={(v) => setAvatarTierId(v as 'pro' | 'standard')} disabled={clipBusy}>
+                <SelectTrigger className="h-8 w-[240px] cursor-pointer text-xs" aria-label="Avatar tier">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {AVATAR_TIERS.map((t) => (
+                    <SelectItem key={t.id} value={t.id} className="cursor-pointer text-xs">{t.label} · {t.priceLabel}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Select value={String(motionDuration)} onValueChange={(v) => setMotionDuration(Number(v))} disabled={clipBusy}>
+                <SelectTrigger className="h-8 w-24 cursor-pointer text-xs" aria-label="Clip duration">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MOTION_DURATIONS.map((d) => (
+                    <SelectItem key={d} value={String(d)} className="cursor-pointer text-xs">{d}s</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           <Button
             size="sm"
             onClick={() => void startClip()}
@@ -121,7 +155,11 @@ export function ANGenerate({ runId, state, chosenClipId, onVoStarted, onClipStar
             {submitting || clipBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : clip.status === 'done' ? <RefreshCw className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
             {clipBusy ? 'Rendering…' : clip.status === 'done' ? 'Re-generate' : 'Generate the clip'}
           </Button>
+          </div>
         </div>
+        <p className="text-[11px] text-muted-foreground">
+          {isTalk ? `${avatarTier.label} · ${avatarTier.priceLabel} — the audio drives the clip length.` : 'Seedance 2.0 reference-to-video · unit-priced (≈ verify) · native audio.'}
+        </p>
         {isTalk && vo.status !== 'done' && (
           <p className="text-[11px] text-muted-foreground">The voice must land first — the audio drives the clip length.</p>
         )}

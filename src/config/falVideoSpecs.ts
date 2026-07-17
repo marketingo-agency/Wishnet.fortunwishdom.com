@@ -27,6 +27,12 @@ export interface VideoModelConstraints {
   refImagesKey?: string;
   /** Input key that carries the driving audio (avatar/lipsync models). */
   audioKey?: string;
+  /** Audio toggle field name when it is NOT generate_audio (PixVerse). */
+  audioFlagKey?: string;
+  /** Audio is always on with no toggle (Wan 2.7, schema-verified). */
+  audioAlwaysOn?: boolean;
+  /** Durations are sent with an 's' suffix ('8s' - Veo 3.1 i2v). */
+  durationSuffix?: boolean;
 }
 
 export const VIDEO_MODEL_CONSTRAINTS: Record<string, VideoModelConstraints> = {
@@ -105,6 +111,55 @@ export const VIDEO_MODEL_CONSTRAINTS: Record<string, VideoModelConstraints> = {
     refImagesKey: 'image_urls',
   },
   'fal-ai/kling-video/ai-avatar/v2/pro': {
+    durations: null,
+    aspects: null,
+    resolutions: null,
+    nativeAudio: true,
+    audioKey: 'audio_url',
+  },
+  // ── 2026-07-17 rehab additions (every schema live-verified that day) ──────
+  'fal-ai/pixverse/v6/text-to-video': {
+    // Cheapest engine on the catalog ($0.005/s). Audio is OPT-IN via the
+    // differently-named generate_audio_switch (default false in the schema).
+    durations: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    aspects: ['16:9', '4:3', '1:1', '3:4', '9:16', '2:3', '3:2', '21:9'],
+    resolutions: ['360p', '540p', '720p', '1080p'],
+    nativeAudio: true,
+    audioFlagKey: 'generate_audio_switch',
+  },
+  'fal-ai/wan/v2.7/text-to-video': {
+    // Always-audio (no toggle); uniquely takes a driving audio_url INPUT
+    // (3-30s) - a rendered voiceover can go straight into generation.
+    durations: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    aspects: ['16:9', '9:16', '1:1', '4:3', '3:4'],
+    resolutions: ['720p', '1080p'],
+    nativeAudio: true,
+    audioAlwaysOn: true,
+    audioKey: 'audio_url',
+  },
+  'fal-ai/kling-video/v2.6/pro/text-to-video': {
+    durations: [5, 10],
+    durationAsString: true,
+    aspects: ['16:9', '9:16', '1:1'],
+    resolutions: null,
+    nativeAudio: true,
+  },
+  'fal-ai/veo3.1/image-to-video': {
+    durations: [4, 6, 8],
+    durationSuffix: true,
+    aspects: ['auto', '16:9', '9:16'],
+    resolutions: ['720p', '1080p', '4k'],
+    nativeAudio: true,
+  },
+  'fal-ai/ltx-2.3/image-to-video': {
+    durations: [6, 8, 10],
+    aspects: ['auto', '16:9', '9:16'],
+    resolutions: ['1080p', '1440p', '2160p'],
+    nativeAudio: true,
+    fps: [24, 25, 48, 50],
+  },
+  'fal-ai/kling-video/ai-avatar/v2/standard': {
+    // The half-price avatar tier (same image_url + audio_url contract as pro).
     durations: null,
     aspects: null,
     resolutions: null,

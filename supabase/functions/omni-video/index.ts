@@ -23,6 +23,7 @@ import {
   HARD_MAX_BYTES, IN_REQUEST_MAX_BYTES, claimForPersist, isFalMediaHost, persistFalVideo, signVideoPath,
 } from './persist.ts';
 import { fetchUrlText, generateScenario } from './scenario.ts';
+import { findFalModel } from '../omni/fal-catalog.ts';
 import { renderVoiceover, type VoiceoverLine } from './audio.ts';
 import { listVoices, resolveTtsEngine } from '../_shared/elevenlabs.ts';
 import { assembleRun, mediaUrlFrom } from './assembly.ts';
@@ -196,8 +197,18 @@ Deno.serve(async (req: Request) => {
       if (typeof runId !== 'string' || typeof modelId !== 'string') {
         return jsonResponse({ error: 'run_id and model_id are required' }, 400);
       }
+      // Hybrid validation (2026-07-17 rehab): constraint-mapped models keep
+      // exact input shaping; any other id is validated against the LIVE fal
+      // catalog (the images-track findFalModel pattern) and submitted with a
+      // conservative generic input - prompt only, since its schema is unknown.
+      let genericCatalogModel = false;
       if (!isAllowedVideoModel(modelId)) {
-        return jsonResponse({ error: `"${modelId}" is not a supported video model.` }, 400);
+        const found = await findFalModel(modelId, falKey);
+        const category = found?.category ?? '';
+        if (!found || (category !== 'text-to-video' && category !== 'image-to-video')) {
+          return jsonResponse({ error: `"${modelId}" is not a video model on the fal catalog.` }, 400);
+        }
+        genericCatalogModel = true;
       }
       if (promptStr.length === 0) return jsonResponse({ error: 'prompt is required' }, 400);
       if (promptStr.length > 8000) return jsonResponse({ error: 'Prompt is too long (8000 char cap)' }, 400);
@@ -265,6 +276,10 @@ Deno.serve(async (req: Request) => {
       }
 
       const input = buildVideoInput(modelId, promptStr, params, images);
+      // Generic catalog i2v models get the de-facto standard start-image key.
+      if (genericCatalogModel && images.startUrl && input.image_url === undefined) {
+        input.image_url = images.startUrl;
+      }
 
       // KB-GAP rule from Plan 1, verbatim: 'raw' provenance gets the Heart
       // digest server-side; Promptor-engineered prompts are not double-injected.
@@ -291,7 +306,7 @@ Deno.serve(async (req: Request) => {
         scene_idx: sceneIdx,
         tier,
         duration_s: durationS,
-        params: { aspect: input.aspect_ratio ?? null, resolution: input.resolution ?? null },
+        params: { aspect: input.aspect_ratio ?? null, resolution: input.resolution ?? null, generic: genericCatalogModel || undefined },
       };
 
       const { data: asset, error: assetError } = await supabaseAdmin

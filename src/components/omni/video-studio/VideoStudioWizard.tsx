@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 import { VIDEO_MODES, VIDEO_SCHEMA_VERSION, resolveVideoPosition } from '../stepRegistry';
 import { useCreateOmniRun, useOmniRun, useUpdateOmniRun } from '@/hooks/omni';
 import type { OmniImagesState, OmniVideoScenario } from '@/hooks/omni';
-import { DRAFT_ENGINES } from './vsEngines';
+import { DRAFT_ENGINES, engineById, engineFromCustomRef } from './vsEngines';
 import { VSScenario } from './VSScenario';
 import { VSStoryboardCast } from './VSStoryboardCast';
 import { VSScenes } from './VSScenes';
@@ -124,7 +124,8 @@ export function VideoStudioWizard({ runId, onRunCreated, onExit }: VideoStudioWi
 
   const ordinal = position.ordinal;
   const scenario = state.scenario;
-  const engine = DRAFT_ENGINES.find((e) => e.id === state.video_engine_id) ?? null;
+  const engine = engineById(state.video_engine_id)
+    ?? (state.video_engine_custom ? engineFromCustomRef(state.video_engine_custom) : null);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -197,7 +198,13 @@ export function VideoStudioWizard({ runId, onRunCreated, onExit }: VideoStudioWi
             <VSStoryboardCast
               scenario={scenario}
               initialEngineId={state.video_engine_id}
-              onNext={(picked) => void persist(3, { video_engine_id: picked.id })}
+              initialCustomEngine={state.video_engine_custom ?? null}
+              onNext={(picked) => void persist(3, {
+                video_engine_id: picked.id,
+                video_engine_custom: picked.generic
+                  ? { modelId: picked.modelId, i2v: picked.i2v, label: picked.label }
+                  : undefined,
+              })}
             />
           )}
           {ordinal === 3 && scenario && runId && (
@@ -249,6 +256,8 @@ export function VideoStudioWizard({ runId, onRunCreated, onExit }: VideoStudioWi
               voiceoverAssetId={state.voiceover_asset_id}
               musicAssetId={state.music_asset_id}
               assemblyAssetId={state.assembly_asset_id}
+              heroEngineId={state.hero_engine_id}
+              onHeroEngineChange={(id) => void persist(5, { hero_engine_id: id })}
               onHeroStarted={(sceneIdx, assetId) => {
                 void persist(5, (prev) => ({
                   scenario: prev.scenario && {

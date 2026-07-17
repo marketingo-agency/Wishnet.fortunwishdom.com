@@ -21,11 +21,8 @@ import { callOmniVideo } from '@/lib/omniApi';
 import {
   markSuperseded, usePolledAsset, useVideoAudioActions,
 } from '@/hooks/omni/useVideoAudio';
+import { HERO_ENGINES, heroEngineById, type HeroEngineOption } from './vsEngines';
 import type { OmniScenarioScene, OmniVideoScenario } from '@/hooks/omni';
-
-const HERO_T2V = 'fal-ai/kling-video/v3/pro/text-to-video';
-const HERO_I2V = 'fal-ai/kling-video/v3/pro/image-to-video';
-const HERO_PRICE_PER_S = 0.14;
 
 interface VSAssemblyProps {
   runId: string;
@@ -34,6 +31,8 @@ interface VSAssemblyProps {
   voiceoverAssetId?: string;
   musicAssetId?: string;
   assemblyAssetId?: string;
+  heroEngineId?: string;
+  onHeroEngineChange: (id: string) => void;
   onHeroStarted: (sceneIdx: number, assetId: string) => void;
   onAssemblyStarted: (assetId: string) => void;
   onContinue: () => void;
@@ -42,12 +41,13 @@ interface VSAssemblyProps {
 /** One scene row: cut status + hero re-render lifecycle (sub-component so
  *  each row can poll its own hero asset — the EntryImageLoader pattern). */
 function SceneCutRow({
-  runId, scene, approved, heroBusyGlobal, onHeroStarted, onHeroStatus,
+  runId, scene, approved, heroBusyGlobal, heroEngine, onHeroStarted, onHeroStatus,
 }: {
   runId: string;
   scene: OmniScenarioScene;
   approved: boolean;
   heroBusyGlobal: boolean;
+  heroEngine: HeroEngineOption;
   onHeroStarted: (sceneIdx: number, assetId: string) => void;
   onHeroStatus: (sceneIdx: number, done: boolean) => void;
 }) {
@@ -76,11 +76,11 @@ function SceneCutRow({
   const startHero = async () => {
     setSubmitting(true);
     try {
-      const useI2v = !!scene.keyframe_asset_id;
+      const useI2v = !!scene.keyframe_asset_id && !!heroEngine.i2v;
       const body: Record<string, unknown> = {
         run_id: runId,
         scene_idx: scene.idx,
-        model_id: useI2v ? HERO_I2V : HERO_T2V,
+        model_id: useI2v ? heroEngine.i2v! : heroEngine.t2v,
         prompt: `${scene.visual_prompt}${scene.camera ? `, ${scene.camera} camera` : ''}`,
         prompt_provenance: 'raw',
         tier: 'hero',
@@ -129,7 +129,10 @@ function SceneCutRow({
         {submitting || heroBusy
           ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
           : hero.status === 'done' ? <RefreshCw className="h-3.5 w-3.5" /> : <Crown className="h-3.5 w-3.5" />}
-        {heroBusy ? 'Rendering…' : hero.status === 'done' ? 'Re-render hero' : `Hero render (~$${(HERO_PRICE_PER_S * (scene.duration_s || 0)).toFixed(2)})`}
+        {heroBusy ? 'Rendering…' : hero.status === 'done' ? 'Re-render hero'
+          : heroEngine.pricePerS != null
+            ? `Hero render (~$${(heroEngine.pricePerS * (scene.duration_s || 0)).toFixed(2)})`
+            : 'Hero render (≈ verify)'}
       </Button>
     </div>
   );
@@ -137,9 +140,10 @@ function SceneCutRow({
 
 export function VSAssembly({
   runId, scenario, approvedIds, voiceoverAssetId, musicAssetId, assemblyAssetId,
-  onHeroStarted, onAssemblyStarted, onContinue,
+  heroEngineId, onHeroEngineChange, onHeroStarted, onAssemblyStarted, onContinue,
 }: VSAssemblyProps) {
   const approved = new Set(approvedIds);
+  const heroEngine = heroEngineById(heroEngineId);
   const actions = useVideoAudioActions(runId);
   const vo = usePolledAsset(voiceoverAssetId);
   const music = usePolledAsset(musicAssetId);
@@ -206,15 +210,30 @@ export function VSAssembly({
               scene={scene}
               approved={!!scene.clip_asset_id && approved.has(scene.clip_asset_id)}
               heroBusyGlobal={assemblyBusy}
+              heroEngine={heroEngine}
               onHeroStarted={onHeroStarted}
               onHeroStatus={handleHeroStatus}
             />
           ))}
         </div>
-        <p className="text-[11px] text-muted-foreground">
-          Hero renders use Kling v3 Pro (${HERO_PRICE_PER_S.toFixed(2)}/s){' '}
-          and anchor on the scene&apos;s keyframe when it has one. Drafts stay retrievable in History.
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={heroEngine.id} onValueChange={onHeroEngineChange}>
+            <SelectTrigger className="h-8 w-full cursor-pointer text-xs sm:w-[260px]" aria-label="Hero engine">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {HERO_ENGINES.map((e) => (
+                <SelectItem key={e.id} value={e.id} className="cursor-pointer text-xs">
+                  {e.label} · {e.pricePerS != null ? `$${e.pricePerS}/s` : '≈ verify'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Hero renders use the chosen engine and anchor on the scene&apos;s keyframe when it has one
+            {heroEngine.i2v ? '' : ' (this engine renders keyframe scenes as text-to-video)'}. Drafts stay retrievable in History.
+          </p>
+        </div>
       </section>
 
       {/* Assemble */}

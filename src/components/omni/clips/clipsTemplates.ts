@@ -4,7 +4,9 @@
  * engine ceilings bound clip length (Kling/Seedance ≤15s, LTX-fast ≤10s).
  */
 
-import { DRAFT_ENGINES, type DraftEngineOption } from '../video-studio/vsEngines';
+import { ALL_DRAFT_ENGINES, type DraftEngineOption } from '../video-studio/vsEngines';
+import { VIDEO_MODEL_CONSTRAINTS } from '@/config/falVideoSpecs';
+import { getFalPrice } from '@/config/falPricing';
 
 export interface ClipTemplate {
   id: string;
@@ -46,46 +48,39 @@ export interface ClipEngineOption extends DraftEngineOption {
   maxSeconds: number;
 }
 
-/** Native-audio engines for Clips (Q: hero default) + the draft toggle. */
+/** Wrap a registry engine as a 9:16 clip engine; maxSeconds derives from the
+ *  constraints twin so the length picker can never exceed what the model takes. */
+function clipEngine(registryId: string, id: string, label: string, blurb: string): ClipEngineOption {
+  const base = ALL_DRAFT_ENGINES.find((e) => e.id === registryId)!;
+  const c = VIDEO_MODEL_CONSTRAINTS[base.modelId];
+  return {
+    ...base,
+    id,
+    label,
+    blurb,
+    aspect: '9:16',
+    maxSeconds: c?.durations?.length ? Math.max(...c.durations) : 15,
+  };
+}
+
+/** Native-audio engines for Clips (2026-07-17 rehab lineup: hero, budget,
+ *  value, draft + the mid-tier options). All render sound with the video. */
 export const CLIP_ENGINES: ClipEngineOption[] = [
-  {
-    id: 'kling_hero',
-    modelId: 'fal-ai/kling-video/v3/pro/text-to-video',
-    i2v: false,
-    aspect: '9:16',
-    generateAudio: true,
-    label: 'Kling v3 Pro (hero)',
-    blurb: 'Native audio, strongest short-form quality. 3-15s.',
-    priceLabel: '$0.14/s',
-    maxSeconds: 15,
-  },
-  {
-    id: 'seedance_value',
-    modelId: 'bytedance/seedance-2.0/text-to-video',
-    i2v: false,
-    aspect: '9:16',
-    resolution: '1080p',
-    generateAudio: true,
-    label: 'Seedance 2.0 (value)',
-    blurb: 'Native audio at no extra cost, unit-priced. 4-15s.',
-    priceLabel: '≈$0.014/unit — verify',
-    maxSeconds: 15,
-  },
-  {
-    ...DRAFT_ENGINES[0],
-    id: 'ltx_draft',
-    aspect: '9:16',
-    label: 'LTX fast (draft)',
-    blurb: 'Cheap native-audio draft. 6-10s.',
-    maxSeconds: 10,
-  },
+  clipEngine('kling_v3', 'kling_hero', 'Kling v3 Pro (hero)', 'Native audio, strongest short-form quality. 3-15s.'),
+  clipEngine('pixverse', 'pixverse_budget', 'PixVerse V6 (cheapest)', 'The budget clip engine with audio. 1-15s.'),
+  clipEngine('seedance_t2v', 'seedance_value', 'Seedance 2.0 (value)', 'Native audio at no extra cost, unit-priced. 4-15s.'),
+  clipEngine('ltx_fast', 'ltx_draft', 'LTX fast (draft)', 'Cheap native-audio draft. 6-10s.'),
+  clipEngine('kling_26', 'kling_26_mid', 'Kling 2.6 Pro (mid)', 'Cinematic audio clips at half the v3 price. 5s or 10s.'),
+  clipEngine('wan_27', 'wan_always', 'Wan 2.7 (always audio)', 'Always-audible output with auto music. 2-15s.'),
 ];
 
 /** Up-front cost line: price × seconds × takes, or the honest calibrate label. */
 export function estimateClipCost(engine: ClipEngineOption, seconds: number, takes: number): string {
-  if (engine.id === 'seedance_value') return `${engine.priceLabel} × ${takes} take${takes === 1 ? '' : 's'}`;
-  const perSecond = engine.id === 'kling_hero' ? 0.14 : 0.06;
-  return `~$${(perSecond * seconds * takes).toFixed(2)} (${takes} take${takes === 1 ? '' : 's'} × ${seconds}s)`;
+  const price = getFalPrice(engine.modelId);
+  if (price.unitPrice == null || price.calibrate || price.unit !== 'second') {
+    return `${engine.priceLabel} × ${takes} take${takes === 1 ? '' : 's'}`;
+  }
+  return `~$${(price.unitPrice * seconds * takes).toFixed(2)} (${takes} take${takes === 1 ? '' : 's'} × ${seconds}s)`;
 }
 
 /** The 9:16 preset of each network a vertical clip fits as-is. */

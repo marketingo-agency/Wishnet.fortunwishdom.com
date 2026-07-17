@@ -19,7 +19,7 @@ const FAL_MODELS_API = 'https://api.fal.ai/v1/models';
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 15_000;
 
-export type FalCapability = 'text-to-image' | 'image-to-image' | 'upscale';
+export type FalCapability = 'text-to-image' | 'image-to-image' | 'upscale' | 'text-to-video' | 'image-to-video';
 
 export interface FalModel {
   id: string;
@@ -42,10 +42,13 @@ const CAPABILITY_QUERY: Record<FalCapability, { category: string; q?: string }> 
   'text-to-image': { category: 'text-to-image' },
   'image-to-image': { category: 'image-to-image' },
   upscale: { category: 'image-to-image', q: 'upscale' },
+  'text-to-video': { category: 'text-to-video' },
+  'image-to-video': { category: 'image-to-video' },
 };
 
 export function isFalCapability(value: unknown): value is FalCapability {
-  return value === 'text-to-image' || value === 'image-to-image' || value === 'upscale';
+  return value === 'text-to-image' || value === 'image-to-image' || value === 'upscale'
+    || value === 'text-to-video' || value === 'image-to-video';
 }
 
 interface RawFalModel {
@@ -178,4 +181,11 @@ const STATIC_FALLBACK: FalModel[] = [
   { id: 'fal-ai/topaz/upscale/image', name: 'Topaz Image Upscale', category: 'image-to-image', description: 'Professional-grade image upscaling.', thumbnailUrl: null, licenseType: 'commercial', tags: ['upscale'] },
   { id: 'fal-ai/seedvr/upscale/image', name: 'SeedVR Image Upscale', category: 'image-to-image', description: 'High-fidelity image upscaling.', thumbnailUrl: null, licenseType: 'commercial', tags: ['upscale'] },
   { id: 'fal-ai/recraft/upscale/crisp', name: 'Recraft Crisp Upscale', category: 'image-to-image', description: 'Crisp upscaling for design assets.', thumbnailUrl: null, licenseType: 'commercial', tags: ['upscale'] },
+  { id: 'fal-ai/kling-video/v3/pro/text-to-video', name: 'Kling v3 Pro', category: 'text-to-video', description: 'Cinematic text-to-video with native audio, 3-15s, multi-shot.', thumbnailUrl: null, licenseType: 'commercial', tags: [] },
+  { id: 'fal-ai/veo3.1', name: 'Veo 3.1', category: 'text-to-video', description: 'Google DeepMind flagship text-to-video with native audio.', thumbnailUrl: null, licenseType: 'commercial', tags: [] },
+  { id: 'bytedance/seedance-2.0/text-to-video', name: 'Seedance 2.0', category: 'text-to-video', description: 'Cinematic text-to-video, 21:9-9:16, native audio at no extra cost.', thumbnailUrl: null, licenseType: 'commercial', tags: [] },
+  { id: 'fal-ai/ltx-2.3/text-to-video/fast', name: 'LTX 2.3 Fast', category: 'text-to-video', description: 'Fast high-res text-to-video with native audio.', thumbnailUrl: null, licenseType: 'commercial', tags: [] },
+  { id: 'fal-ai/pixverse/v6/text-to-video', name: 'PixVerse V6', category: 'text-to-video', description: 'Cheapest social-tier video generation (opt-in audio).', thumbnailUrl: null, licenseType: 'commercial', tags: [] },
+  { id: 'bytedance/seedance-2.0/image-to-video', name: 'Seedance 2.0 i2v', category: 'image-to-video', description: 'Keyframe-anchored image-to-video with native audio.', thumbnailUrl: null, licenseType: 'commercial', tags: [] },
+  { id: 'fal-ai/kling-video/v3/pro/image-to-video', name: 'Kling v3 Pro i2v', category: 'image-to-video', description: 'Start/end-frame image-to-video with native audio.', thumbnailUrl: null, licenseType: 'commercial', tags: [] },
 ];

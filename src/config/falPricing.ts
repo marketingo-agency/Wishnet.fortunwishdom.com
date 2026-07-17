@@ -57,6 +57,15 @@ export const FAL_PRICING: Record<string, FalPrice> = {
   'fal-ai/ltx-2.3/text-to-video': { unitPrice: 0.08, unit: 'second' },
   'fal-ai/ltx-2.3/text-to-video/fast': { unitPrice: 0.06, unit: 'second' },
   'fal-ai/longcat-video/text-to-video/720p': { unitPrice: 0.04, unit: 'second' },
+  // 2026-07-17 rehab additions (live-priced via fal get_pricing that day)
+  'fal-ai/pixverse/v6/text-to-video': { unitPrice: 0.005, unit: 'second' },
+  'fal-ai/wan/v2.7/text-to-video': { unitPrice: 0.1, unit: 'second' },
+  'fal-ai/kling-video/v2.6/pro/text-to-video': { unitPrice: 0.07, unit: 'second' },
+  'fal-ai/veo3.1/image-to-video': { unitPrice: 0.4, unit: 'second' },
+  'fal-ai/ltx-2.3/image-to-video': { unitPrice: 0.08, unit: 'second' },
+  'bytedance/seedance-2.0/reference-to-video': { unitPrice: 0.014, unit: 'unknown', calibrate: true },
+  'fal-ai/kling-video/ai-avatar/v2/pro': { unitPrice: 0.115, unit: 'second' },
+  'fal-ai/kling-video/ai-avatar/v2/standard': { unitPrice: 0.0562, unit: 'second' },
   // post / assembly
   'fal-ai/ltx-2.3/reframe': { unitPrice: 0.1, unit: 'second' },
   'fal-ai/topaz/upscale/video': { unitPrice: 0.01, unit: 'second' },
@@ -68,8 +77,9 @@ export const FAL_PRICING: Record<string, FalPrice> = {
   // lipsync
   'fal-ai/latentsync': { unitPrice: 0.005, unit: 'second' },
   'fal-ai/sync-lipsync/v3': { unitPrice: 8 / 60, unit: 'second' },
-  // audio beds ($0.10 per ~30s generation)
+  // audio beds ($0.10 per ~30s generation); lyria3 is the cheaper successor
   'fal-ai/lyria2': { unitPrice: 0.1, unit: 'generation' },
+  'fal-ai/lyria3': { unitPrice: 0.04, unit: 'generation' },
   // ~30s beds; stable-audio does up to 380s (price unverified - calibrate).
   'fal-ai/stable-audio': { unitPrice: null, unit: 'generation', calibrate: true },
 };

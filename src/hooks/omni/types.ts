@@ -56,7 +56,7 @@ export interface OmniRun {
 
 // ── fal.ai catalog and runner (client mirrors of the edge shapes) ────────────
 
-export type FalCapability = 'text-to-image' | 'image-to-image' | 'upscale';
+export type FalCapability = 'text-to-image' | 'image-to-image' | 'upscale' | 'text-to-video' | 'image-to-video';
 
 export interface FalModel {
   id: string;
@@ -200,6 +200,11 @@ export interface OmniImagesState {
   scenario?: OmniVideoScenario;
   /** Draft engine picked in Video Studio stage 2 (vsEngines id). */
   video_engine_id?: string;
+  /** Catalog engine pick outside the curated registry (2026-07-17 rehab):
+   *  the full ref so resume can rehydrate a generic engine. */
+  video_engine_custom?: { modelId: string; i2v: boolean; label: string };
+  /** Hero engine for the assembly re-render (vsEngines HERO_ENGINES id). */
+  hero_engine_id?: string;
   /** Provenance: the Scenario Studio run this Studio run was seeded from. */
   scenario_source_run_id?: string;
   /** Stage 4 audio artifacts (Plan 2 Phase 6a): polled omni_assets rows. */
