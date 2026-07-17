@@ -6,7 +6,9 @@
  * Bearer + getUser on every request, per-user rate limit, service-role DB
  * access scoped by user_id, signed URLs only, verify_jwt TRUE at the gateway.
  *
- * Actions: video-submit / video-poll / video-utility / scenario-generate.
+ * Actions: video-submit / video-poll / video-utility / scenario-generate /
+ * list-voices / voiceover-render / music-generate / assemble-run /
+ * transcribe / video-finalize.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
@@ -48,6 +50,9 @@ async function getFalKey(supabaseAdmin: AdminClient): Promise<string | null> {
 }
 
 const QUEUE_BASE = 'https://queue.fal.run';
+
+// Video-capable networks (DB CHECK widened to these 6 in 20260614120000).
+const VIDEO_NETWORKS = new Set(['facebook', 'instagram', 'x', 'tiktok', 'youtube', 'pinterest']);
 
 /** Raw queue result normalized to VIDEO output shapes ({video} | {videos[]}).
  *  fal-runner's falResult is image-typed; this is its video twin. */
@@ -725,6 +730,121 @@ Deno.serve(async (req: Request) => {
         console.error('omni-video: scenario error:', message);
         return jsonResponse({ error: message }, 502);
       }
+    }
+
+    // -- video-finalize (omni finalize-run mirrored, media_type 'video') -------
+    // Lives HERE, not on omni (EXECUTION_LOG deviation: omni's deploy payload
+    // sits at the MCP ceiling - zero-risk to the images track).
+    if (action === 'video-finalize') {
+      const runId = body.run_id;
+      const title = typeof body.title === 'string' ? body.title.trim().slice(0, 200) : '';
+      const description = typeof body.description === 'string' ? body.description.slice(0, 4000) : '';
+      const networks = Array.isArray(body.networks)
+        ? body.networks.filter((n: unknown) => typeof n === 'string' && VIDEO_NETWORKS.has(n))
+        : [];
+      const posts = Array.isArray(body.posts) ? body.posts.slice(0, 100) : [];
+      const itemOnly = body.save_mode === 'item_only';
+      const itemAssetIds = itemOnly && Array.isArray(body.asset_ids)
+        ? body.asset_ids.filter((x: unknown) => typeof x === 'string').slice(0, 50)
+        : [];
+      if (typeof runId !== 'string' || !title) return jsonResponse({ error: 'run_id and title are required' }, 400);
+      if (itemOnly) {
+        if (itemAssetIds.length === 0) return jsonResponse({ error: 'At least one asset is required' }, 400);
+      } else if (networks.length === 0 || posts.length === 0) {
+        return jsonResponse({ error: 'At least one network and one post are required' }, 400);
+      }
+
+      const { data: run } = await supabaseAdmin
+        .from('omni_runs')
+        .select('id, status, mode')
+        .eq('id', runId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!run) return jsonResponse({ error: 'Run not found' }, 404);
+      const runMode = typeof (run as { mode?: string }).mode === 'string'
+        ? (run as { mode: string }).mode
+        : 'omni_videos';
+
+      // Idempotency: finalize is the only path to 'completed' (omni pattern).
+      if ((run as { status?: string }).status === 'completed') {
+        const { data: existingItem } = await supabaseAdmin
+          .from('content_library_items')
+          .select('id')
+          .eq('source_run_id', runId)
+          .limit(1)
+          .maybeSingle();
+        if (existingItem) {
+          return jsonResponse({ item_id: (existingItem as { id: string }).id, posts_created: 0, already_finalized: true });
+        }
+      }
+
+      // Every referenced asset must belong to the caller AND this run.
+      const finalizeAssetIds = itemOnly
+        ? itemAssetIds
+        : ([...new Set(posts.map((p: Record<string, unknown>) => p.asset_id).filter((x: unknown) => typeof x === 'string'))] as string[]);
+      const { data: ownedAssets } = await supabaseAdmin
+        .from('omni_assets')
+        .select('id')
+        .in('id', finalizeAssetIds)
+        .eq('user_id', userId)
+        .eq('run_id', runId);
+      const ownedIds = new Set(((ownedAssets as { id: string }[] | null) ?? []).map((a) => a.id));
+      if (finalizeAssetIds.some((id) => !ownedIds.has(id))) {
+        return jsonResponse({ error: 'One or more assets do not belong to this run' }, 403);
+      }
+
+      const { data: item, error: itemError } = await supabaseAdmin
+        .from('content_library_items')
+        .insert({
+          title,
+          description: description || null,
+          source_run_id: runId,
+          networks,
+          status: 'ready',
+          media_type: 'video',
+          metadata: itemOnly
+            ? { mode: runMode, asset_ids: itemAssetIds }
+            : { mode: runMode },
+          created_by: userId,
+        })
+        .select('id')
+        .single();
+      if (itemError || !item) {
+        console.error('omni-video: library item insert error:', itemError?.message);
+        return jsonResponse({ error: 'Failed to create the Content Library item' }, 500);
+      }
+      const itemId = (item as { id: string }).id;
+
+      let postsCreated = 0;
+      if (!itemOnly) {
+        const postRows = posts
+          .filter((p: Record<string, unknown>) => typeof p.network === 'string' && VIDEO_NETWORKS.has(p.network as string) && typeof p.asset_id === 'string')
+          .map((p: Record<string, unknown>) => ({
+            item_id: itemId,
+            network: p.network as string,
+            asset_id: p.asset_id as string,
+            caption: typeof p.caption === 'string' ? p.caption.slice(0, 4000) : description || null,
+            status: 'draft',
+            media_type: 'video',
+            created_by: userId,
+          }));
+        const { error: postsError } = await supabaseAdmin.from('content_library_posts').insert(postRows);
+        if (postsError) {
+          console.error('omni-video: library posts insert error:', postsError.message);
+          // No transaction via supabase-js: roll the item back so a posts
+          // failure never leaves an orphaned library entry (omni P1 lesson).
+          await supabaseAdmin.from('content_library_items').delete().eq('id', itemId);
+          return jsonResponse({ error: 'Failed to create the Content Library posts' }, 500);
+        }
+        postsCreated = postRows.length;
+      }
+
+      await supabaseAdmin
+        .from('omni_runs')
+        .update({ status: 'completed' })
+        .eq('id', runId);
+
+      return jsonResponse({ item_id: itemId, posts_created: postsCreated });
     }
 
     return jsonResponse({ error: 'Invalid action' }, 400);
