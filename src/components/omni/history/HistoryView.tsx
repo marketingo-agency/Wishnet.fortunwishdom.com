@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { OmniImagesState, OmniRun } from '@/hooks/omni';
+import { modeFamily, type ModeFamily } from '../stepRegistry';
 import { RUN_MODE_META, RUN_STATUS_META, isRunFinalized } from './historyRouting';
 import { HISTORY_SORTS, useBulkArchive, useDeleteRuns, useOmniRunsInfinite, useRetakeRun, useRunThumbs, type HistorySort } from './useOmniHistory';
 import { HistoryRunCard } from './HistoryRunCard';
@@ -41,11 +42,14 @@ import { RetakeRunDialog } from './RetakeRunDialog';
 interface HistoryViewProps {
   onOpenRun: (run: OmniRun) => void;
   onExit: () => void;
+  /** Which track's runs this registry shows (Plan 2 D-V1): the images hub
+   *  must never leak video runs and vice versa. */
+  family?: ModeFamily;
 }
 
 type DeleteTarget = { kind: 'one'; run: OmniRun } | { kind: 'selected' } | { kind: 'all' };
 
-export function HistoryView({ onOpenRun, onExit }: HistoryViewProps) {
+export function HistoryView({ onOpenRun, onExit, family = 'images' }: HistoryViewProps) {
   // ui-rules: entrance/hover animations respect prefers-reduced-motion.
   const reduceMotion = useReducedMotion();
   const [sort, setSort] = useState<HistorySort>('updated_desc');
@@ -68,12 +72,13 @@ export function HistoryView({ onOpenRun, onExit }: HistoryViewProps) {
     for (const page of runsQuery.data?.pages ?? []) {
       for (const run of page.runs) {
         if (seen.has(run.id)) continue;
+        if (modeFamily(run.mode) !== family) continue;
         seen.add(run.id);
         out.push(run);
       }
     }
     return out;
-  }, [runsQuery.data]);
+  }, [runsQuery.data, family]);
 
   const titleById = useMemo(() => {
     const map = new Map<string, string>();
@@ -202,9 +207,11 @@ export function HistoryView({ onOpenRun, onExit }: HistoryViewProps) {
                 <SelectTrigger className="cursor-pointer h-9 w-[170px] text-sm" aria-label="Filter by mode"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all" className="text-sm">All modes</SelectItem>
-                  {Object.entries(RUN_MODE_META).map(([id, meta]) => (
-                    <SelectItem key={id} value={id} className="text-sm">{meta.label}</SelectItem>
-                  ))}
+                  {Object.entries(RUN_MODE_META)
+                    .filter(([id]) => modeFamily(id as OmniRun['mode']) === family)
+                    .map(([id, meta]) => (
+                      <SelectItem key={id} value={id} className="text-sm">{meta.label}</SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>

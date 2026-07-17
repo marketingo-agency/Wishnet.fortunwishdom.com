@@ -241,17 +241,25 @@ export function useBulkArchive() {
   });
 }
 
-async function listRunFolder(folder: string): Promise<string[]> {
+async function listRunFolder(bucket: string, folder: string): Promise<string[]> {
   const paths: string[] = [];
   for (let offset = 0; ; offset += 200) {
-    const { data: page, error } = await supabase.storage.from('files').list(folder, { limit: 200, offset });
-    if (error) throw new Error(`Could not list stored images: ${error.message}`);
+    const { data: page, error } = await supabase.storage.from(bucket).list(folder, { limit: 200, offset });
+    if (error) throw new Error(`Could not list stored media: ${error.message}`);
     if (!page || page.length === 0) break;
     paths.push(...page.map((f) => `${folder}/${f.name}`));
     if (page.length < 200) break;
   }
   return paths;
 }
+
+/** Every bucket/folder pair a run can own media in (Plan 2 D-V8: video assets
+ *  live in omni-video, images in files — deletion must clear BOTH or video
+ *  runs silently orphan their storage). */
+const RUN_MEDIA_FOLDERS = (userId: string, runId: string): { bucket: string; folder: string }[] => [
+  { bucket: 'files', folder: `${userId}/omni-images/${runId}` },
+  { bucket: 'omni-video', folder: `${userId}/omni-videos/${runId}` },
+];
 
 async function deleteOneRun(run: OmniRun, userId: string): Promise<{ libraryFailed: boolean }> {
   // HIST-04: check for linked Content Library items UNCONDITIONALLY — status
@@ -278,9 +286,9 @@ async function deleteOneRun(run: OmniRun, userId: string): Promise<{ libraryFail
     }
   }
 
-  const folder = `${userId}/omni-images/${run.id}`;
-  const paths = await listRunFolder(folder);
-  if (paths.length > 0) {
+  for (const { bucket, folder } of RUN_MEDIA_FOLDERS(userId, run.id)) {
+    const paths = await listRunFolder(bucket, folder);
+    if (paths.length === 0) continue;
     // Retake clones reference bytes in their source run's folder verbatim;
     // never destroy a file another run still points at.
     const { data: refs, error: refsError } = await supabase
@@ -292,8 +300,8 @@ async function deleteOneRun(run: OmniRun, userId: string): Promise<{ libraryFail
     const referenced = new Set(((refs ?? []) as { storage_path: string | null }[]).map((r) => r.storage_path));
     const toRemove = paths.filter((path) => !referenced.has(path));
     if (toRemove.length > 0) {
-      const { error: removeError } = await supabase.storage.from('files').remove(toRemove);
-      if (removeError) throw new Error(`Could not delete stored images: ${removeError.message}`);
+      const { error: removeError } = await supabase.storage.from(bucket).remove(toRemove);
+      if (removeError) throw new Error(`Could not delete stored media: ${removeError.message}`);
     }
   }
   const { error } = await supabase.from('omni_runs').delete().eq('id', run.id);

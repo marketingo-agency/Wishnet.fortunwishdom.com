@@ -13,13 +13,17 @@ import {
   V1_TRANSFORM_STEP_TITLES,
   V1_WIZARD_SEQUENCE,
   V1_WIZARD_STEP_TITLES,
+  VIDEO_MODES,
+  clampToBuilt,
   isV2State,
+  isVideoMode,
   repurposingFloorFor,
+  resolveVideoPosition,
   stageForOrdinal,
   stageOrdinal,
   surfaceForStep,
 } from '../stepRegistry';
-import type { WizardSurface } from '../stepRegistry';
+import type { AnyWizardSurface } from '../stepRegistry';
 import type { OmniImagesState, OmniMode, OmniRun } from '@/hooks/omni';
 
 export type { WizardSurface } from '../stepRegistry';
@@ -44,7 +48,9 @@ export const resolveSurfaceForStep = surfaceForStep;
  * A v2 stamp on a transform run only exists post-handoff, so it routes to the
  * images wizard outright.
  */
-export function resolveSurfaceForRun(run: OmniRun): WizardSurface {
+export function resolveSurfaceForRun(run: OmniRun): AnyWizardSurface {
+  // Video-family runs render on their own mode surface (Plan 2 D-V1).
+  if (isVideoMode(run.mode)) return run.mode;
   if (run.mode === 'brainstorming') {
     const locked = runState(run).idea_locked === true;
     return locked || run.current_step > 1 ? 'omni_images' : 'brainstorming';
@@ -67,11 +73,20 @@ export function stepReached(run: OmniRun): number {
   const state = runState(run);
   const highWater = state.max_step_reached ?? 0;
   const reached = Math.max(run.current_step, highWater);
+  if (isVideoMode(run.mode)) return clampToBuilt(run.mode, reached);
   return run.mode === 'repurposing' ? Math.max(reached, repurposingFloorFor(state)) : reached;
 }
 
 /** Every step of the run's effective sequence up to where it has reached. */
 export function resumableStepsForRun(run: OmniRun): ResumableStep[] {
+  // Video runs resume within their own sequence, clamped to the built range.
+  if (isVideoMode(run.mode)) {
+    const reachedOrdinal = clampToBuilt(run.mode, Math.max(run.current_step, runState(run).max_step_reached ?? 0, 1));
+    return VIDEO_MODES[run.mode].stages
+      .filter((s) => s.ordinal <= reachedOrdinal)
+      .map((s) => ({ step: s.ordinal, label: s.title }));
+  }
+
   const reached = stepReached(run);
 
   // v2-stamped runs live on stage ordinals; transform/repurposing v2 stamps
@@ -106,6 +121,10 @@ export function resumableStepsForRun(run: OmniRun): ResumableStep[] {
 
 /** Display position of the run's current step within its sequence, e.g. 4 of 7. */
 export function runProgress(run: OmniRun): { position: number; total: number } {
+  if (isVideoMode(run.mode)) {
+    const pos = resolveVideoPosition(run.mode, runState(run), run.current_step);
+    return { position: pos.ordinal, total: VIDEO_MODES[run.mode].stages.length };
+  }
   if (isV2State(runState(run))) {
     if (run.mode === 'transform_upscale') {
       // Post-handoff: the transform's own 6 steps precede the wizard tail.

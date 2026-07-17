@@ -15,6 +15,11 @@ import {
   ZoomIn,
   Crop,
   History,
+  Clapperboard,
+  NotebookPen,
+  Zap,
+  PersonStanding,
+  Recycle,
 } from 'lucide-react';
 import type { OmniMode, OmniTrack } from '@/hooks/omni';
 
@@ -54,11 +59,11 @@ export const OMNI_TRACKS: OmniTrackDef[] = [
   {
     id: 'videos',
     label: 'Videos',
-    description: 'Cinematic clips, reels, and motion design. This track is on the roadmap and will plug in here.',
+    description: 'Scenario-first video production: multi-scene studio builds, short-form clips, animation, and per-network repurposing.',
     icon: Film,
     gradient: 'from-violet-500 to-purple-600',
     glow: 'bg-violet-500/25',
-    availability: 'coming_soon',
+    availability: 'available',
   },
   {
     id: 'audios',
@@ -140,6 +145,75 @@ export const OMNI_IMAGE_MODES: OmniModeDef[] = [
     description: 'Every run, every mode. Retake any entry or resume a workflow at the exact step you left it.',
     icon: History,
     accent: 'text-violet-400',
+    available: true,
+    availabilityNote: '',
+  },
+];
+
+export interface OmniVideoModeDef {
+  id: 'video_scenario' | 'omni_videos' | 'video_clips' | 'video_animate' | 'video_repurpose' | 'history';
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  accent: string;
+  available: boolean;
+  availabilityNote: string;
+}
+
+/** Six-card 2×3 Videos hub (Sam-approved structure, Plan 2 §0). Cards flip
+ *  to available as their phase lands. */
+export const OMNI_VIDEO_MODES: OmniVideoModeDef[] = [
+  {
+    id: 'video_scenario',
+    label: 'Scenario Studio',
+    description: 'Pre-production: brief or URL to a knowledge-grounded scenario with storyboard keyframes and a shot list, ready to seed Video Studio.',
+    icon: NotebookPen,
+    accent: 'text-violet-400',
+    available: false,
+    availabilityNote: 'Lands in Phase 4 of this build.',
+  },
+  {
+    id: 'omni_videos',
+    label: 'Video Studio',
+    description: 'The full production pipeline: scenario, per-scene clips in draft and hero tiers, voiceover and music, assembly, captions, distribution.',
+    icon: Clapperboard,
+    accent: 'text-purple-400',
+    available: false,
+    availabilityNote: 'Lands in Phase 5 of this build.',
+  },
+  {
+    id: 'video_clips',
+    label: 'Clips',
+    description: 'The short-form fast lane: one idea to a platform-ready vertical clip with native audio and captions in four screens.',
+    icon: Zap,
+    accent: 'text-rose-400',
+    available: false,
+    availabilityNote: 'Lands in Phase 8 of this build.',
+  },
+  {
+    id: 'video_animate',
+    label: 'Animate',
+    description: 'Bring any image to life: motion from a prompt, character consistency from canon references, or a talking character with a brand voice.',
+    icon: PersonStanding,
+    accent: 'text-indigo-400',
+    available: false,
+    availabilityNote: 'Lands in Phase 9 of this build.',
+  },
+  {
+    id: 'video_repurpose',
+    label: 'Repurpose & Enhance',
+    description: 'A master video fanned into per-network variants: AI reframe without cropping, trim to length, thumbnails, upscale.',
+    icon: Recycle,
+    accent: 'text-teal-400',
+    available: false,
+    availabilityNote: 'Lands in Phase 10 of this build.',
+  },
+  {
+    id: 'history',
+    label: 'History',
+    description: 'Every video run, resumable at the exact stage you left it.',
+    icon: History,
+    accent: 'text-cyan-400',
     available: true,
     availabilityNote: '',
   },

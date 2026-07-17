@@ -28,8 +28,11 @@ import { RepurposeModeWizard } from '@/components/omni/repurpose-mode/RepurposeM
 import { CharacterStudioPicker } from '@/components/omni/character-studio/CharacterStudioPicker';
 import { HistoryView } from '@/components/omni/history/HistoryView';
 import { BrainstormView } from '@/components/omni/brainstorm/BrainstormView';
+import { VideosHub } from '@/components/omni/VideosHub';
 import { resolveSurfaceForRun } from '@/components/omni/history/historyRouting';
+import { isVideoMode } from '@/components/omni/stepRegistry';
 import { OMNI_TRACKS } from '@/components/omni/omniConstants';
+import { toast } from 'sonner';
 
 type OmniTheme = 'light' | 'dark';
 type OmniView = 'home' | OmniTrack;
@@ -41,6 +44,8 @@ type ImagesMode = 'hub' | 'omni_images' | 'character_studio' | 'transform_upscal
 const IMAGES_MODE_IDS: ImagesMode[] = ['omni_images', 'character_studio', 'transform_upscale', 'repurposing', 'history', 'brainstorming'];
 
 const TRACK_IDS = OMNI_TRACKS.map((t) => t.id) as string[];
+
+type VideosMode = 'hub' | 'history';
 
 export default function OmniAgent() {
   const router = useRouter();
@@ -69,6 +74,7 @@ export default function OmniAgent() {
   // Start on 'home' for SSR/hydration parity, then sync from the URL after mount.
   const [view, setView] = useState<OmniView>('home');
   const [imagesMode, setImagesMode] = useState<ImagesMode>('hub');
+  const [videosMode, setVideosMode] = useState<VideosMode>('hub');
   const [wizardRunId, setWizardRunId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -90,6 +96,7 @@ export default function OmniAgent() {
       const run = params.get('run');
       if (run) setWizardRunId(run);
     }
+    if (track === 'videos' && params.get('mode') === 'history') setVideosMode('history');
   }, []);
 
   const syncUrl = useCallback((next: OmniView, mode: ImagesMode, runId: string | null) => {
@@ -120,9 +127,20 @@ export default function OmniAgent() {
     }
     setView(next);
     setImagesMode('hub');
+    setVideosMode('hub');
     setWizardRunId(null);
     syncUrl(next, 'hub', null);
   }, [openImagesMode, syncUrl]);
+
+  const openVideosMode = useCallback((mode: VideosMode) => {
+    setVideosMode(mode);
+    const url = new URL(window.location.href);
+    url.searchParams.set('track', 'videos');
+    if (mode === 'hub') url.searchParams.delete('mode');
+    else url.searchParams.set('mode', mode);
+    url.searchParams.delete('run');
+    window.history.replaceState({}, '', url);
+  }, []);
 
   const handleRunCreated = useCallback((mode: Exclude<ImagesMode, 'hub'>) => (runId: string) => {
     setWizardRunId(runId);
@@ -149,7 +167,14 @@ export default function OmniAgent() {
     // step 5's restore undercount and resubmit paid generations.
     void queryClient.invalidateQueries({ queryKey: ['omni-run', run.id] });
     void queryClient.invalidateQueries({ queryKey: ['omni-assets', run.id] });
-    const surface = resolveSurfaceForRun(run);
+    // Video-mode workspaces land phase by phase (interim-terminal rule):
+    // until a mode's surface is built, History resumes stay put with an
+    // honest note instead of dropping the run onto a foreign wizard.
+    if (isVideoMode(run.mode)) {
+      toast.info('This video workspace lands in a later phase of the current build.');
+      return;
+    }
+    const surface = resolveSurfaceForRun(run) as ImagesMode;
     setWizardRunId(run.id);
     setView('images');
     setImagesMode(surface);
@@ -262,14 +287,21 @@ export default function OmniAgent() {
                 />
               )}
 
-              {view === 'videos' && (
-                <OmniComingSoon
-                  icon={trackDef('videos').icon}
-                  gradient={trackDef('videos').gradient}
-                  title="Videos is coming soon"
-                  description="Cinematic clips, reels, and motion design will live here. The track has a reserved slot and will plug straight into this workspace."
-                  badgeLabel="Coming Soon"
+              {view === 'videos' && videosMode === 'hub' && (
+                <VideosHub
                   onBack={goHome}
+                  onSelectMode={(mode) => {
+                    if (mode === 'history') openVideosMode('history');
+                    // Other mode surfaces ship phase by phase (cards are inert until then).
+                  }}
+                />
+              )}
+
+              {view === 'videos' && videosMode === 'history' && (
+                <HistoryView
+                  family="videos"
+                  onOpenRun={handleHistoryOpenRun}
+                  onExit={() => openVideosMode('hub')}
                 />
               )}
             </motion.div>
