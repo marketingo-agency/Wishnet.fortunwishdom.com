@@ -369,7 +369,8 @@ const videoStages = (titles: [string, string][]): VideoStageDef[] =>
 export const VIDEO_MODES: Record<VideoModeId, VideoModeDef> = {
   video_scenario: {
     mode: 'video_scenario',
-    builtThrough: 0,
+    // Phase 4 shipped all four Scenario Studio stages.
+    builtThrough: 4,
     stages: videoStages([
       ['brief', 'Brief'],
       ['structure', 'Structure'],

@@ -408,9 +408,12 @@ describe('stepRegistry: video mode registry (D-V1)', () => {
     expect(VIDEO_SCHEMA_VERSION).toBe(1);
   });
 
-  it('clampToBuilt enforces the interim-terminal rule (builtThrough 0 clamps to stage 1)', () => {
-    // Nothing is built yet in Phase 1 — every resume clamps to the first stage.
-    for (const id of VIDEO_IDS) {
+  it('clampToBuilt enforces the interim-terminal rule per mode', () => {
+    // Scenario Studio shipped fully in Phase 4; the other modes are unbuilt.
+    expect(VIDEO_MODES.video_scenario.builtThrough).toBe(4);
+    expect(clampToBuilt('video_scenario', 9)).toBe(4);
+    expect(clampToBuilt('video_scenario', 2)).toBe(2);
+    for (const id of VIDEO_IDS.filter((m) => m !== 'video_scenario')) {
       expect(VIDEO_MODES[id].builtThrough).toBe(0);
       expect(clampToBuilt(id, 5)).toBe(1);
       expect(clampToBuilt(id, 0)).toBe(1);
@@ -423,19 +426,31 @@ describe('stepRegistry: video mode registry (D-V1)', () => {
     expect(pos.maxStageOrdinal).toBe(1);
     expect(pos.stage.id).toBe('scenario');
     expect(videoStageForOrdinal('omni_videos', 99).id).toBe('finalize');
+    const built = resolveVideoPosition('video_scenario', { max_step_reached: 4 }, 3);
+    expect(built.ordinal).toBe(3);
+    expect(built.maxStageOrdinal).toBe(4);
+    expect(built.stage.id).toBe('storyboard');
   });
 
   it('validateJumpTarget clamps video jumps to built + high-water and rejects off-range', () => {
-    const run = {
+    const unbuilt = {
       id: 'r', mode: 'omni_videos', current_step: 6,
       step_state: { max_step_reached: 7, video_schema_version: 1 },
       status: 'active',
     } as unknown as OmniRun;
     // builtThrough 0 → only stage 1 is jumpable today.
-    expect(validateJumpTarget(run, 1)).toBe(1);
-    expect(validateJumpTarget(run, 2)).toBeNull();
-    expect(validateJumpTarget(run, 0)).toBeNull();
-    expect(validateJumpTarget(run, 9)).toBeNull();
+    expect(validateJumpTarget(unbuilt, 1)).toBe(1);
+    expect(validateJumpTarget(unbuilt, 2)).toBeNull();
+    expect(validateJumpTarget(unbuilt, 0)).toBeNull();
+    expect(validateJumpTarget(unbuilt, 9)).toBeNull();
+    // A built mode jumps within its reached range.
+    const scenarioRun = {
+      id: 's', mode: 'video_scenario', current_step: 2,
+      step_state: { max_step_reached: 3, video_schema_version: 1 },
+      status: 'active',
+    } as unknown as OmniRun;
+    expect(validateJumpTarget(scenarioRun, 3)).toBe(3);
+    expect(validateJumpTarget(scenarioRun, 4)).toBeNull();
   });
 
   it('surfaceForRunMode routes video modes to their own surface and leaves images untouched', () => {

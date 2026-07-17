@@ -169,8 +169,8 @@ export const OMNI_VIDEO_MODES: OmniVideoModeDef[] = [
     description: 'Pre-production: brief or URL to a knowledge-grounded scenario with storyboard keyframes and a shot list, ready to seed Video Studio.',
     icon: NotebookPen,
     accent: 'text-violet-400',
-    available: false,
-    availabilityNote: 'Lands in Phase 4 of this build.',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'omni_videos',

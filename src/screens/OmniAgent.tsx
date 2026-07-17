@@ -29,6 +29,7 @@ import { CharacterStudioPicker } from '@/components/omni/character-studio/Charac
 import { HistoryView } from '@/components/omni/history/HistoryView';
 import { BrainstormView } from '@/components/omni/brainstorm/BrainstormView';
 import { VideosHub } from '@/components/omni/VideosHub';
+import { ScenarioWizard } from '@/components/omni/scenario/ScenarioWizard';
 import { resolveSurfaceForRun } from '@/components/omni/history/historyRouting';
 import { isVideoMode } from '@/components/omni/stepRegistry';
 import { OMNI_TRACKS } from '@/components/omni/omniConstants';
@@ -45,7 +46,7 @@ const IMAGES_MODE_IDS: ImagesMode[] = ['omni_images', 'character_studio', 'trans
 
 const TRACK_IDS = OMNI_TRACKS.map((t) => t.id) as string[];
 
-type VideosMode = 'hub' | 'history';
+type VideosMode = 'hub' | 'history' | 'video_scenario';
 
 export default function OmniAgent() {
   const router = useRouter();
@@ -96,7 +97,12 @@ export default function OmniAgent() {
       const run = params.get('run');
       if (run) setWizardRunId(run);
     }
-    if (track === 'videos' && params.get('mode') === 'history') setVideosMode('history');
+    if (track === 'videos') {
+      const mode = params.get('mode');
+      if (mode === 'history' || mode === 'video_scenario') setVideosMode(mode);
+      const run = params.get('run');
+      if (run) setWizardRunId(run);
+    }
   }, []);
 
   const syncUrl = useCallback((next: OmniView, mode: ImagesMode, runId: string | null) => {
@@ -132,13 +138,15 @@ export default function OmniAgent() {
     syncUrl(next, 'hub', null);
   }, [openImagesMode, syncUrl]);
 
-  const openVideosMode = useCallback((mode: VideosMode) => {
+  const openVideosMode = useCallback((mode: VideosMode, runId: string | null = null) => {
     setVideosMode(mode);
+    setWizardRunId(runId);
     const url = new URL(window.location.href);
     url.searchParams.set('track', 'videos');
     if (mode === 'hub') url.searchParams.delete('mode');
     else url.searchParams.set('mode', mode);
-    url.searchParams.delete('run');
+    if (runId && mode !== 'hub') url.searchParams.set('run', runId);
+    else url.searchParams.delete('run');
     window.history.replaceState({}, '', url);
   }, []);
 
@@ -171,6 +179,11 @@ export default function OmniAgent() {
     // until a mode's surface is built, History resumes stay put with an
     // honest note instead of dropping the run onto a foreign wizard.
     if (isVideoMode(run.mode)) {
+      if (run.mode === 'video_scenario') {
+        setView('videos');
+        openVideosMode('video_scenario', run.id);
+        return;
+      }
       toast.info('This video workspace lands in a later phase of the current build.');
       return;
     }
@@ -179,7 +192,7 @@ export default function OmniAgent() {
     setView('images');
     setImagesMode(surface);
     syncUrl('images', surface, run.id);
-  }, [queryClient, syncUrl]);
+  }, [queryClient, syncUrl, openVideosMode]);
 
   const { data: agentSettings, isLoading: loadingAgentSettings } = useAgentSettings('omni');
   const isInactive = !loadingAgentSettings && agentSettings && !agentSettings.is_active;
@@ -291,9 +304,17 @@ export default function OmniAgent() {
                 <VideosHub
                   onBack={goHome}
                   onSelectMode={(mode) => {
-                    if (mode === 'history') openVideosMode('history');
+                    if (mode === 'history' || mode === 'video_scenario') openVideosMode(mode);
                     // Other mode surfaces ship phase by phase (cards are inert until then).
                   }}
+                />
+              )}
+
+              {view === 'videos' && videosMode === 'video_scenario' && (
+                <ScenarioWizard
+                  runId={wizardRunId}
+                  onRunCreated={(id) => openVideosMode('video_scenario', id)}
+                  onExit={() => openVideosMode('hub')}
                 />
               )}
 
