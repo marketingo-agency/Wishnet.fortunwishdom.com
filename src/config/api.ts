@@ -30,6 +30,7 @@ export const SETTINGS_KEYS_ENDPOINT = `${EDGE_FUNCTIONS_URL}/settings-keys`;
 export const PULSE_API_ENDPOINT = `${EDGE_FUNCTIONS_URL}/pulse-api`;
 export const WHISPER_API_ENDPOINT = `${EDGE_FUNCTIONS_URL}/whisper-api`;
 export const OMNI_API_ENDPOINT = `${EDGE_FUNCTIONS_URL}/omni`;
+export const OMNI_VIDEO_API_ENDPOINT = `${EDGE_FUNCTIONS_URL}/omni-video`;
 export const CONTENT_LIBRARY_ENDPOINT = `${EDGE_FUNCTIONS_URL}/content-library`;
 
 // Storage
