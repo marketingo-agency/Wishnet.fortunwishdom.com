@@ -19,6 +19,10 @@ export interface VideoModelConstraints {
   startImageKey?: string;
   /** Input key that carries the end image for i2v models. */
   endImageKey?: string;
+  /** Input key that carries multiple reference images (Seedance r2v). */
+  refImagesKey?: string;
+  /** Input key that carries the driving audio (avatar/lipsync models). */
+  audioKey?: string;
 }
 
 export const VIDEO_MODEL_CONSTRAINTS: Record<string, VideoModelConstraints> = {
@@ -86,6 +90,26 @@ export const VIDEO_MODEL_CONSTRAINTS: Record<string, VideoModelConstraints> = {
     startImageKey: 'start_image_url',
     endImageKey: 'end_image_url',
   },
+  'bytedance/seedance-2.0/reference-to-video': {
+    durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    autoDuration: true,
+    durationAsString: true,
+    aspects: ['auto', '21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
+    resolutions: ['480p', '720p', '1080p', '4k'],
+    nativeAudio: true,
+    // Up to 9 reference images, addressed in the prompt as @Image1..N.
+    refImagesKey: 'image_urls',
+  },
+  'fal-ai/kling-video/ai-avatar/v2/pro': {
+    // Schema-verified 2026-07-17: image_url + audio_url (+ optional prompt);
+    // no duration/aspect/resolution knobs - the audio drives the length.
+    durations: null,
+    aspects: null,
+    resolutions: null,
+    nativeAudio: true,
+    startImageKey: 'image_url',
+    audioKey: 'audio_url',
+  },
 };
 
 /** Generation models this function will submit to (allowlist - the catalog
@@ -147,7 +171,7 @@ export function buildVideoInput(
   modelId: string,
   prompt: string,
   params: VideoSubmitParams,
-  images: { startUrl?: string; endUrl?: string },
+  images: { startUrl?: string; endUrl?: string; refUrls?: string[]; audioUrl?: string },
 ): Record<string, unknown> {
   const c = VIDEO_MODEL_CONSTRAINTS[modelId];
   const input: Record<string, unknown> = {};
@@ -179,6 +203,10 @@ export function buildVideoInput(
   }
   if (images.startUrl && c?.startImageKey) input[c.startImageKey] = images.startUrl;
   if (images.endUrl && c?.endImageKey) input[c.endImageKey] = images.endUrl;
+  if (images.refUrls && images.refUrls.length > 0 && c?.refImagesKey) {
+    input[c.refImagesKey] = images.refUrls.slice(0, 9);
+  }
+  if (images.audioUrl && c?.audioKey) input[c.audioKey] = images.audioUrl;
   return input;
 }
 
@@ -196,6 +224,8 @@ export const UTILITY_ALLOWLIST: Record<string, string[]> = {
   'fal-ai/ffmpeg-api/extract-frame': ['video_url', 'frame_type'],
   'fal-ai/ffmpeg-api/metadata': ['media_url', 'extract_frames'],
   'fal-ai/ltx-2.3/reframe': ['video_url', 'aspect_ratio', 'resolution'],
+  'fal-ai/latentsync': ['video_url', 'audio_url', 'loop_mode', 'guidance_scale'],
+  'fal-ai/sync-lipsync/v3': ['video_url', 'audio_url', 'sync_mode'],
   'fal-ai/topaz/upscale/video': ['video_url', 'model', 'upscale_factor', 'target_fps'],
   'fal-ai/mmaudio-v2': ['video_url', 'prompt', 'duration'],
 };

@@ -213,7 +213,7 @@ Deno.serve(async (req: Request) => {
       };
 
       // i2v frames: OWN asset ids only, resolved + signed server-side.
-      const images: { startUrl?: string; endUrl?: string } = {};
+      const images: { startUrl?: string; endUrl?: string; refUrls?: string[]; audioUrl?: string } = {};
       if (typeof body.start_asset_id === 'string') {
         const url = await signOwnAsset(supabaseAdmin, body.start_asset_id, userId);
         if (!url) return jsonResponse({ error: 'Start frame not found or not persisted yet' }, 400);
@@ -223,6 +223,43 @@ Deno.serve(async (req: Request) => {
         const url = await signOwnAsset(supabaseAdmin, body.end_asset_id, userId);
         if (!url) return jsonResponse({ error: 'End frame not found or not persisted yet' }, 400);
         images.endUrl = url;
+      }
+      // Animate references (Phase 9): OWN image assets and/or Wishpedia
+      // entry-image IDS (never raw URLs - the omni variant-submit rule).
+      const refUrls: string[] = [];
+      if (Array.isArray(body.reference_asset_ids)) {
+        for (const id of body.reference_asset_ids.filter((x: unknown) => typeof x === 'string').slice(0, 9)) {
+          const url = await signOwnAsset(supabaseAdmin, id, userId);
+          if (!url) return jsonResponse({ error: 'A reference asset is missing or not persisted yet' }, 400);
+          refUrls.push(url);
+        }
+      }
+      if (Array.isArray(body.wishpedia_image_ids)) {
+        const ids = body.wishpedia_image_ids.filter((x: unknown) => typeof x === 'string').slice(0, 9);
+        if (ids.length > 0) {
+          const { data: rows } = await supabaseAdmin
+            .from('wishpedia_entry_images')
+            .select('id, storage_path')
+            .in('id', ids);
+          const found = ((rows ?? []) as { id: string; storage_path: string | null }[]);
+          if (found.length !== ids.length) return jsonResponse({ error: 'A Wishpedia reference image was not found' }, 400);
+          for (const row of found) {
+            if (!row.storage_path) continue;
+            // wishpedia-media is a public bucket - getPublicUrl needs no signing.
+            const { data: pub } = supabaseAdmin.storage.from('wishpedia-media').getPublicUrl(row.storage_path);
+            if (pub?.publicUrl) refUrls.push(pub.publicUrl);
+          }
+        }
+      }
+      if (refUrls.length > 0) {
+        images.refUrls = refUrls.slice(0, 9);
+        // Avatar-style models take ONE image - the first reference drives it.
+        if (!images.startUrl) images.startUrl = refUrls[0];
+      }
+      if (typeof body.audio_asset_id === 'string') {
+        const url = await signOwnAsset(supabaseAdmin, body.audio_asset_id, userId);
+        if (!url) return jsonResponse({ error: 'The audio track is not ready yet' }, 400);
+        images.audioUrl = url;
       }
 
       const input = buildVideoInput(modelId, promptStr, params, images);

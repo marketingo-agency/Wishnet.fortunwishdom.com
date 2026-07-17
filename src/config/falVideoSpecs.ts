@@ -23,6 +23,10 @@ export interface VideoModelConstraints {
   nativeAudio: boolean;
   /** fps enum when the model exposes one. */
   fps?: number[];
+  /** Input key that carries multiple reference images (Seedance r2v). */
+  refImagesKey?: string;
+  /** Input key that carries the driving audio (avatar/lipsync models). */
+  audioKey?: string;
 }
 
 export const VIDEO_MODEL_CONSTRAINTS: Record<string, VideoModelConstraints> = {
@@ -89,6 +93,23 @@ export const VIDEO_MODEL_CONSTRAINTS: Record<string, VideoModelConstraints> = {
     aspects: null,
     resolutions: null,
     nativeAudio: true,
+  },
+  // Animate (Phase 9; schema-verified 2026-07-17)
+  'bytedance/seedance-2.0/reference-to-video': {
+    durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    autoDuration: true,
+    durationAsString: true,
+    aspects: ['auto', '21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
+    resolutions: ['480p', '720p', '1080p', '4k'],
+    nativeAudio: true,
+    refImagesKey: 'image_urls',
+  },
+  'fal-ai/kling-video/ai-avatar/v2/pro': {
+    durations: null,
+    aspects: null,
+    resolutions: null,
+    nativeAudio: true,
+    audioKey: 'audio_url',
   },
 };
 

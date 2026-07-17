@@ -25,8 +25,8 @@ interface VSCaptionsProps {
   srtPath?: string;
   onSrtSaved: (path: string) => void;
   onNext: () => void;
-  /** Continue-button label; Clips reuses this screen with its own next stop. */
-  nextLabel?: string;
+  /** Continue-button label; null hides the footer (embedding screens own it). */
+  nextLabel?: string | null;
 }
 
 export function VSCaptions({ runId, assemblyAssetId, srtPath, onSrtSaved, onNext, nextLabel = 'Continue to Distribution' }: VSCaptionsProps) {
@@ -173,18 +173,20 @@ export function VSCaptions({ runId, assemblyAssetId, srtPath, onSrtSaved, onNext
         </section>
       )}
 
-      <div className="flex items-center justify-end gap-3">
-        <p className="text-[11px] text-muted-foreground">
-          {srtPath ? 'Captions ride along to the Content Library.' : 'No captions yet — continuing publishes without them.'}
-        </p>
-        <Button
-          size="sm"
-          onClick={onNext}
-          className="h-8 cursor-pointer bg-gradient-to-r from-violet-500 to-purple-600 text-xs text-white transition-all duration-300 hover:opacity-90"
-        >
-          {nextLabel}
-        </Button>
-      </div>
+      {nextLabel !== null && (
+        <div className="flex items-center justify-end gap-3">
+          <p className="text-[11px] text-muted-foreground">
+            {srtPath ? 'Captions ride along to the Content Library.' : 'No captions yet — continuing publishes without them.'}
+          </p>
+          <Button
+            size="sm"
+            onClick={onNext}
+            className="h-8 cursor-pointer bg-gradient-to-r from-violet-500 to-purple-600 text-xs text-white transition-all duration-300 hover:opacity-90"
+          >
+            {nextLabel}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
