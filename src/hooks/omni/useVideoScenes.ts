@@ -35,6 +35,8 @@ export interface DraftEngine {
   i2v: boolean;
   resolution?: string;
   generateAudio?: boolean;
+  /** Target aspect; Studio defaults to 16:9, Clips to 9:16. */
+  aspect?: string;
 }
 
 export async function pollVideoAssets(assetIds: string[]): Promise<VideoPollEntry[]> {
@@ -114,7 +116,7 @@ export function useVideoScenes(runId: string | null) {
             params: {
               duration: scene.duration_s,
               seconds: scene.duration_s,
-              aspect: '16:9',
+              aspect: engine.aspect ?? '16:9',
               ...(engine.resolution ? { resolution: engine.resolution } : {}),
               ...(engine.generateAudio !== undefined ? { generate_audio: engine.generateAudio } : {}),
             },

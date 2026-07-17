@@ -187,8 +187,8 @@ export const OMNI_VIDEO_MODES: OmniVideoModeDef[] = [
     description: 'The short-form fast lane: one idea to a platform-ready vertical clip with native audio and captions in four screens.',
     icon: Zap,
     accent: 'text-rose-400',
-    available: false,
-    availabilityNote: 'Lands in Phase 8 of this build.',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'video_animate',

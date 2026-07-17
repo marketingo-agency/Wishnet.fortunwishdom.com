@@ -416,7 +416,9 @@ describe('stepRegistry: video mode registry (D-V1)', () => {
     expect(VIDEO_MODES.omni_videos.builtThrough).toBe(8);
     expect(clampToBuilt('omni_videos', 9)).toBe(8);
     expect(clampToBuilt('omni_videos', 2)).toBe(2);
-    for (const id of VIDEO_IDS.filter((m) => m !== 'video_scenario' && m !== 'omni_videos')) {
+    expect(VIDEO_MODES.video_clips.builtThrough).toBe(4);
+    expect(clampToBuilt('video_clips', 9)).toBe(4);
+    for (const id of VIDEO_IDS.filter((m) => !['video_scenario', 'omni_videos', 'video_clips'].includes(m))) {
       expect(VIDEO_MODES[id].builtThrough).toBe(0);
       expect(clampToBuilt(id, 5)).toBe(1);
       expect(clampToBuilt(id, 0)).toBe(1);

@@ -395,7 +395,8 @@ export const VIDEO_MODES: Record<VideoModeId, VideoModeDef> = {
   },
   video_clips: {
     mode: 'video_clips',
-    builtThrough: 0,
+    // Phase 8: the full 4-screen fast lane is live.
+    builtThrough: 4,
     stages: videoStages([
       ['idea', 'Idea'],
       ['generate', 'Generate'],
