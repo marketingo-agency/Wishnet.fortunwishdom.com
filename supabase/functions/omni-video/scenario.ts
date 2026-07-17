@@ -29,10 +29,14 @@ function isPrivateHost(host: string): boolean {
 
 async function resolvesToPrivate(host: string): Promise<boolean> {
   if (/^[\d.]+$/.test(host) || host.includes(':')) return isPrivateHost(host);
-  try {
-    const ips = await (Deno as { resolveDns?: (h: string, t: string) => Promise<string[]> }).resolveDns?.(host, 'A') ?? [];
-    return Array.isArray(ips) && ips.some((ip) => isPrivateHost(ip));
-  } catch { return false; }
+  // Security-audit LOW-1: check BOTH record types - an AAAA-only domain
+  // pointing at a private IPv6 host bypassed the A-only lookup.
+  const resolve = (Deno as { resolveDns?: (h: string, t: string) => Promise<string[]> }).resolveDns;
+  if (!resolve) return false;
+  const lookups = await Promise.all(['A', 'AAAA'].map(async (t) => {
+    try { return await resolve(host, t) ?? []; } catch { return []; }
+  }));
+  return lookups.flat().some((ip) => isPrivateHost(String(ip)));
 }
 
 async function safeFetch(rawUrl: string): Promise<Response | null> {
