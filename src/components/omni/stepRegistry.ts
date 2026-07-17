@@ -79,13 +79,24 @@ export const V1_LEGACY_FINALIZE_RELIC = 12;
 /** Transform retake reseeds at the analysis step (source already referenced). */
 export const V1_TRANSFORM_RESEED_STEP = 2;
 
+/**
+ * v1 entry ordinals of the merged Phase-6 stage groups (Brief owns v1 steps
+ * 1-2, Engine 3-4, Generate 5-6). The stage components persist to the NEXT
+ * group's entry until the Phase-7 flip replaces these with stage ordinals.
+ */
+export const V1_BRIEF_ENTRY_STEP = 1;
+export const V1_ENGINE_ENTRY_STEP = 3;
+export const V1_GENERATE_ENTRY_STEP = 5;
+
+// Steps 1-6 render as the three merged Phase-6 stages (pairs share a title
+// until the Phase-7 flip collapses the ordinals); the tail keeps v1 titles.
 export const V1_WIZARD_STEP_TITLES: Record<number, string> = {
-  1: 'Describe the objective',
-  2: 'Review and lock the prompt',
-  3: 'Pick your models',
-  4: 'Image specs',
-  5: 'Recap',
-  6: 'Live generation',
+  1: 'Brief',
+  2: 'Brief',
+  3: 'Models & quality',
+  4: 'Models & quality',
+  5: 'Generate & select',
+  6: 'Generate & select',
   7: 'Target networks',
   8: 'Social descriptions',
   9: 'Dimension presets',

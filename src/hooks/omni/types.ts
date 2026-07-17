@@ -141,6 +141,9 @@ export interface OmniImagesState {
   objective?: string;
   optimized_prompt?: string;
   locked_prompt?: string;
+  /** How the locked prompt was authored: 'promptor' (already Heart-grounded
+   *  upstream) or 'raw' (user text — the edge injects the Heart digest). */
+  prompt_provenance?: 'promptor' | 'raw';
   /** Wishpedia character references attached at step 1 for canon-accurate
    *  recreation; when present the wizard auto-routes to an edit-capable model. */
   reference_image_refs?: OmniWishReferenceRef[];
