@@ -5,7 +5,7 @@ Autonomous three-plan Omni program (Images → Videos → Audios), Part One (bui
 
 ## Plan Status
 - Plan 1 (Images overhaul): **DELIVERED** — merged 1930f2c → main → VPS (deploy workflow was in_progress at last check)
-- Plan 2 (Videos track): Phase 0 ACTIVE — must re-read OMNI_VIDEOS_TRACK_PLAN.md IN FULL first
+- Plan 2 (Videos track): Phases 0-4 DONE (omni-video v1 + omni-finisher v1 + cron live; finisher proven headless; Videos hub + Scenario Studio shipped) — Phase 5 ACTIVE (Video Studio A)
 - Plan 3 (Audios track): pending
 - Part One report + STOP for Sam's go: pending
 
