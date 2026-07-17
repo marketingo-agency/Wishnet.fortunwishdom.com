@@ -4,7 +4,7 @@
  * handling so the Stage 2/3 cost surfaces cannot silently drift.
  */
 import { describe, expect, it } from 'vitest';
-import { estimateModelCost, estimatePlanCost, formatUsd, getFalPrice } from './falPricing';
+import { estimateAssetsCost, estimateModelCost, estimatePlanCost, formatUsd, getFalPrice } from './falPricing';
 
 describe('getFalPrice', () => {
   it('knows the curated models', () => {
@@ -72,5 +72,47 @@ describe('formatUsd', () => {
     expect(formatUsd(0.003)).toBe('$0.003');
     expect(formatUsd(0)).toBe('$0.00');
     expect(formatUsd(-1.5)).toBe('-$1.50');
+  });
+});
+
+describe('estimateAssetsCost (History cost chip)', () => {
+  const asset = (over: Partial<import('./falPricing').AssetCostInput>): import('./falPricing').AssetCostInput => ({
+    model_id: 'fal-ai/nano-banana-pro/edit',
+    width: 1024,
+    height: 1024,
+    status: 'done',
+    ...over,
+  });
+
+  it('sums per-image models and megapixel models from stored dims', () => {
+    const { total, hasUnknown } = estimateAssetsCost([
+      asset({}), // $0.15/image
+      asset({ model_id: 'fal-ai/flux/dev', width: 2000, height: 1000 }), // 2MP * $0.025
+    ]);
+    expect(total).toBeCloseTo(0.15 + 0.05, 10);
+    expect(hasUnknown).toBe(false);
+  });
+
+  it('counts discarded outputs (they were paid) but never failed submissions', () => {
+    const { total } = estimateAssetsCost([
+      asset({ status: 'discarded' }),
+      asset({ status: 'failed' }),
+      asset({ status: 'generating' }),
+    ]);
+    expect(total).toBeCloseTo(0.15, 10);
+  });
+
+  it('ignores uploaded/referenced rows (no model) and flags unpriceable ones', () => {
+    const noModel = estimateAssetsCost([asset({ model_id: null })]);
+    expect(noModel.total).toBe(0);
+    expect(noModel.hasUnknown).toBe(false);
+
+    const opaque = estimateAssetsCost([asset({ model_id: 'fal-ai/gpt-image-1.5/edit' })]);
+    expect(opaque.total).toBe(0);
+    expect(opaque.hasUnknown).toBe(true);
+
+    const noDims = estimateAssetsCost([asset({ model_id: 'fal-ai/flux/dev', width: null, height: null })]);
+    expect(noDims.total).toBe(0);
+    expect(noDims.hasUnknown).toBe(true);
   });
 });

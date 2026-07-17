@@ -101,6 +101,45 @@ export function estimatePlanCost(
   return { lines, total, hasUnknown };
 }
 
+export interface AssetCostInput {
+  model_id: string | null;
+  width: number | null;
+  height: number | null;
+  status: string;
+}
+
+/**
+ * Estimated fal spend for a run's PRODUCED assets (History cost chip).
+ * Only fal-generated rows count: model_id null = uploaded/referenced bytes
+ * (free). 'done' and 'discarded' were both paid outputs; 'failed' submissions
+ * are excluded (fal does not bill a failed job). Megapixel models use the
+ * stored intrinsic dimensions; a priced model with unknown dims (or an
+ * opaque-priced model) flags hasUnknown instead of guessing.
+ */
+export function estimateAssetsCost(assets: AssetCostInput[]): { total: number; hasUnknown: boolean } {
+  let total = 0;
+  let hasUnknown = false;
+  for (const a of assets) {
+    if (!a.model_id) continue;
+    if (a.status !== 'done' && a.status !== 'discarded') continue;
+    const price = getFalPrice(a.model_id);
+    if (price.unitPrice == null) {
+      hasUnknown = true;
+      continue;
+    }
+    if (price.unit === 'image') {
+      total += price.unitPrice;
+      continue;
+    }
+    if (a.width && a.height) {
+      total += price.unitPrice * ((a.width * a.height) / 1_000_000);
+    } else {
+      hasUnknown = true;
+    }
+  }
+  return { total, hasUnknown };
+}
+
 export function formatUsd(n: number): string {
   const sign = n < 0 ? '-' : '';
   const abs = Math.abs(n);

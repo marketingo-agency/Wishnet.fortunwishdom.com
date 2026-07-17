@@ -175,6 +175,8 @@ export interface OmniImagesState {
   // Brainstorming (Mode 6) extras, persisted in the same engine state
   messages?: OmniChatMessage[];
   idea_locked?: boolean;
+  /** Source run id when this run was created via Retake (HIST-15 backlink). */
+  retake_of?: string;
 }
 
 // ── Brainstorming (Mode 6) ───────────────────────────────────────────────────
