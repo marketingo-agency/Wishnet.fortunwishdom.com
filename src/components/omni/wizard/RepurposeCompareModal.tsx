@@ -12,12 +12,15 @@ import { useEffect, useState } from 'react';
 import { CheckCircle2, ImageIcon, Loader2, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 import { getNetwork, getPreset } from '../omniNetworkPresets';
-import { type RepurposeJob } from '@/hooks/omni/useRepurposeRunner';
+import { type RepurposeJob, type RepurposeMode } from '@/hooks/omni/useRepurposeRunner';
 
 export interface RepurposeCandidate {
   assetId: string;
   previewUrl: string;
+  /** The tier the candidate was produced with (adopted by the tile on approve). */
+  mode: RepurposeMode;
 }
 
 const revokeBlobUrl = (url?: string) => {
@@ -26,7 +29,9 @@ const revokeBlobUrl = (url?: string) => {
 
 interface RepurposeCompareModalProps {
   job: RepurposeJob | null;
-  generateCandidate: (job: RepurposeJob) => Promise<RepurposeCandidate>;
+  /** Produces an output for the (possibly re-tiered) job; the modal attaches
+   *  the tier it ran with to the returned candidate. */
+  generateCandidate: (job: RepurposeJob) => Promise<{ assetId: string; previewUrl: string }>;
   onApprove: (job: RepurposeJob, candidate: RepurposeCandidate) => void;
   onDiscardCandidate: (assetId: string) => void;
   onClose: () => void;
@@ -39,10 +44,18 @@ const SpecRow = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
+const MODE_OPTIONS: { value: RepurposeMode; label: string }[] = [
+  { value: 'crop', label: 'Smart crop' },
+  { value: 'extend', label: 'AI extend' },
+  { value: 'redesign', label: 'AI re-design' },
+];
+
 export function RepurposeCompareModal({ job, generateCandidate, onApprove, onDiscardCandidate, onClose }: RepurposeCompareModalProps) {
   const [candidate, setCandidate] = useState<RepurposeCandidate | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // REP-02-ux2: the regenerate can run in a DIFFERENT tier than the tile's.
+  const [candidateMode, setCandidateMode] = useState<RepurposeMode>('redesign');
 
   // Reset when the modal opens for a different tile. No revoke here: by the time
   // the key changes the candidate was either adopted by the tile (approve) or
@@ -51,12 +64,16 @@ export function RepurposeCompareModal({ job, generateCandidate, onApprove, onDis
     setCandidate(null);
     setBusy(false);
     setError(null);
+    if (job) setCandidateMode(job.mode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset per tile
   }, [job?.key]);
 
   if (!job) return null;
   const preset = getPreset(job.network, job.presetId);
   const network = getNetwork(job.network);
-  const modelLabel = job.mode === 'redesign' ? 'Nano Banana Pro · edit' : 'Smart crop (no AI)';
+  const modelLabel = candidateMode === 'redesign' ? 'Nano Banana Pro · edit'
+    : candidateMode === 'extend' ? 'FLUX.2 Pro · outpaint'
+    : 'Smart crop (no AI)';
 
   const handleClose = () => {
     if (candidate) {
@@ -75,7 +92,8 @@ export function RepurposeCompareModal({ job, generateCandidate, onApprove, onDis
     setError(null);
     setBusy(true);
     try {
-      const next = await generateCandidate(job);
+      const produced = await generateCandidate({ ...job, mode: candidateMode });
+      const next: RepurposeCandidate = { ...produced, mode: candidateMode };
       if (prev) {
         onDiscardCandidate(prev.assetId);
         revokeBlobUrl(prev.previewUrl);
@@ -95,7 +113,7 @@ export function RepurposeCompareModal({ job, generateCandidate, onApprove, onDis
   const spinner = (
     <div className="flex flex-col items-center gap-2 text-center">
       <Loader2 className="h-6 w-6 animate-spin text-cyan-600 [[data-omni-theme=dark]_&]:text-cyan-400" />
-      <p className="text-xs text-muted-foreground">{job.mode === 'redesign' ? 'Re-designing…' : 'Cropping…'}</p>
+      <p className="text-xs text-muted-foreground">{candidateMode === 'redesign' ? 'Re-designing…' : candidateMode === 'extend' ? 'Extending…' : 'Cropping…'}</p>
     </div>
   );
 
@@ -141,7 +159,7 @@ export function RepurposeCompareModal({ job, generateCandidate, onApprove, onDis
                   <SpecRow label="Aspect" value={preset?.ratio ?? '—'} />
                   <SpecRow label="Network" value={network.label} />
                   <SpecRow label="Format" value={preset?.label ?? '—'} />
-                  <SpecRow label="Mode" value={job.mode === 'redesign' ? 'AI re-design' : 'Smart crop'} />
+                  <SpecRow label="Mode" value={MODE_OPTIONS.find((m) => m.value === candidateMode)?.label ?? candidateMode} />
                 </div>
               )}
               {/* Re-roll over an existing candidate: keep it visible under a spinner. */}
@@ -155,6 +173,27 @@ export function RepurposeCompareModal({ job, generateCandidate, onApprove, onDis
               )}
             </div>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Regenerate tier">
+          {MODE_OPTIONS.map((m) => (
+            <button
+              key={m.value}
+              role="radio"
+              aria-checked={candidateMode === m.value}
+              onClick={() => setCandidateMode(m.value)}
+              disabled={busy}
+              className={cn(
+                'cursor-pointer rounded-full border px-2.5 py-1 text-xs font-medium transition-colors duration-200',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
+                candidateMode === m.value
+                  ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-700 [[data-omni-theme=dark]_&]:text-cyan-300'
+                  : 'border-border text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {m.label}
+            </button>
+          ))}
         </div>
 
         <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">

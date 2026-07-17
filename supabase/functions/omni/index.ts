@@ -157,6 +157,11 @@ function extractCreditBalance(data: unknown): { balance: number | null; currency
 
 const FAL_NOT_CONFIGURED = 'fal.ai is not configured. Add a fal.ai API key in Settings > LLM Providers.';
 const TEST_MODEL_ID = 'fal-ai/flux/schnell';
+// Tier-2 AI extend (Plan 1 D-TIER): schema verified live 2026-07-16 — singular
+// image_url + expand_{top,bottom,left,right} px, NO prompt, interior pixels
+// untouched, ~$0.03/processed MP. bria/expand + ideogram/v3/reframe remain
+// documented alternatives pending the delivery A/B.
+const EXTEND_MODEL_ID = 'fal-ai/flux-2-pro/outpaint';
 const NETWORKS = new Set(['facebook', 'instagram', 'x', 'tiktok', 'youtube', 'pinterest']);
 
 // Per-edit-model reference-image caps (mirrors src/config/llmModels FAL_EDIT_MODELS).
@@ -660,6 +665,119 @@ Deno.serve(async (req: Request) => {
         return jsonResponse({ asset_id: assetId, request_id: submission.requestId, queue_position: submission.queuePosition });
       } catch (e) {
         const message = e instanceof FalUserError ? e.message : 'Generation could not be submitted';
+        await supabaseAdmin
+          .from('omni_assets')
+          .update({ status: 'failed', error: message })
+          .eq('id', assetId);
+        if (e instanceof FalUserError) return jsonResponse({ asset_id: assetId, error: message }, 400);
+        throw e;
+      }
+    }
+
+    // ── repurpose-submit (tier-2 AI extend: pixel-preserving outpaint) ────────
+    // Dedicated action (Plan 1 D-TIER): variant-submit's input inference must
+    // not learn a third family — outpainters take singular image_url + pixel
+    // expand geometry and no prompt. The expand math runs SERVER-side from the
+    // source asset's STORED dimensions (client pixel math is never trusted).
+    if (action === 'repurpose-submit') {
+      const falKey = await getFalKey(supabaseAdmin);
+      if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
+
+      const runId = body.run_id;
+      const sourceAssetId = body.source_asset_id;
+      const targetW = typeof body.target_w === 'number' ? Math.round(body.target_w) : NaN;
+      const targetH = typeof body.target_h === 'number' ? Math.round(body.target_h) : NaN;
+      if (typeof runId !== 'string' || typeof sourceAssetId !== 'string') {
+        return jsonResponse({ error: 'run_id and source_asset_id are required' }, 400);
+      }
+      if (!Number.isFinite(targetW) || !Number.isFinite(targetH)
+        || targetW < 64 || targetW > 8192 || targetH < 64 || targetH > 8192) {
+        return jsonResponse({ error: 'target_w and target_h must be between 64 and 8192' }, 400);
+      }
+      // Only the verified outpainter runs in v1; bria/expand and ideogram
+      // reframe stay documented alternatives pending the live A/B.
+      const modelId = EXTEND_MODEL_ID;
+
+      const { data: run } = await supabaseAdmin
+        .from('omni_runs')
+        .select('id')
+        .eq('id', runId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!run) return jsonResponse({ error: 'Run not found' }, 404);
+
+      const { data: sourceAsset } = await supabaseAdmin
+        .from('omni_assets')
+        .select('id, storage_path, width, height')
+        .eq('id', sourceAssetId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      const source = sourceAsset as { storage_path: string | null; width: number | null; height: number | null } | null;
+      if (!source?.storage_path) return jsonResponse({ error: 'Source asset not found or not persisted yet' }, 400);
+      const srcW = source.width ?? 0;
+      const srcH = source.height ?? 0;
+      if (srcW < 16 || srcH < 16) {
+        return jsonResponse({ error: 'Source dimensions are unknown — reopen or re-add the source image first' }, 400);
+      }
+
+      // Expand to the TARGET ASPECT at the source's own scale; the client
+      // downscales the result to exact pixels (interior pixels untouched).
+      const srcAR = srcW / srcH;
+      const tgtAR = targetW / targetH;
+      let expandLeft = 0, expandRight = 0, expandTop = 0, expandBottom = 0;
+      if (tgtAR > srcAR) {
+        const totalW = Math.round(srcH * tgtAR);
+        const dx = totalW - srcW;
+        expandLeft = Math.floor(dx / 2);
+        expandRight = dx - expandLeft;
+      } else {
+        const totalH = Math.round(srcW / tgtAR);
+        const dy = totalH - srcH;
+        expandTop = Math.floor(dy / 2);
+        expandBottom = dy - expandTop;
+      }
+      if (expandLeft + expandRight + expandTop + expandBottom < 8) {
+        return jsonResponse({ error: 'The aspect already matches — use the free Smart crop instead' }, 400);
+      }
+
+      const sourceUrl = await signStoragePath(supabaseAdmin, source.storage_path, 60 * 60);
+      if (!sourceUrl) return jsonResponse({ error: 'Could not sign the source image' }, 500);
+
+      const { data: asset, error: assetError } = await supabaseAdmin
+        .from('omni_assets')
+        .insert({
+          user_id: userId,
+          run_id: runId,
+          parent_asset_id: sourceAssetId,
+          kind: 'image',
+          model_id: modelId,
+          prompt: null,
+          status: 'generating',
+          metadata: { source_asset_id: sourceAssetId, repurpose_tier: 'extend', target_w: targetW, target_h: targetH },
+        })
+        .select('id')
+        .single();
+      if (assetError || !asset) {
+        console.error('Omni: repurpose asset insert error:', assetError?.message);
+        return jsonResponse({ error: 'Failed to create the output record' }, 500);
+      }
+      const assetId = (asset as { id: string }).id;
+
+      try {
+        const submission = await falSubmit(falKey, modelId, {
+          image_url: sourceUrl,
+          expand_left: expandLeft,
+          expand_right: expandRight,
+          expand_top: expandTop,
+          expand_bottom: expandBottom,
+        });
+        await supabaseAdmin
+          .from('omni_assets')
+          .update({ metadata: { source_asset_id: sourceAssetId, repurpose_tier: 'extend', target_w: targetW, target_h: targetH, fal_request_id: submission.requestId } })
+          .eq('id', assetId);
+        return jsonResponse({ asset_id: assetId, request_id: submission.requestId, queue_position: submission.queuePosition });
+      } catch (e) {
+        const message = e instanceof FalUserError ? e.message : 'The extend job could not be submitted';
         await supabaseAdmin
           .from('omni_assets')
           .update({ status: 'failed', error: message })

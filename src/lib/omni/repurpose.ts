@@ -19,8 +19,10 @@ export interface RepurposeTarget {
  * gap is filled with a cover-scaled copy of the same image (no transparent bars).
  * Used by AI re-design, where the fal output already matches the target aspect
  * so the fit is near-exact and the composition is never re-cropped.
+ * 'contain-blur' = contain with the background copy blurred + darkened, killing
+ * the doubled-edge halo on visible letterbox slivers (REP-06).
  */
-export type RepurposeFit = 'cover' | 'contain';
+export type RepurposeFit = 'cover' | 'contain' | 'contain-blur';
 
 export interface RepurposeEngine {
   /** Produce a target-sized image blob from a source image URL. */
@@ -32,9 +34,9 @@ export class CanvasRepurposeEngine implements RepurposeEngine {
   async render(sourceUrl: string, target: RepurposeTarget, fit: RepurposeFit = 'cover'): Promise<Blob> {
     const source = await loadBitmap(sourceUrl);
     try {
-      const canvas = fit === 'contain'
-        ? containFit(source, target.width, target.height)
-        : coverCrop(source, target.width, target.height);
+      const canvas = fit === 'cover'
+        ? coverCrop(source, target.width, target.height)
+        : containFit(source, target.width, target.height, fit === 'contain-blur');
       return await canvasToBlob(canvas);
     } finally {
       source.close();
@@ -101,7 +103,7 @@ function coverCrop(source: ImageBitmap, dstW: number, dstH: number): HTMLCanvasE
  * Letterbox gaps are filled with a cover-scaled copy of the same image so there
  * are never transparent/black bars — ideal for AI re-designed compositions.
  */
-function containFit(source: ImageBitmap, dstW: number, dstH: number): HTMLCanvasElement {
+function containFit(source: ImageBitmap, dstW: number, dstH: number, blurBackground = false): HTMLCanvasElement {
   const out = document.createElement('canvas');
   out.width = dstW;
   out.height = dstH;
@@ -110,11 +112,15 @@ function containFit(source: ImageBitmap, dstW: number, dstH: number): HTMLCanvas
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  // Background fill: cover-scale (fills the box, crops overflow).
+  // Background fill: cover-scale (fills the box, crops overflow). Blur+darken
+  // on request so a visible sliver reads as a designed backdrop, not a
+  // doubled edge (REP-06).
   const coverScale = Math.max(dstW / source.width, dstH / source.height);
   const bgW = source.width * coverScale;
   const bgH = source.height * coverScale;
+  if (blurBackground) ctx.filter = 'blur(24px) brightness(0.72)';
   ctx.drawImage(source, (dstW - bgW) / 2, (dstH - bgH) / 2, bgW, bgH);
+  ctx.filter = 'none';
 
   // Foreground: contain-scale (whole image visible, centered).
   const fitScale = Math.min(dstW / source.width, dstH / source.height);

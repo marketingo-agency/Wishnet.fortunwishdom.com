@@ -37,6 +37,10 @@ export const FAL_PRICING: Record<string, FalPrice> = {
   'fal-ai/flux-2-pro/edit': { unitPrice: 0.03, unit: 'megapixel' },
   'fal-ai/gpt-image-1.5/edit': { unitPrice: null, unit: 'unknown' },
   'fal-ai/gemini-25-flash-image/edit': { unitPrice: 0.0398, unit: 'image' },
+  // repurposing tier 2 (AI extend — schemas verified live 2026-07-16, Plan 1 D-TIER)
+  'fal-ai/flux-2-pro/outpaint': { unitPrice: 0.03, unit: 'megapixel' },
+  'fal-ai/bria/expand': { unitPrice: 0.04, unit: 'image' },
+  'fal-ai/ideogram/v3/reframe': { unitPrice: 0.03, unit: 'image' },
 };
 
 export function getFalPrice(modelId: string): FalPrice {

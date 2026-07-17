@@ -110,9 +110,10 @@ export interface OmniRepurposedRef {
   source_asset_id: string;
   network: string;
   preset_id: string;
-  // 'redesign' = AI re-layout for the target dimension; 'crop' = free smart crop.
-  // 'ai' is the legacy outpaint-extend mode, kept for resumed older runs.
-  mode: 'crop' | 'ai' | 'redesign';
+  // 'redesign' = AI re-layout for the target dimension; 'crop' = free smart
+  // crop; 'extend' = pixel-preserving AI outpaint (subject untouched, canvas
+  // grown). 'ai' is the legacy extend mode, kept for resumed older runs.
+  mode: 'crop' | 'ai' | 'redesign' | 'extend';
 }
 
 /** A Wishpedia reference image attached to an Omni Images run for canon-accurate
