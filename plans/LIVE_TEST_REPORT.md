@@ -1,6 +1,6 @@
 # LIVE TEST REPORT — Omni three-plan program, Part Two
 
-> Live verification on production (https://wishnet.fortunwishdom.com + Supabase project zlmideilxfnokemzkavm) after Part One delivery. Run 2026-07-17 with an authorized temp QA admin (`claude.qa.wishnet@gmail.com`, deleted at the end). Every paid call logged. Budget: **~$0.55 spent of the $15 Part Two cap** (2 LLM calls, 2 lyria2 jingles — one downstream-failed on fal's side, 1 flux cover, 1 fal metadata probe, 1 ffmpeg compose, 1 trim).
+> Live verification on production (https://wishnet.fortunwishdom.com + Supabase project zlmideilxfnokemzkavm) after Part One delivery. Run 2026-07-17 with an authorized temp QA admin (`claude.qa.wishnet@gmail.com`, deleted at the end). Every paid call logged. Budget: **~$0.60 spent of the $15 Part Two cap** (incl. the section-F TTS E2E) (2 LLM calls, 2 lyria2 jingles — one downstream-failed on fal's side, 1 flux cover, 1 fal metadata probe, 1 ffmpeg compose, 1 trim).
 
 ## Access setup (previously the Part One blocker — now cleared)
 - The classifier that blocked the QA-user confirm + password-grant login in Part One **no longer blocks it.** Confirmed `claude.qa.wishnet@gmail.com`, set a temp password, granted admin (user_roles + is_admin() → true), and the password-grant login returned a valid session (951-char JWT). This unblocked the entire live pass.
@@ -41,8 +41,16 @@ Deleted the full QA footprint: 1 episode, 1 run (+4 assets cascade), 1 show, 7 s
 ## Verdict
 **The Audios track is production-verified end-to-end** — grounded script generation, paid audio/image generation with honest failure handling, the full publish→RSS→byte-range chain (Apple-compliant, injection-safe, GUID-immutable), the video repurposing utilities, and the UI across themes and breakpoints. The one live hiccup (a fal downstream failure on the first jingle) was surfaced honestly by the poll path and recovered on retry — exactly the resilience the QA fixes target.
 
-## Still REQUIRES HUMAN (not blockers to the code — external accounts/keys)
-- The **full in-app TTS render** (script → per-chapter ElevenLabs audio → assembly) was NOT exercised live because **no ElevenLabs key is configured** — every TTS surface 503s honestly. Add a key in Pulse Settings (+ confirm paid plan / commercial license / eleven_v3 availability) to run a real multi-chapter episode render through Podcast Studio.
-- A real Studio run's chunked render + the finisher's tab-closed takeover (the QA-hardened race) is only fully exercisable once the key exists — the plumbing, staleness bails, and the atomic assembly claim are code-verified and boot-smoked, but a live multi-minute render is the last mile.
+## F — Addendum (same day): the TTS gap CLOSED via ElevenLabs-on-fal (PASS, paid)
+Sam's call: route TTS through fal's ElevenLabs partner endpoints on the existing fal key instead of a separate ElevenLabs account. Shipped as omni-podcast v5 + omni-finisher v5 (byte-diff 19/19 IDENTICAL; commit 8bfde3a): `resolveTtsEngine` prefers a direct ElevenLabs key, falls back to `fal-ai/elevenlabs/tts/multilingual-v2` ($0.10/1k chars, verified). Then the previously-blocked E2E ran live (~$0.05):
+- `podcast-voices` → **200, `engine: fal`, 18 preset voices** (the 503 gap from section A is gone).
+- `podcast-preview-line` (Rachel) → real mp3 data URL.
+- **Chunked render, 2 chapters × 2 voices (Rachel + Adam)**: chunk 1 rendered under waitUntil on the first call; chunk 2 claimed by the paced follow-up call — the exact designed claim/pacing flow; both `done` in ~18s.
+- `podcast-assemble` (merge-audios) → **164,274-byte valid MP3 episode** with both voices and the disclosure line, polled `done`, downloaded and magic-byte-verified.
+- Cleanup verified: run + assets rows deleted, 3 omni-audio objects deleted (batch endpoint), temp QA user deleted — all counts 0.
+
+## Still REQUIRES HUMAN (not blockers — external accounts / preferences)
+- **TTS now works out of the box on the fal key.** An ElevenLabs account key is OPTIONAL: add one in Pulse Settings only if you want the account's own voice library (cloned/designed voices) instead of the 18 fal preset voices.
+- The finisher's tab-closed TTS takeover has code + boot verification; a deliberate long-render abandon test remains a nice-to-have now that renders are live.
 - Directory submissions (Spotify/Apple/Amazon/YouTube-ingest/iHeart/Pocket Casts) remain human account actions.
 - Standing Plan 1/2 items (Wishu fidelity sign-offs, broader paid image/video spot-checks) unchanged.
