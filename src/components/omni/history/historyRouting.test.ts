@@ -158,6 +158,49 @@ describe('runProgress', () => {
   });
 });
 
+describe('v2-stamped runs (post-flip)', () => {
+  it('routes every v2 run to the images wizard', () => {
+    expect(resolveSurfaceForRun(makeRun({ mode: 'omni_images', current_step: 3, step_state: { schema_version: 2 } }))).toBe('omni_images');
+    expect(resolveSurfaceForRun(makeRun({ mode: 'transform_upscale', current_step: 4, step_state: { schema_version: 2 } }))).toBe('omni_images');
+    expect(resolveSurfaceForRun(makeRun({ mode: 'repurposing', current_step: 4, step_state: { schema_version: 2 } }))).toBe('omni_images');
+  });
+
+  it('resumable steps are stage ordinals with stage titles', () => {
+    const run = makeRun({ mode: 'omni_images', current_step: 3, step_state: { schema_version: 2, max_step_reached: 5 } });
+    const steps = resumableStepsForRun(run);
+    expect(steps.map((s) => s.step)).toEqual([1, 2, 3, 4, 5]);
+    expect(steps[0].label).toBe('Brief');
+    expect(steps[4].label).toBe('Adapt & approve');
+  });
+
+  it('v2 transform/repurposing runs resume only in the wizard tail (stages 4+)', () => {
+    const transform = makeRun({ mode: 'transform_upscale', current_step: 6, step_state: { schema_version: 2, max_step_reached: 6 } });
+    expect(resumableStepsForRun(transform).map((s) => s.step)).toEqual([4, 5, 6]);
+    const repurpose = makeRun({ mode: 'repurposing', current_step: 4, step_state: { schema_version: 2 } });
+    expect(resumableStepsForRun(repurpose).map((s) => s.step)).toEqual([4]);
+  });
+
+  it('progress totals reflect the seven-stage flow', () => {
+    expect(runProgress(makeRun({ mode: 'omni_images', current_step: 4, step_state: { schema_version: 2 } })))
+      .toEqual({ position: 4, total: 7 });
+    // Transform: 6 own steps + the 4-stage tail.
+    expect(runProgress(makeRun({ mode: 'transform_upscale', current_step: 4, step_state: { schema_version: 2 } })))
+      .toEqual({ position: 7, total: 10 });
+    expect(runProgress(makeRun({ mode: 'repurposing', current_step: 5, step_state: { schema_version: 2 } })))
+      .toEqual({ position: 2, total: 4 });
+  });
+
+  it('v2 repurposing floor is the distribution stage', () => {
+    const run = makeRun({ mode: 'repurposing', current_step: 1, step_state: { schema_version: 2 } });
+    expect(stepReached(run)).toBe(4);
+  });
+
+  it('legacy v1 runs keep their v1 sequences untouched', () => {
+    const run = makeRun({ mode: 'repurposing', current_step: 9 });
+    expect(resumableStepsForRun(run).map((s) => s.step)).toEqual([7, 8, 9]);
+  });
+});
+
 describe('isRunFinalized', () => {
   it('flags completed and archived runs', () => {
     expect(isRunFinalized(makeRun({ mode: 'omni_images', status: 'completed' }))).toBe(true);

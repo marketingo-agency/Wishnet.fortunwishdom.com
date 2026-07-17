@@ -6,13 +6,17 @@
  */
 
 import {
-  REPURPOSING_FLOOR_STEP,
+  STAGES,
   TRANSFORM_BOUNDARY_STEP,
   V1_HANDOFF_SEQUENCE,
   V1_TRANSFORM_SEQUENCE,
   V1_TRANSFORM_STEP_TITLES,
   V1_WIZARD_SEQUENCE,
   V1_WIZARD_STEP_TITLES,
+  isV2State,
+  repurposingFloorFor,
+  stageForOrdinal,
+  stageOrdinal,
   surfaceForStep,
 } from '../stepRegistry';
 import type { WizardSurface } from '../stepRegistry';
@@ -24,18 +28,28 @@ const OMNI_IMAGES_SEQUENCE = V1_WIZARD_SEQUENCE;
 const TRANSFORM_SEQUENCE = V1_TRANSFORM_SEQUENCE;
 const HANDOFF_SEQUENCE = V1_HANDOFF_SEQUENCE;
 
+/** All seven v2 stage ordinals. */
+const V2_SEQUENCE = STAGES.map((s) => s.ordinal);
+/** The v2 tail a transform/repurposing run walks (distribution → finalize). */
+const V2_HANDOFF_ORDINALS = V2_SEQUENCE.filter((o) => o >= stageOrdinal('distribution'));
+
+const runState = (run: OmniRun): OmniImagesState => (run.step_state ?? {}) as OmniImagesState;
+
 /** Registry-backed surface resolution (kept as the module's public name). */
 export const resolveSurfaceForStep = surfaceForStep;
 
 /**
  * Run-aware resolver: a brainstorming run lives in the chat surface until its
  * idea is locked (or it has advanced past step 1), then in the wizard.
+ * A v2 stamp on a transform run only exists post-handoff, so it routes to the
+ * images wizard outright.
  */
 export function resolveSurfaceForRun(run: OmniRun): WizardSurface {
   if (run.mode === 'brainstorming') {
-    const locked = (run.step_state as OmniImagesState)?.idea_locked === true;
+    const locked = runState(run).idea_locked === true;
     return locked || run.current_step > 1 ? 'omni_images' : 'brainstorming';
   }
+  if (isV2State(runState(run))) return 'omni_images';
   return resolveSurfaceForStep(run.mode, run.current_step);
 }
 
@@ -50,14 +64,27 @@ export interface ResumableStep {
  * keeps later steps resumable; repurposing runs are clamped to their floor.
  */
 export function stepReached(run: OmniRun): number {
-  const highWater = (run.step_state as OmniImagesState)?.max_step_reached ?? 0;
+  const state = runState(run);
+  const highWater = state.max_step_reached ?? 0;
   const reached = Math.max(run.current_step, highWater);
-  return run.mode === 'repurposing' ? Math.max(reached, REPURPOSING_FLOOR_STEP) : reached;
+  return run.mode === 'repurposing' ? Math.max(reached, repurposingFloorFor(state)) : reached;
 }
 
 /** Every step of the run's effective sequence up to where it has reached. */
 export function resumableStepsForRun(run: OmniRun): ResumableStep[] {
   const reached = stepReached(run);
+
+  // v2-stamped runs live on stage ordinals; transform/repurposing v2 stamps
+  // only exist post-handoff, so their resumable range is the wizard tail.
+  if (isV2State(runState(run))) {
+    const floor = run.mode === 'transform_upscale' || run.mode === 'repurposing'
+      ? stageOrdinal('distribution')
+      : 1;
+    return V2_SEQUENCE
+      .filter((o) => o >= floor && o <= reached)
+      .map((o) => ({ step: o, label: stageForOrdinal(o).title }));
+  }
+
   let sequence: number[];
   let titles: (step: number) => string;
 
@@ -77,8 +104,23 @@ export function resumableStepsForRun(run: OmniRun): ResumableStep[] {
     .map((step) => ({ step, label: titles(step) }));
 }
 
-/** Display position of the run's current step within its sequence, e.g. 7 of 11. */
+/** Display position of the run's current step within its sequence, e.g. 4 of 7. */
 export function runProgress(run: OmniRun): { position: number; total: number } {
+  if (isV2State(runState(run))) {
+    if (run.mode === 'transform_upscale') {
+      // Post-handoff: the transform's own 6 steps precede the wizard tail.
+      const tailIdx = V2_HANDOFF_ORDINALS.indexOf(run.current_step);
+      const total = V1_TRANSFORM_SEQUENCE.length + V2_HANDOFF_ORDINALS.length;
+      return { position: tailIdx >= 0 ? V1_TRANSFORM_SEQUENCE.length + tailIdx + 1 : total, total };
+    }
+    if (run.mode === 'repurposing') {
+      const idx = V2_HANDOFF_ORDINALS.indexOf(run.current_step);
+      return { position: idx >= 0 ? idx + 1 : V2_HANDOFF_ORDINALS.length, total: V2_HANDOFF_ORDINALS.length };
+    }
+    const ordinal = Math.min(Math.max(run.current_step, 1), V2_SEQUENCE.length);
+    return { position: ordinal, total: V2_SEQUENCE.length };
+  }
+
   const reached = stepReached(run);
   const all =
     run.mode === 'transform_upscale'

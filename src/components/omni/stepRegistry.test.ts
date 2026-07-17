@@ -19,8 +19,10 @@ import {
   TRANSFORM_BOUNDARY_STEP,
   V1_STEP_TO_STAGE,
   firstIncompleteStage,
+  isPastTransformBoundary,
   migrateStepState,
   normalizeV1Step,
+  repurposingFloorFor,
   stageForLegacyStep,
   stageOrdinal,
   surfaceForStep,
@@ -81,8 +83,42 @@ describe('stepRegistry: stage definitions', () => {
     expect(V1_STEP_TO_STAGE[REPURPOSING_FLOOR_STEP]).toBe('distribution');
   });
 
-  it('the flip has not happened yet (Phase 7 exit criterion)', () => {
-    expect(ACTIVE_SCHEMA_VERSION).toBe(1);
+  it('the flip HAS happened (Phase 7 exit criterion)', () => {
+    expect(ACTIVE_SCHEMA_VERSION).toBe(2);
+  });
+});
+
+describe('stepRegistry: v2 helpers (post-flip)', () => {
+  it('repurposingFloorFor: stage 4 for v2 rows, step 7 for legacy rows', () => {
+    expect(repurposingFloorFor({ schema_version: 2 })).toBe(stageOrdinal('distribution'));
+    expect(repurposingFloorFor({})).toBe(REPURPOSING_FLOOR_STEP);
+  });
+
+  it('isPastTransformBoundary: the v2 stamp itself is the handoff signal', () => {
+    expect(isPastTransformBoundary({ schema_version: 2 }, 4)).toBe(true);
+    expect(isPastTransformBoundary({}, 3)).toBe(false);
+    expect(isPastTransformBoundary({}, 7)).toBe(true);
+  });
+
+  it('v2 jump validation: stage ordinals bounded by high-water and mode floor', () => {
+    const v2Run = makeRun({ mode: 'omni_images', current_step: 3, step_state: { schema_version: 2, max_step_reached: 5 } });
+    expect(validateJumpTarget(v2Run, 5)).toBe(5);
+    expect(validateJumpTarget(v2Run, 6)).toBeNull();
+    expect(validateJumpTarget(v2Run, 1)).toBe(1);
+    expect(validateJumpTarget(v2Run, 8)).toBeNull();
+
+    const v2Transform = makeRun({ mode: 'transform_upscale', current_step: 5, step_state: { schema_version: 2, max_step_reached: 6 } });
+    expect(validateJumpTarget(v2Transform, 4)).toBe(4);
+    expect(validateJumpTarget(v2Transform, 3)).toBeNull();
+
+    const v2Repurpose = makeRun({ mode: 'repurposing', current_step: 4, step_state: { schema_version: 2 } });
+    expect(validateJumpTarget(v2Repurpose, 4)).toBe(4);
+    expect(validateJumpTarget(v2Repurpose, 2)).toBeNull();
+  });
+
+  it('legacy jump validation still speaks v1 ints', () => {
+    const v1Run = makeRun({ mode: 'omni_images', current_step: 12 });
+    expect(validateJumpTarget(v1Run, 12)).toBe(11);
   });
 });
 

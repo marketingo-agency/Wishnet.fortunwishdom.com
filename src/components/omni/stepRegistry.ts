@@ -56,11 +56,29 @@ export function stageForOrdinal(ordinal: number): StageDef {
 }
 
 /**
- * The schema version new persists stamp into step_state. Stays 1 until the
- * Phase 7 registry flip (the wizard renders v1 ordinals until every v2 stage
- * exists). Reads must always go through migrateStepState regardless.
+ * The schema version new persists stamp into step_state. FLIPPED to 2 at the
+ * end of Phase 7: current_step now holds a STAGE ordinal (1-7) for stamped
+ * runs; legacy v1 rows migrate on read through migrateStepState and convert
+ * to v2 on their first persist.
  */
-export const ACTIVE_SCHEMA_VERSION: 1 | 2 = 1;
+export const ACTIVE_SCHEMA_VERSION: 1 | 2 = 2;
+
+/** The stage where transform/repurposing runs enter the images wizard (v2). */
+export const V2_HANDOFF_STAGE: StageId = 'distribution';
+
+/** Repurposing runs never sit below their handoff stage/step. */
+export function repurposingFloorFor(state: OmniImagesState): number {
+  return isV2State(state) ? stageOrdinal(V2_HANDOFF_STAGE) : REPURPOSING_FLOOR_STEP;
+}
+
+/**
+ * Whether a transform run has crossed into the images wizard. v2 stamps only
+ * exist post-handoff (TransformWizard never stamps its own 6 steps), so the
+ * stamp itself is the boundary signal; legacy runs keep the step-7 check.
+ */
+export function isPastTransformBoundary(state: OmniImagesState, step: number): boolean {
+  return isV2State(state) || step >= TRANSFORM_BOUNDARY_STEP;
+}
 
 // ── v1 flow knowledge (current behavior — the identity layer) ─────────────────
 
@@ -269,11 +287,26 @@ export function migrateStepState(state: OmniImagesState, rawStep: number): Migra
  * current_step. Returns the normalized step to persist, or null when the
  * target is not a legitimately resumable step for this run (beyond the
  * high-water mark, off-sequence, or below a mode floor).
+ *
+ * v2-stamped runs jump between STAGE ordinals. A post-handoff (v2) transform
+ * run only jumps within stages 4-7: its ints are stage ordinals now, so its
+ * transform-chrome steps 1-6 are no longer addressable (Retake covers redoing
+ * the transform itself).
  */
 export function validateJumpTarget(run: OmniRun, targetStep: number): number | null {
   const state = (run.step_state ?? {}) as OmniImagesState;
-  const step = normalizeV1Step(targetStep);
 
+  if (isV2State(state)) {
+    const floor = run.mode === 'transform_upscale' || run.mode === 'repurposing'
+      ? stageOrdinal(V2_HANDOFF_STAGE)
+      : 1;
+    const step = Math.trunc(targetStep);
+    if (step < floor || step > STAGES.length) return null;
+    const highWater = Math.max(run.current_step, state.max_step_reached ?? 0, floor);
+    return step <= highWater ? step : null;
+  }
+
+  const step = normalizeV1Step(targetStep);
   let sequence: readonly number[];
   if (run.mode === 'transform_upscale') {
     sequence = [...V1_TRANSFORM_SEQUENCE, ...V1_HANDOFF_SEQUENCE];

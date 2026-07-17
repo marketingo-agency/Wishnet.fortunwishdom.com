@@ -16,7 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { callContentLibrary } from '@/lib/contentLibraryApi';
 import { getAssetSignedUrl } from '@/hooks/omni';
 import type { OmniAsset, OmniImagesState, OmniRun, OmniRunStatus } from '@/hooks/omni';
-import { REPURPOSING_FLOOR_STEP, V1_TRANSFORM_RESEED_STEP } from '../stepRegistry';
+import { V1_TRANSFORM_RESEED_STEP, V2_HANDOFF_STAGE, stageOrdinal } from '../stepRegistry';
 import { isRunFinalized } from './historyRouting';
 
 export function useOmniRunsList() {
@@ -294,10 +294,11 @@ export function useRetakeRun() {
           locked_prompt: state.locked_prompt,
           generated_asset_ids: newIds,
           selected_asset_ids: newIds,
+          schema_version: 2,
         };
         const { data, error } = await supabase
           .from('omni_runs')
-          .update({ current_step: REPURPOSING_FLOOR_STEP, step_state: seed as never })
+          .update({ current_step: stageOrdinal(V2_HANDOFF_STAGE), step_state: seed as never })
           .eq('id', run.id)
           .select('*')
           .single();
@@ -314,10 +315,14 @@ export function useRetakeRun() {
           objective: state.objective,
           optimized_prompt: state.optimized_prompt,
           locked_prompt: state.locked_prompt,
+          prompt_provenance: state.prompt_provenance,
           model_selections: state.model_selections,
+          // Clones are born v2 (stage ordinal 1 = brief). Brainstorm clones
+          // keep their conversation + lock flag (HIST-03); an UNLOCKED clone
+          // stays unstamped so it keeps routing to the chat surface.
           ...(source.mode === 'brainstorming'
-            ? { messages: state.messages, idea_locked: state.idea_locked }
-            : {}),
+            ? { messages: state.messages, idea_locked: state.idea_locked, ...(state.idea_locked ? { schema_version: 2 } : {}) }
+            : { schema_version: 2 }),
         },
         1,
       );

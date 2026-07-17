@@ -4,7 +4,6 @@ export * from './useFalCatalog';
 export * from './useFalCredits';
 export * from './useOmniRuns';
 export * from './useOmniGeneration';
-export * from './useOmniDescriptions';
 export * from './useGenerateCaptions';
 export * from './useGenerationRunner';
 export * from './useTransform';

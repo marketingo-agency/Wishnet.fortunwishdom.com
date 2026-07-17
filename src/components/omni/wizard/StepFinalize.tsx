@@ -11,7 +11,9 @@ import { CheckCircle2, Library, Loader2, Maximize2 } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { useLibraryConnections } from '@/components/pulse/library/useContentLibrary';
 import { cn } from '@/lib/utils';
 import { getNetwork, getPreset, type OmniNetworkId } from '../omniNetworkPresets';
 import { getAssetSignedUrl, useFinalizeRun, type OmniRepurposedRef } from '@/hooks/omni';
@@ -26,16 +28,21 @@ interface StepFinalizeProps {
   networks: string[];
   repurposed: OmniRepurposedRef[];
   approvedAssetIds: string[];
+  /** FIN-02: inline caption edits are pushed back into run state silently. */
+  onCaptionsEdited?: (chosen: Record<string, Record<string, string>>) => void;
   onDone: () => void;
 }
 
-export function StepFinalize({ runId, defaultTitle, chosenDescription, chosenCaptions, networks, repurposed, approvedAssetIds, onDone }: StepFinalizeProps) {
+export function StepFinalize({ runId, defaultTitle, chosenDescription, chosenCaptions, networks, repurposed, approvedAssetIds, onCaptionsEdited, onDone }: StepFinalizeProps) {
   const [title, setTitle] = useState(defaultTitle);
   const [savedItemId, setSavedItemId] = useState<string | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [lightbox, setLightbox] = useState<string | null>(null);
+  // FIN-02: inline edits, keyed [source_asset_id][network], overriding state.
+  const [edited, setEdited] = useState<Record<string, Record<string, string>>>({});
   const reduceMotion = useReducedMotion();
   const finalize = useFinalizeRun();
+  const connections = useLibraryConnections();
 
   const approvedRefs = useMemo(() => {
     const approvedSet = new Set(approvedAssetIds);
@@ -43,7 +50,26 @@ export function StepFinalize({ runId, defaultTitle, chosenDescription, chosenCap
   }, [repurposed, approvedAssetIds]);
 
   const captionFor = (ref: OmniRepurposedRef) =>
-    chosenCaptions?.[ref.source_asset_id]?.[ref.network] ?? chosenDescription ?? '';
+    edited[ref.source_asset_id]?.[ref.network]
+      ?? chosenCaptions?.[ref.source_asset_id]?.[ref.network]
+      ?? chosenDescription
+      ?? '';
+
+  const editCaption = (ref: OmniRepurposedRef, text: string) => {
+    setEdited((prev) => ({
+      ...prev,
+      [ref.source_asset_id]: { ...(prev[ref.source_asset_id] ?? {}), [ref.network]: text },
+    }));
+  };
+
+  const commitEdits = () => {
+    if (Object.keys(edited).length === 0) return;
+    const merged: Record<string, Record<string, string>> = { ...(chosenCaptions ?? {}) };
+    for (const [src, nets] of Object.entries(edited)) {
+      merged[src] = { ...(merged[src] ?? {}), ...nets };
+    }
+    onCaptionsEdited?.(merged);
+  };
 
   const posts = approvedRefs.map((r) => ({ network: r.network, asset_id: r.asset_id, caption: captionFor(r) }));
 
@@ -96,6 +122,16 @@ export function StepFinalize({ runId, defaultTitle, chosenDescription, chosenCap
         <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
           {posts.length} post{posts.length === 1 ? '' : 's'} across {groups.length} network{groups.length === 1 ? '' : 's'} are ready in Pulse.
         </p>
+        {(() => {
+          const unconnected = groups.filter(({ net }) => connections.data?.[net] && !connections.data[net].connected);
+          if (unconnected.length === 0) return null;
+          return (
+            <p className="mt-2 max-w-sm text-xs text-muted-foreground">
+              Note: {unconnected.map(({ net }) => getNetwork(net as OmniNetworkId).label).join(', ')}{' '}
+              {unconnected.length === 1 ? 'is' : 'are'} not connected for publishing yet, so those posts stay in the library until connected.
+            </p>
+          );
+        })()}
         <Button onClick={onDone} className="mt-6 cursor-pointer bg-gradient-to-r from-cyan-500 to-violet-600 text-white transition-all duration-300 hover:opacity-90">
           Back to Omni Home
         </Button>
@@ -125,12 +161,25 @@ export function StepFinalize({ runId, defaultTitle, chosenDescription, chosenCap
         const Icon = network.icon;
         return (
           <section key={net} className="rounded-xl border border-border bg-card p-4">
-            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <h3 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold">
               <Icon className={cn('h-4 w-4', network.accent)} />
               {network.label}
               <span className="rounded-full border border-border px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
                 {refs.length} post{refs.length === 1 ? '' : 's'}
               </span>
+              {connections.data?.[net] && (
+                <span
+                  className={cn(
+                    'rounded-full border px-2 py-0.5 text-[10px] font-medium',
+                    connections.data[net].connected
+                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-400'
+                      : 'border-border bg-muted/50 text-muted-foreground',
+                  )}
+                  title={connections.data[net].detail}
+                >
+                  {connections.data[net].connected ? 'Publishes from Pulse' : 'Saved to library only'}
+                </span>
+              )}
             </h3>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {refs.map((ref) => {
@@ -160,7 +209,14 @@ export function StepFinalize({ runId, defaultTitle, chosenDescription, chosenCap
                       <p className="text-[11px] font-medium text-muted-foreground">
                         {preset?.label} · {preset ? `${preset.width}×${preset.height}` : ''}
                       </p>
-                      <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-xs">{caption || <span className="text-muted-foreground">No caption</span>}</p>
+                      <Textarea
+                        value={caption}
+                        onChange={(e) => editCaption(ref, e.target.value)}
+                        onBlur={commitEdits}
+                        placeholder="No caption"
+                        className="mt-1 min-h-[56px] border-transparent bg-transparent p-1 text-xs focus-visible:border-border focus-visible:ring-cyan-500/40"
+                        aria-label={`${network.label} caption`}
+                      />
                     </div>
                   </div>
                 );
