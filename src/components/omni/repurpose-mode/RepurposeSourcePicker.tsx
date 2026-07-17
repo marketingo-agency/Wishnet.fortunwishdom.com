@@ -6,7 +6,7 @@
  * the wizard's tray owns removal.
  */
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FolderOpen, Library, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -74,11 +74,19 @@ export function RepurposeSourcePicker({ selectedKeys, onAdd, onToggleOff }: Repu
     else onAdd([{ key, kind: 'files', label: row.name, row, previewUrl: filePreviews[row.id] ?? null }]);
   };
 
-  const loadFilePreview = async (row: LibraryImage) => {
-    if (filePreviews[row.id]) return;
-    const url = await getAssetSignedUrl(row.storage_path);
-    if (url) setFilePreviews((prev) => ({ ...prev, [row.id]: url }));
-  };
+  // SIB-10: previews sign in an effect as rows arrive — signing during render
+  // re-fired on every re-render while loads were in flight (setState → render
+  // → resign), issuing duplicate signed-URL round-trips per tile.
+  const signingRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const row of files.data ?? []) {
+      if (signingRef.current.has(row.id)) continue;
+      signingRef.current.add(row.id);
+      void getAssetSignedUrl(row.storage_path).then((url) => {
+        if (url) setFilePreviews((prev) => ({ ...prev, [row.id]: url }));
+      });
+    }
+  }, [files.data]);
 
   return (
     <div className="space-y-4">
@@ -96,7 +104,9 @@ export function RepurposeSourcePicker({ selectedKeys, onAdd, onToggleOff }: Repu
             className={cn(
               'flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors duration-200',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              tab === id ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300' : 'border-border text-muted-foreground hover:text-foreground',
+              tab === id
+                ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-300'
+                : 'border-border text-muted-foreground hover:text-foreground',
             )}
           >
             <Icon className="h-3.5 w-3.5" />
@@ -147,7 +157,6 @@ export function RepurposeSourcePicker({ selectedKeys, onAdd, onToggleOff }: Repu
         ) : (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {files.data!.map((row) => {
-              void loadFilePreview(row);
               const selected = selectedKeys.has(`files:${row.id}`);
               return (
                 <SourceTile

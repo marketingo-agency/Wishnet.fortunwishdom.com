@@ -110,7 +110,9 @@ export function TransformWizard({ runId, onRunCreated, onExit, onHandoffToRepurp
     const handoffOrdinal = stageOrdinal(V2_HANDOFF_STAGE);
     const nextState: OmniImagesState = {
       ...state,
-      objective: state.analysis?.description ?? state.transform_prompt ?? 'Transformed image',
+      // SIB-16: the user's own transformation intent outranks the vision
+      // pass's description when seeding the shared tail's objective.
+      objective: state.transform_prompt || state.analysis?.description || 'Transformed image',
       locked_prompt: state.transform_prompt || (state.analysis?.description ?? ''),
       schema_version: 2,
       max_step_reached: handoffOrdinal,

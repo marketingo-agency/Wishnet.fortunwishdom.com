@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BrainCircuit, Lightbulb, Lock, X } from 'lucide-react';
+import { AlertTriangle, BrainCircuit, Lightbulb, Lock, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -58,11 +58,15 @@ export function BrainstormView({ runId, onRunCreated, onLocked, onExit }: Brains
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages.length, chat.isPending]);
 
+  // SIB-15: a failed persist is non-fatal (the next one retries with the full
+  // local list) but no longer silent — the composer shows a not-saved note.
+  const [persistFailed, setPersistFailed] = useState(false);
   const persistMessages = async (targetRunId: string, next: OmniChatMessage[], state: OmniImagesState) => {
     try {
       await updateRun.mutateAsync({ runId: targetRunId, step_state: { ...state, messages: trimMessages(next) } });
+      setPersistFailed(false);
     } catch {
-      // Non-fatal: the next persist retries with the full local list.
+      setPersistFailed(true);
     }
   };
 
@@ -197,6 +201,16 @@ export function BrainstormView({ runId, onRunCreated, onLocked, onExit }: Brains
         <p className="flex shrink-0 items-center gap-1.5 px-4 pb-1 text-[10px] text-muted-foreground sm:px-6">
           <BrainCircuit className="h-3 w-3" />
           Last reply grounded in {lastRetrieval.brain_chunks} knowledge chunks under {lastRetrieval.heart_rules} Heart rules
+        </p>
+      )}
+
+      {persistFailed && (
+        <p
+          role="status"
+          className="flex shrink-0 items-center gap-1.5 px-4 pb-1 text-xs text-amber-700 [[data-omni-theme=dark]_&]:text-amber-300 sm:px-6"
+        >
+          <AlertTriangle className="h-3 w-3 shrink-0" />
+          The latest messages are not saved yet — they stay in this session and saving retries with your next message.
         </p>
       )}
 

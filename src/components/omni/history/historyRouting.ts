@@ -133,17 +133,17 @@ export function runProgress(run: OmniRun): { position: number; total: number } {
 }
 
 export const RUN_MODE_META: Record<OmniMode, { label: string; badge: string }> = {
-  omni_images: { label: 'Studio', badge: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300' },
-  transform_upscale: { label: 'Transform and Upscale', badge: 'bg-blue-500/15 text-blue-600 dark:text-blue-300' },
-  repurposing: { label: 'Images Repurposing', badge: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' },
-  surprise_me: { label: 'Surprise Me', badge: 'bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300' },
-  brainstorming: { label: 'Brainstorming', badge: 'bg-amber-500/15 text-amber-600 dark:text-amber-300' },
+  omni_images: { label: 'Studio', badge: 'bg-cyan-500/15 text-cyan-600 [[data-omni-theme=dark]_&]:text-cyan-300' },
+  transform_upscale: { label: 'Transform and Upscale', badge: 'bg-blue-500/15 text-blue-600 [[data-omni-theme=dark]_&]:text-blue-300' },
+  repurposing: { label: 'Images Repurposing', badge: 'bg-emerald-500/15 text-emerald-600 [[data-omni-theme=dark]_&]:text-emerald-300' },
+  surprise_me: { label: 'Surprise Me', badge: 'bg-fuchsia-500/15 text-fuchsia-600 [[data-omni-theme=dark]_&]:text-fuchsia-300' },
+  brainstorming: { label: 'Brainstorming', badge: 'bg-amber-500/15 text-amber-600 [[data-omni-theme=dark]_&]:text-amber-300' },
 };
 
 export const RUN_STATUS_META: Record<string, { label: string; badge: string }> = {
-  active: { label: 'In progress', badge: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300' },
-  completed: { label: 'Completed', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
-  failed: { label: 'Failed', badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+  active: { label: 'In progress', badge: 'bg-sky-100 text-sky-700 [[data-omni-theme=dark]_&]:bg-sky-900/40 [[data-omni-theme=dark]_&]:text-sky-300' },
+  completed: { label: 'Completed', badge: 'bg-emerald-100 text-emerald-700 [[data-omni-theme=dark]_&]:bg-emerald-900/40 [[data-omni-theme=dark]_&]:text-emerald-300' },
+  failed: { label: 'Failed', badge: 'bg-red-100 text-red-700 [[data-omni-theme=dark]_&]:bg-red-900/40 [[data-omni-theme=dark]_&]:text-red-300' },
   archived: { label: 'Archived', badge: 'bg-muted text-muted-foreground' },
 };
 

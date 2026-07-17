@@ -72,7 +72,9 @@ export function TStepSource({ createRunIfNeeded, onSourceReady }: TStepSourcePro
             className={cn(
               'flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors duration-200',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              tab === id ? 'border-blue-500/60 bg-blue-500/10 text-blue-300' : 'border-border text-muted-foreground hover:text-foreground',
+              tab === id
+                ? 'border-blue-500/60 bg-blue-500/10 text-blue-700 [[data-omni-theme=dark]_&]:text-blue-300'
+                : 'border-border text-muted-foreground hover:text-foreground',
             )}
           >
             <Icon className="h-3.5 w-3.5" />

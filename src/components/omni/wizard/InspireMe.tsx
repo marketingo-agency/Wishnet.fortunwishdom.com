@@ -87,6 +87,11 @@ export function InspireMe({ onPick, disabled }: InspireMeProps) {
             {mine.isError && !mine.isPending && (
               <div className="flex flex-col items-center gap-3 py-14 text-center">
                 <p className="max-w-xs text-sm text-destructive">{mine.error.message}</p>
+                {/* SIB-17: name the two sampled sources so an empty-knowledge
+                    failure points at the actual fix. */}
+                <p className="max-w-xs text-xs text-muted-foreground">
+                  Ideas are mined from your indexed Brain documents and Wishpedia entries — both need content for sampling to work.
+                </p>
                 <Button variant="outline" size="sm" onClick={handleMine} className="cursor-pointer gap-1.5">
                   <RefreshCw className="h-3.5 w-3.5" /> Try again
                 </Button>

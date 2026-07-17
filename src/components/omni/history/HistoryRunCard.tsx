@@ -126,14 +126,14 @@ export function HistoryRunCard({ run, thumbs, clonedFromTitle, selected, busy: e
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <Badge className={cn('border-0 px-1.5 py-0 text-[10px] font-semibold', modeMeta.badge)}>{modeMeta.label}</Badge>
             {state.origin === 'character_studio' && (
-              <Badge className="border-0 bg-fuchsia-500/15 px-1.5 py-0 text-[10px] font-semibold text-fuchsia-600 dark:text-fuchsia-300">
+              <Badge className="border-0 bg-fuchsia-500/15 px-1.5 py-0 text-[10px] font-semibold text-fuchsia-600 [[data-omni-theme=dark]_&]:text-fuchsia-300">
                 Character Studio
               </Badge>
             )}
             <Badge className={cn('border-0 px-1.5 py-0 text-[10px] font-semibold', statusMeta.badge)}>{statusMeta.label}</Badge>
             {isRetake && (
               <Badge
-                className="border-0 bg-violet-500/15 px-1.5 py-0 text-[10px] font-semibold text-violet-600 dark:text-violet-300"
+                className="border-0 bg-violet-500/15 px-1.5 py-0 text-[10px] font-semibold text-violet-600 [[data-omni-theme=dark]_&]:text-violet-300"
                 title={clonedFromTitle ? `Cloned from "${clonedFromTitle}"` : 'Cloned from a deleted run'}
               >
                 Retake{clonedFromTitle ? ` of ${clonedFromTitle}` : ''}
@@ -141,7 +141,7 @@ export function HistoryRunCard({ run, thumbs, clonedFromTitle, selected, busy: e
             )}
             {thumbs?.estCost != null && (
               <Badge
-                className="border-0 bg-amber-500/15 px-1.5 py-0 text-[10px] font-semibold text-amber-700 dark:text-amber-300"
+                className="border-0 bg-amber-500/15 px-1.5 py-0 text-[10px] font-semibold text-amber-700 [[data-omni-theme=dark]_&]:text-amber-300"
                 title="Estimated fal.ai spend for this run's generated images"
               >
                 ~{formatUsd(thumbs.estCost)}{thumbs.hasUnknownCost ? '+' : ''}
@@ -231,7 +231,7 @@ export function HistoryRunCard({ run, thumbs, clonedFromTitle, selected, busy: e
                   'cursor-pointer rounded-full border px-2.5 py-1 text-[11px] transition-colors duration-200',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
                   step === run.current_step
-                    ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-600 dark:text-cyan-300'
+                    ? 'border-cyan-500/60 bg-cyan-500/10 text-cyan-600 [[data-omni-theme=dark]_&]:text-cyan-300'
                     : 'border-border text-muted-foreground hover:text-foreground',
                 )}
               >
