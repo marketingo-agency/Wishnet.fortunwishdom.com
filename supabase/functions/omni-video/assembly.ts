@@ -8,8 +8,8 @@
  *  2. Audio: VO and/or music. compose does NOT clip media to keyframe
  *     duration (probe verdict), so a music bed longer than the timeline is
  *     PRE-TRIMMED (or dropped, honestly noted) before mixing.
- *  3. loudnorm (EBU R128) on the final.
- *  4. Persist + best-effort thumbnail via extract-frame.
+ *  3. Persist + best-effort thumbnail via extract-frame. (fal loudnorm is
+ *     audio-only - probe-verified - so no loudness master is applied v1.)
  */
 
 import type { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
@@ -126,17 +126,14 @@ export async function assembleRun(p: AssembleParams): Promise<void> {
       if (!currentUrl) throw new Error('merge-audio-video returned no output');
     }
 
-    // 3. Loudness normalization.
-    try {
-      const normalized = await runFalStep(falKey, 'fal-ai/ffmpeg-api/loudnorm', { media_url: currentUrl });
-      const url = mediaUrlFrom(normalized);
-      if (url) currentUrl = url;
-      else notes.push('loudnorm skipped (no output)');
-    } catch {
-      notes.push('loudnorm skipped (step failed)');
-    }
+    // Loudness normalization is NOT applied: fal's loudnorm is audio-only
+    // (probe-verified 2026-07-17 - a video input can only come back as audio),
+    // so the old step always fell into its silent-skip catch. Scene engines
+    // render at consistent levels; a video-capable master is a VPS-ffmpeg
+    // future item.
+    notes.push('loudness normalization not applied (no video-capable loudnorm on fal)');
 
-    // 4. Persist the final + best-effort thumbnail.
+    // 3. Persist the final + best-effort thumbnail.
     const persisted = await persistFalVideo(supabaseAdmin, p.ownerId, p.runId, assetId, currentUrl, 'video/mp4');
     let thumbPath: string | null = null;
     try {
