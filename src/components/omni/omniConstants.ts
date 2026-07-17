@@ -260,8 +260,8 @@ export const OMNI_AUDIO_MODES: OmniAudioModeDef[] = [
     description: 'Define the voices of your shows: personality, speaking style, an ElevenLabs voice with preview, and an AI portrait or a Wishpedia character.',
     icon: Mic,
     accent: 'text-amber-400',
-    available: false,
-    availabilityNote: 'Lands in Phase 4',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'podcast_video',

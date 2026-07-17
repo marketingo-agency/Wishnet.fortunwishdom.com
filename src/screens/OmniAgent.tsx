@@ -29,6 +29,7 @@ import { HistoryView } from '@/components/omni/history/HistoryView';
 import { BrainstormView } from '@/components/omni/brainstorm/BrainstormView';
 import { VideosHub } from '@/components/omni/VideosHub';
 import { AudiosHub } from '@/components/omni/AudiosHub';
+import { CastPersonasView } from '@/components/omni/cast/CastPersonasView';
 import { ScenarioWizard } from '@/components/omni/scenario/ScenarioWizard';
 import { VideoStudioWizard } from '@/components/omni/video-studio/VideoStudioWizard';
 import { ClipsWizard } from '@/components/omni/clips/ClipsWizard';
@@ -54,7 +55,7 @@ type VideosMode = 'hub' | 'history' | 'video_scenario' | 'omni_videos' | 'video_
 type AudiosMode = 'hub' | 'history' | 'podcast_scenario' | 'omni_podcast' | 'cast_personas' | 'podcast_video' | 'publish_feed';
 /** Audio surfaces accepted from the URL — widened as each phase ships its
  *  wizard (a deep link to an unbuilt surface must land on the hub, not blank). */
-const BUILT_AUDIO_SURFACES: AudiosMode[] = ['history'];
+const BUILT_AUDIO_SURFACES: AudiosMode[] = ['history', 'cast_personas'];
 
 export default function OmniAgent() {
   const router = useRouter();
@@ -328,6 +329,10 @@ export default function OmniAgent() {
                     // Other mode surfaces ship phase by phase (cards are inert until then).
                   }}
                 />
+              )}
+
+              {view === 'audios' && audiosMode === 'cast_personas' && (
+                <CastPersonasView onExit={() => openAudiosMode('hub')} />
               )}
 
               {view === 'audios' && audiosMode === 'history' && (
