@@ -19,17 +19,25 @@ export const DEFAULT_OMNI_SETTINGS: OmniSettings = {
 /** The four entry tracks on the Omni home screen. */
 export type OmniTrack = 'brainstorming' | 'images' | 'audios' | 'videos';
 
-/** Workflow modes persisted in omni_runs.mode (Images track sequences). */
+/** Workflow modes persisted in omni_runs.mode (Images + Videos tracks — the
+ *  DB CHECK was widened with the five video modes in migration 20260717050000). */
 export type OmniMode =
   | 'omni_images'
   | 'transform_upscale'
   | 'repurposing'
   | 'surprise_me'
-  | 'brainstorming';
+  | 'brainstorming'
+  | 'video_scenario'
+  | 'omni_videos'
+  | 'video_clips'
+  | 'video_animate'
+  | 'video_repurpose';
 
 export type OmniRunStatus = 'active' | 'completed' | 'failed' | 'archived';
 
-export type OmniAssetStatus = 'pending' | 'generating' | 'done' | 'failed' | 'discarded';
+/** 'persisting' = the D-V7 compare-and-set claim taken by whichever of
+ *  client-poll / finisher wins the persist race (video assets). */
+export type OmniAssetStatus = 'pending' | 'generating' | 'persisting' | 'done' | 'failed' | 'discarded';
 
 export interface OmniRun {
   id: string;
@@ -181,6 +189,30 @@ export interface OmniImagesState {
    *  runs pre-seeded from a Wishpedia entry (no new mode, no migration). */
   origin?: 'character_studio';
   character_entry_id?: string;
+  /** Video-family schema stamp (Plan 2 D-V1). Independent of the images
+   *  schema_version: video modes are born at video_schema_version 1 and
+   *  current_step holds their own stage ordinal from day one. */
+  video_schema_version?: number;
+  /** Video pre-production artifact (Plan 2 D-V2). */
+  scenario?: OmniVideoScenario;
+}
+
+// ── Videos track (Plan 2 D-V2) ────────────────────────────────────────────────
+
+export interface OmniScenarioScene {
+  idx: number;
+  visual_prompt: string;
+  narration: string;
+  duration_s: number;
+  camera?: string;
+  keyframe_asset_id?: string;
+  clip_asset_id?: string;
+  hero_asset_id?: string;
+}
+
+export interface OmniVideoScenario {
+  title: string;
+  scenes: OmniScenarioScene[];
 }
 
 // ── Brainstorming (Mode 6) ───────────────────────────────────────────────────

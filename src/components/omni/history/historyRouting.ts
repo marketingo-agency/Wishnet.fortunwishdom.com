@@ -138,6 +138,12 @@ export const RUN_MODE_META: Record<OmniMode, { label: string; badge: string }> =
   repurposing: { label: 'Images Repurposing', badge: 'bg-emerald-500/15 text-emerald-600 [[data-omni-theme=dark]_&]:text-emerald-300' },
   surprise_me: { label: 'Surprise Me', badge: 'bg-fuchsia-500/15 text-fuchsia-600 [[data-omni-theme=dark]_&]:text-fuchsia-300' },
   brainstorming: { label: 'Brainstorming', badge: 'bg-amber-500/15 text-amber-600 [[data-omni-theme=dark]_&]:text-amber-300' },
+  // Videos track (Plan 2) — runs appear once the hub ships (Phase 3).
+  video_scenario: { label: 'Scenario Studio', badge: 'bg-violet-500/15 text-violet-600 [[data-omni-theme=dark]_&]:text-violet-300' },
+  omni_videos: { label: 'Video Studio', badge: 'bg-purple-500/15 text-purple-600 [[data-omni-theme=dark]_&]:text-purple-300' },
+  video_clips: { label: 'Clips', badge: 'bg-rose-500/15 text-rose-600 [[data-omni-theme=dark]_&]:text-rose-300' },
+  video_animate: { label: 'Animate', badge: 'bg-indigo-500/15 text-indigo-600 [[data-omni-theme=dark]_&]:text-indigo-300' },
+  video_repurpose: { label: 'Repurpose & Enhance', badge: 'bg-teal-500/15 text-teal-600 [[data-omni-theme=dark]_&]:text-teal-300' },
 };
 
 export const RUN_STATUS_META: Record<string, { label: string; badge: string }> = {

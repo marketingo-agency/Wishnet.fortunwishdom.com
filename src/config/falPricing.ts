@@ -10,11 +10,15 @@
 import { specToPixels } from './falSpecs';
 import type { OmniModelSelection, OmniVariantSpec } from '@/hooks/omni';
 
-export type FalPriceUnit = 'image' | 'megapixel' | 'unknown';
+export type FalPriceUnit = 'image' | 'megapixel' | 'second' | 'generation' | 'unknown';
 
 export interface FalPrice {
   unitPrice: number | null;
   unit: FalPriceUnit;
+  /** Unit-priced models (Seedance/Hailuo-class "units") whose real $ is not
+   *  derivable from the API — the UI renders "≈, verify" until a live
+   *  dashboard calibration replaces the estimate (Plan 2 D-V9). */
+  calibrate?: boolean;
 }
 
 export const FAL_PRICING: Record<string, FalPrice> = {
@@ -41,7 +45,43 @@ export const FAL_PRICING: Record<string, FalPrice> = {
   'fal-ai/flux-2-pro/outpaint': { unitPrice: 0.03, unit: 'megapixel' },
   'fal-ai/bria/expand': { unitPrice: 0.04, unit: 'image' },
   'fal-ai/ideogram/v3/reframe': { unitPrice: 0.03, unit: 'image' },
+  // ── Videos track (Plan 2 §1.1/1.2, live-priced 2026-07-16) ──────────────────
+  // generation
+  'fal-ai/kling-video/v3/pro/text-to-video': { unitPrice: 0.14, unit: 'second' },
+  'fal-ai/kling-video/v3/pro/image-to-video': { unitPrice: 0.14, unit: 'second' },
+  'fal-ai/veo3.1': { unitPrice: 0.4, unit: 'second' },
+  'fal-ai/veo3.1/fast': { unitPrice: 0.15, unit: 'second' },
+  'fal-ai/veo3.1/first-last-frame-to-video': { unitPrice: 0.4, unit: 'second' },
+  'bytedance/seedance-2.0/text-to-video': { unitPrice: 0.014, unit: 'unknown', calibrate: true },
+  'bytedance/seedance-2.0/image-to-video': { unitPrice: 0.014, unit: 'unknown', calibrate: true },
+  'fal-ai/ltx-2.3/text-to-video': { unitPrice: 0.08, unit: 'second' },
+  'fal-ai/ltx-2.3/text-to-video/fast': { unitPrice: 0.06, unit: 'second' },
+  'fal-ai/longcat-video/text-to-video/720p': { unitPrice: 0.04, unit: 'second' },
+  // post / assembly
+  'fal-ai/ltx-2.3/reframe': { unitPrice: 0.1, unit: 'second' },
+  'fal-ai/topaz/upscale/video': { unitPrice: 0.01, unit: 'second' },
+  'fal-ai/film/video': { unitPrice: 0.0013, unit: 'second' },
+  'fal-ai/ffmpeg-api/compose': { unitPrice: 0.0002, unit: 'second' },
+  'fal-ai/ffmpeg-api/merge-videos': { unitPrice: 0.0002, unit: 'second' },
+  'fal-ai/ffmpeg-api/merge-audio-video': { unitPrice: 0.0002, unit: 'second' },
+  'fal-ai/mmaudio-v2': { unitPrice: 0.001, unit: 'second' },
+  // lipsync
+  'fal-ai/latentsync': { unitPrice: 0.005, unit: 'second' },
+  'fal-ai/sync-lipsync/v3': { unitPrice: 8 / 60, unit: 'second' },
+  // audio beds ($0.10 per ~30s generation)
+  'fal-ai/lyria2': { unitPrice: 0.1, unit: 'generation' },
 };
+
+/** Estimated cost of a per-second-priced fal job (Plan 2 D-V9). Returns null
+ *  for opaque/calibratable pricing so the UI shows "≈, verify" instead of a
+ *  fabricated number. */
+export function estimateSecondsCost(modelId: string, seconds: number): number | null {
+  const price = getFalPrice(modelId);
+  if (price.unitPrice == null || price.calibrate) return null;
+  if (price.unit === 'second') return price.unitPrice * Math.max(0, seconds);
+  if (price.unit === 'generation') return price.unitPrice;
+  return null;
+}
 
 export function getFalPrice(modelId: string): FalPrice {
   return FAL_PRICING[modelId] ?? { unitPrice: null, unit: 'unknown' };
@@ -123,7 +163,7 @@ export function estimateAssetsCost(assets: AssetCostInput[]): { total: number; h
     if (!a.model_id) continue;
     if (a.status !== 'done' && a.status !== 'discarded') continue;
     const price = getFalPrice(a.model_id);
-    if (price.unitPrice == null) {
+    if (price.unitPrice == null || price.calibrate) {
       hasUnknown = true;
       continue;
     }
@@ -131,11 +171,17 @@ export function estimateAssetsCost(assets: AssetCostInput[]): { total: number; h
       total += price.unitPrice;
       continue;
     }
-    if (a.width && a.height) {
-      total += price.unitPrice * ((a.width * a.height) / 1_000_000);
-    } else {
-      hasUnknown = true;
+    if (price.unit === 'megapixel') {
+      if (a.width && a.height) {
+        total += price.unitPrice * ((a.width * a.height) / 1_000_000);
+      } else {
+        hasUnknown = true;
+      }
+      continue;
     }
+    // second / generation / unknown: duration-priced assets need their own
+    // helper (estimateSecondsCost) — never guess from pixel dims.
+    hasUnknown = true;
   }
   return { total, hasUnknown };
 }
