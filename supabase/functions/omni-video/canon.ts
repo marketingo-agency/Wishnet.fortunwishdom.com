@@ -3,7 +3,7 @@
  *
  * The Wishu fix: a brief that mentions a Wishpedia character by name gets that
  * character resolved DETERMINISTICALLY (word-boundary name match against
- * wishpedia_entries — no embeddings, works on any key config), its canon
+ * wishpedia_entries - no embeddings, works on any key config), its canon
  * reference images fetched, the scenario LLM constrained to the resolved cast,
  * and every downstream keyframe anchored on the real art. No manual uploads.
  */
@@ -17,7 +17,7 @@ export interface CanonCharacter {
   entry_id: string;
   name: string;
   description: string;
-  /** wishpedia_entry_images ids (primary first) — the canon references. */
+  /** wishpedia_entry_images ids (primary first) - the canon references. */
   image_ids: string[];
 }
 
