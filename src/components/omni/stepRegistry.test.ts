@@ -432,7 +432,10 @@ describe('stepRegistry: video mode registry (D-V1)', () => {
     expect(VIDEO_MODES.podcast_scenario.stages.map((s) => s.id)).toEqual(['show_brief', 'outline', 'script', 'cast_handoff']);
     expect(VIDEO_MODES.omni_podcast.stages.map((s) => s.id)).toEqual(['script_in', 'cast', 'render', 'package', 'finalize']);
     expect(VIDEO_MODES.podcast_video.stages.map((s) => s.id)).toEqual(['source', 'treatment', 'generate', 'finalize']);
-    for (const id of ['podcast_scenario', 'omni_podcast', 'podcast_video'] as const) {
+    // podcast_scenario shipped in Phase 5 (all 4 stages); the rest stay clamped.
+    expect(VIDEO_MODES.podcast_scenario.builtThrough).toBe(4);
+    expect(clampToBuilt('podcast_scenario', 5)).toBe(4);
+    for (const id of ['omni_podcast', 'podcast_video'] as const) {
       expect(VIDEO_MODES[id].builtThrough).toBe(0);
       expect(clampToBuilt(id, 5)).toBe(1);
     }

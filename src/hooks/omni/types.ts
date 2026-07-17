@@ -222,6 +222,40 @@ export interface OmniImagesState {
   animate_script?: string;
   animate_voice_id?: string;
   animate_vo_asset_id?: string;
+  /** Audios track (Plan 3 D-A1/D-A3). */
+  podcast_show_id?: string;
+  podcast_brief?: OmniPodcastBrief;
+  podcast_outline?: OmniPodcastOutline;
+  /** Chapter idx (as string key) -> generated/edited segments. */
+  podcast_script?: Record<string, OmniPodcastSegment[]>;
+  /** Speaker label -> persona id (seeded from the show's default cast). */
+  podcast_cast?: Record<string, string>;
+  /** Provenance: the podcast_scenario run a Studio run was seeded from. */
+  podcast_source_run_id?: string;
+}
+
+export interface OmniPodcastBrief {
+  brief: string;
+  source_url?: string;
+  pasted_text?: string;
+  target_minutes: number;
+}
+
+export interface OmniPodcastChapter {
+  idx: number;
+  title: string;
+  summary: string;
+  minutes: number;
+}
+
+export interface OmniPodcastOutline {
+  title: string;
+  chapters: OmniPodcastChapter[];
+}
+
+export interface OmniPodcastSegment {
+  speaker: string;
+  text: string;
 }
 
 export interface OmniAnimateRef {

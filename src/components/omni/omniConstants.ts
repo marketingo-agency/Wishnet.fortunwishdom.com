@@ -242,8 +242,8 @@ export const OMNI_AUDIO_MODES: OmniAudioModeDef[] = [
     description: 'Pre-production: topic, URL, or Brain knowledge to a chaptered outline and a full multi-speaker script, ready to seed Podcast Studio.',
     icon: NotebookPen,
     accent: 'text-orange-400',
-    available: false,
-    availabilityNote: 'Lands in Phase 5',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'omni_podcast',

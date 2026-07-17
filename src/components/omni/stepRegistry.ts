@@ -442,7 +442,8 @@ export const VIDEO_MODES: Record<WizardModeId, VideoModeDef> = {
   // -- Audios track (Plan 3 D-A1; builtThrough rises phase by phase) --------
   podcast_scenario: {
     mode: 'podcast_scenario',
-    builtThrough: 0,
+    // Phase 5: all four stages live.
+    builtThrough: 4,
     stages: videoStages([
       ['show_brief', 'Show & brief'],
       ['outline', 'Outline'],
@@ -529,9 +530,9 @@ export function surfaceForRunMode(mode: OmniMode, step: number): AnyWizardSurfac
 export function validateJumpTarget(run: OmniRun, targetStep: number): number | null {
   const state = (run.step_state ?? {}) as OmniImagesState;
 
-  // Video-family runs jump within their own mode sequence, clamped to the
-  // built range (interim-terminal rule) and the run's high-water mark.
-  if (isVideoMode(run.mode)) {
+  // Video- and audio-family runs jump within their own mode sequence, clamped
+  // to the built range (interim-terminal rule) and the run's high-water mark.
+  if (isVideoMode(run.mode) || isAudioMode(run.mode)) {
     const def = VIDEO_MODES[run.mode];
     const step = Math.trunc(targetStep);
     if (step < 1 || step > def.stages.length) return null;
