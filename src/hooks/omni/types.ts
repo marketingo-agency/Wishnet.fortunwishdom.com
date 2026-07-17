@@ -310,11 +310,25 @@ export interface OmniScenarioScene {
   keyframe_asset_id?: string;
   clip_asset_id?: string;
   hero_asset_id?: string;
+  /** Canon character names in this scene (Phase 4: server-validated against
+   *  the resolved Wishpedia cast — never invented). */
+  characters?: string[];
+}
+
+/** A resolved Wishpedia character (Phase 4 canon grounding). */
+export interface OmniCanonCharacter {
+  entry_id: string;
+  name: string;
+  description: string;
+  /** wishpedia_entry_images ids — the canon reference art. */
+  image_ids: string[];
 }
 
 export interface OmniVideoScenario {
   title: string;
   scenes: OmniScenarioScene[];
+  /** The resolved canon cast (present when any character matched). */
+  cast?: OmniCanonCharacter[];
 }
 
 // ── Brainstorming (Mode 6) ───────────────────────────────────────────────────

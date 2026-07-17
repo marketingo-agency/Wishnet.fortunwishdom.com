@@ -10,9 +10,24 @@
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { callOmni, callOmniVideo } from '@/lib/omniApi';
-import type { OmniVideoScenario, VariantPollResult } from './types';
+import type { OmniScenarioScene, OmniVideoScenario, VariantPollResult } from './types';
 
 export const KEYFRAME_MODEL = 'fal-ai/flux/schnell';
+/** Canon scenes render keyframes on the proven edit model with the character's
+ *  Wishpedia reference art attached (Phase 4 — the Wishu fix). */
+export const CANON_KEYFRAME_MODEL = 'fal-ai/nano-banana-pro/edit';
+const MAX_KEYFRAME_REFS = 8;
+
+/** Canon reference image ids for a scene (its characters' Wishpedia art). */
+export function canonRefsForScene(scenario: OmniVideoScenario, scene: OmniScenarioScene): string[] {
+  if (!scene.characters?.length || !scenario.cast?.length) return [];
+  const refs: string[] = [];
+  for (const name of scene.characters) {
+    const member = scenario.cast.find((c) => c.name === name);
+    if (member) refs.push(...member.image_ids);
+  }
+  return [...new Set(refs)].slice(0, MAX_KEYFRAME_REFS);
+}
 
 export interface ScenarioGenerateInput {
   brief?: string;
@@ -34,15 +49,26 @@ export function useGenerateScenario() {
   });
 }
 
-/** Submit one keyframe generation for a scene (cheap image model, 16:9). */
-export async function submitKeyframe(runId: string, visualPrompt: string, camera?: string): Promise<string> {
+/** Submit one keyframe generation for a scene (16:9). Scenes WITH canon
+ *  characters run on the edit model with their Wishpedia reference images
+ *  attached (server-resolved ids, canon-anchor auto-injected by the omni
+ *  edge); cast-less scenes stay on the cheap draft model. */
+export async function submitKeyframe(
+  runId: string,
+  visualPrompt: string,
+  camera?: string,
+  canonRefIds: string[] = [],
+): Promise<string> {
   const prompt = `${visualPrompt}${camera ? `, ${camera} camera` : ''}, cinematic still frame, high detail`;
+  const hasRefs = canonRefIds.length > 0;
   const res = await callOmni<{ asset_id: string }>('variant-submit', {
     run_id: runId,
-    model_id: KEYFRAME_MODEL,
+    model_id: hasRefs ? CANON_KEYFRAME_MODEL : KEYFRAME_MODEL,
     prompt,
     prompt_provenance: 'raw',
-    spec: { imageSize: 'landscape_16_9' },
+    ...(hasRefs
+      ? { reference_image_ids: canonRefIds.slice(0, MAX_KEYFRAME_REFS), spec: { aspectRatio: '16:9' } }
+      : { spec: { imageSize: 'landscape_16_9' } }),
   });
   return res.asset_id;
 }

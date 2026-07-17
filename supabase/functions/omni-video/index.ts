@@ -23,6 +23,7 @@ import {
   HARD_MAX_BYTES, IN_REQUEST_MAX_BYTES, claimForPersist, isFalMediaHost, persistFalVideo, signVideoPath,
 } from './persist.ts';
 import { fetchUrlText, generateScenario } from './scenario.ts';
+import { resolveCanonCharacters, unionCast } from './canon.ts';
 import { findFalModel } from '../omni/fal-catalog.ts';
 import { renderVoiceover, type VoiceoverLine } from './audio.ts';
 import { listVoices, resolveTtsEngine } from '../_shared/elevenlabs.ts';
@@ -780,15 +781,36 @@ Deno.serve(async (req: Request) => {
       const knowledge = openaiKey
         ? await retrieveKnowledge(supabaseAdmin, openaiKey, brief || sourceText.slice(0, 600))
         : [];
+      // Phase 4 canon resolution: deterministic name match over the INPUT
+      // (works on any key config - no embeddings needed).
+      const inputCast = await resolveCanonCharacters(supabaseAdmin, `${brief}\n${sourceText.slice(0, 6000)}`);
 
       try {
         const scenario = await generateScenario({
           provider, model, keys: { openaiKey, geminiKey },
-          heartRules, knowledge,
+          heartRules, knowledge, cast: inputCast,
           brief: brief || 'Derive the brief from the source material.',
           sourceText, targetScenes, secondsPerScene,
         });
-        return jsonResponse({ scenario, retrieval: { brain_chunks: knowledge.length, heart_rules: heartRules.length } });
+        // Second pass over the OUTPUT: characters the LLM surfaced from the
+        // knowledge chunks (e.g. the brief said "our mascot") still get their
+        // canon references attached for keyframes.
+        const outputCast = await resolveCanonCharacters(
+          supabaseAdmin,
+          `${scenario.title}\n${scenario.scenes.map((s) => s.visual_prompt).join('\n')}`,
+        );
+        const cast = unionCast(inputCast, outputCast);
+        // The deterministic tag pass for output-resolved names (generateScenario
+        // could only tag input-cast names).
+        for (const scene of scenario.scenes) {
+          const hay = ` ${scene.visual_prompt.toLowerCase()} `;
+          const found = cast.filter((c) => hay.includes(c.name.toLowerCase())).map((c) => c.name);
+          if (found.length > 0) scene.characters = [...new Set([...(scene.characters ?? []), ...found])];
+        }
+        return jsonResponse({
+          scenario: { ...scenario, cast },
+          retrieval: { brain_chunks: knowledge.length, heart_rules: heartRules.length, canon_characters: cast.length },
+        });
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Scenario generation failed';
         console.error('omni-video: scenario error:', message);
