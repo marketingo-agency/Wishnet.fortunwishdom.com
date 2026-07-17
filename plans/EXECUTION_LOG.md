@@ -35,7 +35,11 @@
 - CLI unauthenticated → MCP deploys with byte-diff readback protocol (mission STEP 0.3 authorizes this deviation from the plans' CLI preference).
 
 ## Probe results
-(pending — Plan 1 Phase 0)
+### Plan 2 Phase 0 (2026-07-17, via fal-ai MCP on Sam's key — paid calls logged in Budget)
+- **Edge worker ceiling (docs, load-bearing for D-V7/D-V8):** wall clock 400s on paid plans (waitUntil bounded by the same 400s), memory 256MB, CPU 2s/request, request-idle timeout 150s (504 if no response). Confirms: VO renders fit waitUntil; video renders NEVER wait in-request; ≤50MB in-request persist threshold is safe against the 256MB isolate (arrayBuffer + upload copy ≈ 2-3× file size).
+- **Seedance 2.0 t2v schema (re-verified live):** duration enum "4".."15"|"auto" (STRINGS), resolution 480p|720p|1080p|4k, aspect auto|21:9|16:9|4:3|1:1|3:4|9:16, generate_audio bool (no cost delta per schema note), bitrate_mode standard|high. Queue URLs confirmed at 2-segment app id (bytedance/seedance-2.0).
+- Probe A (calibration + retention + compose input): request 019f6ded-7910… (4s 480p 16:9). Probe B (compose mismatch input): request 019f6ded-8459… (4s 480p 9:16). Results pending.
+- Unit-count calibration caveat: the stored fal key is API-scope (no billing read — proven 2026-06-14), and queue results don't carry billed units → if the result payload lacks billing info, real-$ calibration goes to REQUIRES HUMAN (fal dashboard usage page) and `calibrate:true` stays on Seedance pricing rows.
 
 ## REQUIRES HUMAN (accumulating)
 1. **Confirm the QA user for Part Two** (one click): Dashboard → Authentication → Users → confirm `claude.qa.wishnet@gmail.com` (id 4867c456…) + grant admin (2026-05-21 audit pattern). Delete the user + test data after Part Two.
@@ -44,7 +48,10 @@
 4. **Token hygiene**: no new tokens were pasted this program (MCP-authenticated deploys); nothing to rotate so far.
 
 ## Budget spent
-- Part One cap: $15. Spent: $0.00.
+- Part One cap: $15. **Spent: ~$0.11 estimated** (pending Seedance unit calibration):
+  - 2026-07-17 Plan2/P0 probe A: Seedance 2.0 t2v 4s 480p 16:9 — $0.014/unit, units unknown (est ~$0.05)
+  - 2026-07-17 Plan2/P0 probe B: Seedance 2.0 t2v 4s 480p 9:16 — est ~$0.05
+  - (compose/merge probes to follow: ~$0.001 each; lyria2 music bed if needed: $0.10)
 
 ## Open issues
 - **QA-admin provisioning blocked (2026-07-16, updated 07-17):** PROGRESS: GoTrue signup retry SUCCEEDED — QA user `claude.qa.wishnet@gmail.com` now EXISTS (id `4867c456-57d7-4308-8f50-2f119518956c`), status unconfirmed. Classifier still denies BOTH the `UPDATE auth.users SET email_confirmed_at` and even the password-grant login curl. REMAINING FOR SAM (one click): Supabase Dashboard → Authentication → Users → confirm `claude.qa.wishnet@gmail.com` (then grant admin per the 2026-05-21 audit pattern: profiles/user_roles) — unblocks the whole Part Two Playwright pass. The password was set this session (transcript); treat as temp — DELETE the QA user + its data after Part Two. Browser-gated acceptance items stay self-verified via tests + code inspection meanwhile.
