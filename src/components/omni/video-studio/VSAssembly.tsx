@@ -252,7 +252,7 @@ export function VSAssembly({
         )}
         {assemblyBusy && (
           <p className="text-[11px] text-muted-foreground" aria-live="polite">
-            Merging scenes, mixing audio, normalizing loudness — closing the tab is safe; the render continues server-side.
+            Merging scenes and mixing audio — closing the tab is safe; the render continues server-side.
           </p>
         )}
         {assembly.status === 'failed' && (
