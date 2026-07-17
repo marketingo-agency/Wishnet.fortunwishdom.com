@@ -9,8 +9,7 @@
  *
  * Sweep: video/audio assets stuck in pending/generating (>90s untouched)
  * with a fal_request_id, plus stale 'persisting' claims (>10 min) - poll
- * fal, take
- * the CAS claim, persist, flip the row. Exactly one of client-poll/finisher
+ * fal, take the CAS claim, persist, flip the row. Exactly one of client-poll/finisher
  * ever persists an asset (the claim is the guard).
  */
 
