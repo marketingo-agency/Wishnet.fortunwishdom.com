@@ -7,8 +7,9 @@
  * runs). Auth = a DB-seeded cron_secret validated in-function with a
  * constant-time compare - the exact content-library cron pattern.
  *
- * Sweep: video assets stuck in pending/generating (>90s untouched) with a
- * fal_request_id, plus stale 'persisting' claims (>10 min) - poll fal, take
+ * Sweep: video/audio assets stuck in pending/generating (>90s untouched)
+ * with a fal_request_id, plus stale 'persisting' claims (>10 min) - poll
+ * fal, take
  * the CAS claim, persist, flip the row. Exactly one of client-poll/finisher
  * ever persists an asset (the claim is the guard).
  */
@@ -64,14 +65,19 @@ async function falVideoResult(
     throw new Error(`fal result failed (${res.status})`);
   }
   const data = await res.json() as Record<string, unknown>;
-  const candidates: unknown[] = [data.video, ...(Array.isArray(data.videos) ? data.videos : [])];
+  const candidates: unknown[] = [data.video, data.audio, data.media, ...(Array.isArray(data.videos) ? data.videos : [])];
   for (const c of candidates) {
     const f = c as { url?: string; content_type?: string } | null;
     if (f && typeof f.url === 'string' && f.url.length > 0) {
       return { url: f.url, contentType: typeof f.content_type === 'string' ? f.content_type : null };
     }
   }
-  throw new FalUserError('The job completed but returned no video output.');
+  // Utility results carry bare URL strings (compose/merge return video_url).
+  for (const key of ['video_url', 'audio_url']) {
+    const v = data[key];
+    if (typeof v === 'string' && v.length > 0) return { url: v, contentType: null };
+  }
+  throw new FalUserError('The job completed but returned no media output.');
 }
 
 interface SweepRow {
@@ -90,7 +96,7 @@ async function sweep(supabaseAdmin: AdminClient, falKey: string): Promise<Record
   const { data, error } = await supabaseAdmin
     .from('omni_assets')
     .select('id, user_id, run_id, model_id, status, metadata')
-    .eq('kind', 'video')
+    .in('kind', ['video', 'audio'])
     .or(`and(status.in.(pending,generating),updated_at.lt.${genCutoff}),and(status.eq.persisting,updated_at.lt.${persistCutoff})`)
     .order('updated_at', { ascending: true })
     .limit(SWEEP_LIMIT);
