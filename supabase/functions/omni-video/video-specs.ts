@@ -182,7 +182,7 @@ export function buildVideoInput(
   return input;
 }
 
-// ── video-utility allowlist (Plan 2 Phase 2b) ─────────────────────────────────
+// -- video-utility allowlist (Plan 2 Phase 2b) -----
 
 /** The exact fal utility endpoints video-utility may call, with the input
  *  keys each accepts. Anything else is rejected - never raw passthrough. */

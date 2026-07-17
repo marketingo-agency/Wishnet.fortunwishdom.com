@@ -13,7 +13,7 @@ import { TOKEN_BUDGETS } from '../_shared/token-budgets.ts';
 import { openAiTuning } from '../omni/llm.ts';
 import { buildHeartBlock, buildKnowledgeBlock, type HeartRule } from '../omni/context.ts';
 
-// ── SSRF-hardened URL ingestion (whisper-api safeFetch, ported verbatim) ──────
+// -- SSRF-hardened URL ingestion (whisper-api safeFetch, ported verbatim) -----
 
 const MAX_FETCH_BYTES = 8_000_000;
 
@@ -57,7 +57,7 @@ export async function fetchUrlText(rawUrl: string): Promise<string> {
   } catch { return ''; }
 }
 
-// ── The generator ─────────────────────────────────────────────────────────────
+// -- The generator -----
 
 export interface ScenarioScene {
   idx: number;
