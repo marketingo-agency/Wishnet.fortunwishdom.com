@@ -232,6 +232,23 @@ export interface OmniImagesState {
   podcast_cast?: Record<string, string>;
   /** Provenance: the podcast_scenario run a Studio run was seeded from. */
   podcast_source_run_id?: string;
+  /** Podcast Studio render orchestration (Plan 3 D-A3.3). The finisher's
+   *  assembly sweep reads render_stage + the jingle ids from step_state. */
+  render_stage?: 'chunks' | 'assembling' | 'done';
+  intro_jingle_asset_id?: string;
+  outro_jingle_asset_id?: string;
+  /** The assembled episode's omni_assets row. */
+  episode_asset_id?: string;
+  podcast_cover_path?: string;
+  podcast_shownotes?: OmniPodcastShownotes;
+  /** The draft podcast_episodes row created at finalize. */
+  podcast_episode_id?: string;
+}
+
+export interface OmniPodcastShownotes {
+  title: string;
+  description: string;
+  tags: string[];
 }
 
 export interface OmniPodcastBrief {

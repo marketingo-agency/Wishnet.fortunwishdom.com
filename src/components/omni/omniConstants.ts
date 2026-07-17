@@ -251,8 +251,8 @@ export const OMNI_AUDIO_MODES: OmniAudioModeDef[] = [
     description: 'The flagship: script to cast to a chunked long-form render with jingles, chapters, show notes, transcript, and cover. A platform-ready episode.',
     icon: Podcast,
     accent: 'text-rose-400',
-    available: false,
-    availabilityNote: 'Lands in Phase 6',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'cast_personas',

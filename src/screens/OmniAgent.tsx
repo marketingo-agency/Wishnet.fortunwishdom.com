@@ -31,6 +31,7 @@ import { VideosHub } from '@/components/omni/VideosHub';
 import { AudiosHub } from '@/components/omni/AudiosHub';
 import { CastPersonasView } from '@/components/omni/cast/CastPersonasView';
 import { PodcastScenarioWizard } from '@/components/omni/podcast-scenario/PodcastScenarioWizard';
+import { PodcastStudioWizard } from '@/components/omni/podcast-studio/PodcastStudioWizard';
 import { ScenarioWizard } from '@/components/omni/scenario/ScenarioWizard';
 import { VideoStudioWizard } from '@/components/omni/video-studio/VideoStudioWizard';
 import { ClipsWizard } from '@/components/omni/clips/ClipsWizard';
@@ -56,7 +57,7 @@ type VideosMode = 'hub' | 'history' | 'video_scenario' | 'omni_videos' | 'video_
 type AudiosMode = 'hub' | 'history' | 'podcast_scenario' | 'omni_podcast' | 'cast_personas' | 'podcast_video' | 'publish_feed';
 /** Audio surfaces accepted from the URL — widened as each phase ships its
  *  wizard (a deep link to an unbuilt surface must land on the hub, not blank). */
-const BUILT_AUDIO_SURFACES: AudiosMode[] = ['history', 'cast_personas', 'podcast_scenario'];
+const BUILT_AUDIO_SURFACES: AudiosMode[] = ['history', 'cast_personas', 'podcast_scenario', 'omni_podcast'];
 
 export default function OmniAgent() {
   const router = useRouter();
@@ -336,6 +337,15 @@ export default function OmniAgent() {
                 <PodcastScenarioWizard
                   runId={wizardRunId}
                   onRunCreated={(id) => openAudiosMode('podcast_scenario', id)}
+                  onExit={() => openAudiosMode('hub')}
+                  onHandoffToStudio={(id) => openAudiosMode('omni_podcast', id)}
+                />
+              )}
+
+              {view === 'audios' && audiosMode === 'omni_podcast' && (
+                <PodcastStudioWizard
+                  runId={wizardRunId}
+                  onRunCreated={(id) => openAudiosMode('omni_podcast', id)}
                   onExit={() => openAudiosMode('hub')}
                 />
               )}

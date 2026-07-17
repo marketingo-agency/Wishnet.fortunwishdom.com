@@ -453,7 +453,8 @@ export const VIDEO_MODES: Record<WizardModeId, VideoModeDef> = {
   },
   omni_podcast: {
     mode: 'omni_podcast',
-    builtThrough: 0,
+    // Phase 6: all five stages live.
+    builtThrough: 5,
     stages: videoStages([
       ['script_in', 'Script in'],
       ['cast', 'Cast'],
