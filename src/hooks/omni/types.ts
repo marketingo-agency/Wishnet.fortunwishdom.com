@@ -31,7 +31,10 @@ export type OmniMode =
   | 'omni_videos'
   | 'video_clips'
   | 'video_animate'
-  | 'video_repurpose';
+  | 'video_repurpose'
+  | 'podcast_scenario'
+  | 'omni_podcast'
+  | 'podcast_video';
 
 export type OmniRunStatus = 'active' | 'completed' | 'failed' | 'archived';
 

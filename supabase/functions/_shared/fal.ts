@@ -36,6 +36,11 @@ const EXT_BY_MIME: Record<string, string> = {
   'image/webp': 'webp',
   'video/mp4': 'mp4',
   'video/webm': 'webm',
+  // Audios track (Plan 3 D-A8): without these, audio persisted as .png.
+  'audio/mpeg': 'mp3',
+  'audio/mp3': 'mp3',
+  'audio/wav': 'wav',
+  'audio/ogg': 'ogg',
 };
 
 /** Errors whose message is safe to show to the end user. */

@@ -70,6 +70,8 @@ export const FAL_PRICING: Record<string, FalPrice> = {
   'fal-ai/sync-lipsync/v3': { unitPrice: 8 / 60, unit: 'second' },
   // audio beds ($0.10 per ~30s generation)
   'fal-ai/lyria2': { unitPrice: 0.1, unit: 'generation' },
+  // ~30s beds; stable-audio does up to 380s (price unverified - calibrate).
+  'fal-ai/stable-audio': { unitPrice: null, unit: 'generation', calibrate: true },
 };
 
 /** Estimated cost of a per-second-priced fal job (Plan 2 D-V9). Returns null
@@ -190,4 +192,18 @@ export function formatUsd(n: number): string {
   const sign = n < 0 ? '-' : '';
   const abs = Math.abs(n);
   return `${sign}$${abs < 0.01 && abs > 0 ? abs.toFixed(3) : abs.toFixed(2)}`;
+}
+
+// -- ElevenLabs char-based estimate (Plan 3 D-A9) -----------------------------
+
+/** Default $/1k chars; plan-dependent - configurable, shown as an estimate. */
+export const ELEVENLABS_DEFAULT_RATE_PER_1K_CHARS = 0.15;
+
+/** Honest TTS cost estimate for a script; null when chars is unknown. */
+export function estimateTtsCost(
+  chars: number,
+  ratePer1k: number = ELEVENLABS_DEFAULT_RATE_PER_1K_CHARS,
+): number | null {
+  if (!Number.isFinite(chars) || chars <= 0) return null;
+  return (chars / 1000) * ratePer1k;
 }

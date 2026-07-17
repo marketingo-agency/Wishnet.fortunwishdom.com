@@ -378,7 +378,7 @@ const VIDEO_IDS: VideoModeId[] = ['video_scenario', 'omni_videos', 'video_clips'
 describe('stepRegistry: video mode registry (D-V1)', () => {
   it('classifies every mode into a family (no gaps)', () => {
     expect(Object.keys(MODE_FAMILY).sort()).toEqual([
-      'brainstorming', 'omni_images', 'omni_videos', 'repurposing', 'surprise_me',
+      'brainstorming', 'omni_images', 'omni_podcast', 'omni_videos', 'podcast_scenario', 'podcast_video', 'repurposing', 'surprise_me',
       'transform_upscale', 'video_animate', 'video_clips', 'video_repurpose', 'video_scenario',
     ]);
     for (const id of VIDEO_IDS) {
@@ -423,6 +423,19 @@ describe('stepRegistry: video mode registry (D-V1)', () => {
     expect(VIDEO_MODES.video_repurpose.builtThrough).toBe(4);
     expect(clampToBuilt('video_repurpose', 9)).toBe(4);
     expect(clampToBuilt('video_repurpose', 0)).toBe(1);
+  });
+
+  it('audio sequences register with family audios and clamp while unbuilt (Plan 3)', () => {
+    expect(modeFamily('podcast_scenario')).toBe('audios');
+    expect(modeFamily('omni_podcast')).toBe('audios');
+    expect(modeFamily('podcast_video')).toBe('audios');
+    expect(VIDEO_MODES.podcast_scenario.stages.map((s) => s.id)).toEqual(['show_brief', 'outline', 'script', 'cast_handoff']);
+    expect(VIDEO_MODES.omni_podcast.stages.map((s) => s.id)).toEqual(['script_in', 'cast', 'render', 'package', 'finalize']);
+    expect(VIDEO_MODES.podcast_video.stages.map((s) => s.id)).toEqual(['source', 'treatment', 'generate', 'finalize']);
+    for (const id of ['podcast_scenario', 'omni_podcast', 'podcast_video'] as const) {
+      expect(VIDEO_MODES[id].builtThrough).toBe(0);
+      expect(clampToBuilt(id, 5)).toBe(1);
+    }
   });
 
   it('resolveVideoPosition clamps both the position and the high-water to the built range', () => {
