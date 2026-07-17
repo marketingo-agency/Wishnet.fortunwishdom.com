@@ -63,8 +63,10 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
   );
 
   // Schema-agnostic position: v2 rows pass through, v1 rows map through the
-  // prerequisite-aware table. All rendering keys off the stage id.
-  const migrated = useMemo(() => migrateStepState(state, rawStep), [state, rawStep]);
+  // prerequisite-aware table (floored at the mode's handoff stage — a legacy
+  // repurposing run must never mis-open on Engine/Brief). All rendering keys
+  // off the stage id.
+  const migrated = useMemo(() => migrateStepState(state, rawStep, run.data?.mode), [state, rawStep, run.data?.mode]);
   const stage = migrated.stage;
   const maxStageOrdinal = Math.max(migrated.maxStageOrdinal, migrated.ordinal);
 

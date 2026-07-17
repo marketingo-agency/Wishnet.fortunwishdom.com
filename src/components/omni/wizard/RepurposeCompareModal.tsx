@@ -8,7 +8,7 @@
  * approving discards the unused candidate, leaving the original untouched.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, ImageIcon, Loader2, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -68,6 +68,16 @@ export function RepurposeCompareModal({ job, generateCandidate, onApprove, onDis
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset per tile
   }, [job?.key]);
 
+  // QA S4: a regeneration can still be in flight when the modal closes; the
+  // resolved candidate would otherwise be orphaned (paid asset, no tile).
+  const closedRef = useRef(false);
+  useEffect(() => {
+    closedRef.current = false;
+    return () => {
+      closedRef.current = true;
+    };
+  }, [job?.key]);
+
   if (!job) return null;
   const preset = getPreset(job.network, job.presetId);
   const network = getNetwork(job.network);
@@ -76,6 +86,7 @@ export function RepurposeCompareModal({ job, generateCandidate, onApprove, onDis
     : 'Smart crop (no AI)';
 
   const handleClose = () => {
+    closedRef.current = true;
     if (candidate) {
       onDiscardCandidate(candidate.assetId); // abandon the unused candidate
       revokeBlobUrl(candidate.previewUrl);
@@ -93,6 +104,12 @@ export function RepurposeCompareModal({ job, generateCandidate, onApprove, onDis
     setBusy(true);
     try {
       const produced = await generateCandidate({ ...job, mode: candidateMode });
+      if (closedRef.current) {
+        // Modal closed mid-run: discard the late arrival instead of orphaning it.
+        onDiscardCandidate(produced.assetId);
+        revokeBlobUrl(produced.previewUrl);
+        return;
+      }
       const next: RepurposeCandidate = { ...produced, mode: candidateMode };
       if (prev) {
         onDiscardCandidate(prev.assetId);
@@ -175,12 +192,11 @@ export function RepurposeCompareModal({ job, generateCandidate, onApprove, onDis
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Regenerate tier">
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Regenerate tier">
           {MODE_OPTIONS.map((m) => (
             <button
               key={m.value}
-              role="radio"
-              aria-checked={candidateMode === m.value}
+              aria-pressed={candidateMode === m.value}
               onClick={() => setCandidateMode(m.value)}
               disabled={busy}
               className={cn(

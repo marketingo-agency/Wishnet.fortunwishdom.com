@@ -6,7 +6,7 @@
  * in-development tracks navigate into their surface.
  */
 
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { OMNI_TRACKS, type OmniTrackDef } from './omniConstants';
@@ -31,7 +31,7 @@ const AVAILABILITY_BADGE: Record<OmniTrackDef['availability'], { label: string; 
   available: null,
   in_development: {
     label: 'In Development',
-    className: 'border-amber-500/40 bg-amber-500/10 text-amber-400',
+    className: 'border-amber-500/40 bg-amber-500/10 text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400',
   },
   coming_soon: {
     label: 'Coming Soon',
@@ -40,6 +40,8 @@ const AVAILABILITY_BADGE: Record<OmniTrackDef['availability'], { label: string; 
 };
 
 export function OmniEntryTiles({ onSelectTrack }: OmniEntryTilesProps) {
+  // ui-rules: entrance/hover animations respect prefers-reduced-motion.
+  const reduceMotion = useReducedMotion();
   return (
     // my-auto (not justify-center) on the content: a centered flex container
     // with overflow clips its top edge on short viewports (375px, F2); auto
@@ -47,7 +49,7 @@ export function OmniEntryTiles({ onSelectTrack }: OmniEntryTilesProps) {
     <div className="flex h-full flex-col items-center overflow-y-auto px-4 py-8 sm:px-8">
       <div className="my-auto flex w-full flex-col items-center">
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
         className="mb-8 text-center sm:mb-10"
@@ -66,7 +68,7 @@ export function OmniEntryTiles({ onSelectTrack }: OmniEntryTilesProps) {
 
       <motion.div
         variants={containerVariants}
-        initial="hidden"
+        initial={reduceMotion ? false : "hidden"}
         animate="show"
         className="grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2"
       >
@@ -79,7 +81,7 @@ export function OmniEntryTiles({ onSelectTrack }: OmniEntryTilesProps) {
             <motion.button
               key={track.id}
               variants={tileVariants}
-              whileHover={isComingSoon ? undefined : { y: -4, transition: { duration: 0.2 } }}
+              whileHover={isComingSoon || reduceMotion ? undefined : { y: -4, transition: { duration: 0.2 } }}
               onClick={isComingSoon ? undefined : () => onSelectTrack(track.id)}
               disabled={isComingSoon}
               aria-disabled={isComingSoon || undefined}

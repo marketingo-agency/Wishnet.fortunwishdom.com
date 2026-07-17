@@ -105,6 +105,16 @@ export function useRepurposeRunner(runId: string, assetsById: Map<string, OmniAs
     };
   }, []);
 
+  // QA CR-S1: revoke every generated blob preview on unmount — approve/delete
+  // paths revoke their own, but advancing to Captions (or exiting) used to
+  // leak each done-tile blob for the session. Restored tiles hold https
+  // signed URLs, which the blob: guard skips.
+  useEffect(() => () => {
+    for (const job of jobsRef.current) {
+      if (job.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(job.previewUrl);
+    }
+  }, []);
+
   const pollSingle = useCallback(async (assetId: string): Promise<VariantPollResult> => {
     let consecutiveErrors = 0;
     for (;;) {

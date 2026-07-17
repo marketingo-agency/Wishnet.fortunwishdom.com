@@ -98,7 +98,7 @@ export function HistoryRunCard({ run, thumbs, clonedFromTitle, selected, busy: e
           checked={selected}
           onCheckedChange={onToggleSelect}
           aria-label={`Select ${run.title ?? 'untitled run'}`}
-          className="shrink-0"
+          className="shrink-0 cursor-pointer"
         />
 
         {/* Thumbnail strip: up to 4 outputs (the data was always fetched — it
@@ -111,7 +111,13 @@ export function HistoryRunCard({ run, thumbs, clonedFromTitle, selected, busy: e
                 className="h-14 w-14 overflow-hidden rounded-lg border-2 border-card bg-muted"
                 style={{ zIndex: thumbs!.urls.length - i }}
               >
-                <img src={url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                <img
+                  src={url}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
               </div>
             ))
           ) : (
@@ -135,6 +141,7 @@ export function HistoryRunCard({ run, thumbs, clonedFromTitle, selected, busy: e
               <Badge
                 className="border-0 bg-violet-500/15 px-1.5 py-0 text-[10px] font-semibold text-violet-600 [[data-omni-theme=dark]_&]:text-violet-300"
                 title={clonedFromTitle ? `Cloned from "${clonedFromTitle}"` : 'Cloned from a deleted run'}
+                aria-label={clonedFromTitle ? `Retake cloned from ${clonedFromTitle}` : 'Retake cloned from a deleted run'}
               >
                 Retake{clonedFromTitle ? ` of ${clonedFromTitle}` : ''}
               </Badge>
@@ -143,6 +150,7 @@ export function HistoryRunCard({ run, thumbs, clonedFromTitle, selected, busy: e
               <Badge
                 className="border-0 bg-amber-500/15 px-1.5 py-0 text-[10px] font-semibold text-amber-700 [[data-omni-theme=dark]_&]:text-amber-300"
                 title="Estimated fal.ai spend for this run's generated images"
+                aria-label={`Estimated fal.ai spend ${formatUsd(thumbs.estCost)}`}
               >
                 ~{formatUsd(thumbs.estCost)}{thumbs.hasUnknownCost ? '+' : ''}
               </Badge>

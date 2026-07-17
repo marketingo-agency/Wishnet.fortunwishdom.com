@@ -243,6 +243,42 @@ describe('stepRegistry.migrateStepState: prerequisite-aware clamping', () => {
     expect(migrateStepState({}, 9).stage).toBe('brief');
   });
 
+  // QA CR-W1: the prerequisite clamp is built on omni_images semantics, so a
+  // handoff-mode run (structurally no model_selections) must be FLOORED at
+  // distribution — never mis-opened on Engine/Brief.
+  it('a legacy repurposing run without model_selections floors at distribution, never engine', () => {
+    const state: OmniImagesState = {
+      objective: 'repurpose set',
+      locked_prompt: 'repurpose set',
+      generated_asset_ids: ['r1'],
+      selected_asset_ids: ['r1'],
+    };
+    // No networks chosen yet: prereq clamp + floor agree on distribution.
+    expect(migrateStepState(state, 7, 'repurposing').stage).toBe('distribution');
+    expect(migrateStepState(state, 8, 'repurposing').stage).toBe('distribution');
+    // Without the mode the old bug reproduced: clamp landed on engine.
+    expect(migrateStepState(state, 7).stage).toBe('engine');
+    // With distribution complete, step 8 resumes at captions (above the floor).
+    const withNetworks: OmniImagesState = {
+      ...state,
+      networks: ['instagram'],
+      preset_selections: { instagram: ['feed_square'] },
+      approved_asset_ids: ['r1'],
+    };
+    expect(migrateStepState(withNetworks, 8, 'repurposing').stage).toBe('captions');
+  });
+
+  it('a legacy transform run that never seeded objective floors at distribution', () => {
+    const state: OmniImagesState = { selected_asset_ids: ['t1'] };
+    expect(migrateStepState(state, 7, 'transform_upscale').stage).toBe('distribution');
+  });
+
+  it('a corrupt sub-floor v2 handoff ordinal renders at the floor', () => {
+    const state: OmniImagesState = { schema_version: 2, selected_asset_ids: ['r1'] };
+    expect(migrateStepState(state, 2, 'repurposing').stage).toBe('distribution');
+    expect(migrateStepState(state, 5, 'repurposing').stage).toBe('adapt');
+  });
+
   it('max_step_reached maps through the ordinal table taking the max of mapped values', () => {
     // Reached old step 9; the v1 walk passed step 8 (captions, stage 6), so the
     // mapped high-water is captions — the MAX of mapped values, not the mapping

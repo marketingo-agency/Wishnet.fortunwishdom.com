@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Archive, History, Loader2, Search, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -46,6 +46,8 @@ interface HistoryViewProps {
 type DeleteTarget = { kind: 'one'; run: OmniRun } | { kind: 'selected' } | { kind: 'all' };
 
 export function HistoryView({ onOpenRun, onExit }: HistoryViewProps) {
+  // ui-rules: entrance/hover animations respect prefers-reduced-motion.
+  const reduceMotion = useReducedMotion();
   const [sort, setSort] = useState<HistorySort>('updated_desc');
   const runsQuery = useOmniRunsInfinite(sort);
   const [search, setSearch] = useState('');
@@ -184,7 +186,7 @@ export function HistoryView({ onOpenRun, onExit }: HistoryViewProps) {
       </div>
 
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.22, ease: 'easeOut' }}
         className="flex-1 overflow-y-auto px-4 py-5 sm:px-6"
@@ -197,7 +199,7 @@ export function HistoryView({ onOpenRun, onExit }: HistoryViewProps) {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Select value={modeFilter} onValueChange={setModeFilter}>
-                <SelectTrigger className="h-9 w-[170px] text-sm" aria-label="Filter by mode"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="cursor-pointer h-9 w-[170px] text-sm" aria-label="Filter by mode"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all" className="text-sm">All modes</SelectItem>
                   {Object.entries(RUN_MODE_META).map(([id, meta]) => (
@@ -206,7 +208,7 @@ export function HistoryView({ onOpenRun, onExit }: HistoryViewProps) {
                 </SelectContent>
               </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="h-9 w-[140px] text-sm" aria-label="Filter by status"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="cursor-pointer h-9 w-[140px] text-sm" aria-label="Filter by status"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all" className="text-sm">All statuses</SelectItem>
                   {Object.entries(RUN_STATUS_META).map(([id, meta]) => (
@@ -215,7 +217,7 @@ export function HistoryView({ onOpenRun, onExit }: HistoryViewProps) {
                 </SelectContent>
               </Select>
               <Select value={sort} onValueChange={(v) => setSort(v as HistorySort)}>
-                <SelectTrigger className="h-9 w-[160px] text-sm" aria-label="Sort runs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="cursor-pointer h-9 w-[160px] text-sm" aria-label="Sort runs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {HISTORY_SORTS.map((s) => (
                     <SelectItem key={s.id} value={s.id} className="text-sm">{s.label}</SelectItem>
@@ -232,6 +234,7 @@ export function HistoryView({ onOpenRun, onExit }: HistoryViewProps) {
                   checked={allVisibleSelected}
                   onCheckedChange={toggleSelectAll}
                   aria-label={allVisibleSelected ? 'Deselect all visible runs' : 'Select all visible runs'}
+                  className="cursor-pointer"
                 />
               )}
               <p className="text-xs text-muted-foreground">
@@ -271,7 +274,12 @@ export function HistoryView({ onOpenRun, onExit }: HistoryViewProps) {
               {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
             </div>
           ) : runsQuery.isError ? (
-            <p className="py-12 text-center text-sm text-destructive">Could not load the history.</p>
+            <div className="flex flex-col items-center gap-3 py-12 text-center">
+              <p className="text-sm text-destructive">Could not load the history.</p>
+              <Button variant="outline" size="sm" className="h-8 cursor-pointer text-xs" onClick={() => void runsQuery.refetch()}>
+                Try again
+              </Button>
+            </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted">

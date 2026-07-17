@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { AlertCircle, ArrowRight, Check, Drama, ImageIcon, Loader2, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,8 @@ interface CharacterStudioPickerProps {
 }
 
 export function CharacterStudioPicker({ onExit, onCreated }: CharacterStudioPickerProps) {
+  // ui-rules: entrance/hover animations respect prefers-reduced-motion.
+  const reduceMotion = useReducedMotion();
   const createRun = useCreateOmniRun();
   const [search, setSearch] = useState('');
   const [selectedEntry, setSelectedEntry] = useState<{ id: string; name: string } | null>(null);
@@ -132,7 +134,7 @@ export function CharacterStudioPicker({ onExit, onCreated }: CharacterStudioPick
       </div>
 
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.22, ease: 'easeOut' }}
         className="flex-1 overflow-y-auto px-4 py-5 sm:px-6"

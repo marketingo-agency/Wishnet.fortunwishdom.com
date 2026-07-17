@@ -132,6 +132,10 @@ export function StageGenerate({
   }, [existingAssets.data]);
 
   const handleGenerate = () => {
+    // QA UI-C2: never count fulfilment before the prior-assets restore
+    // resolves — an early click on a resumed run would see zero variants and
+    // re-submit (re-bill) the entire plan.
+    if (existingAssets.isLoading || existingAssets.isFetching) return;
     setStarted(true);
     // Submit only what the plan still misses; failed rows are NOT fulfilled (GEN-01).
     const countByModel = new Map<string, number>();
@@ -230,10 +234,10 @@ export function StageGenerate({
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <Button variant="ghost" size="sm" onClick={onEditBrief} className="h-7 cursor-pointer gap-1 px-2 text-xs text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" size="sm" onClick={onEditBrief} className="h-8 cursor-pointer gap-1 px-2 text-xs text-muted-foreground hover:text-foreground">
               <Pencil className="h-3 w-3" /> Brief
             </Button>
-            <Button variant="ghost" size="sm" onClick={onEditModels} className="h-7 cursor-pointer gap-1 px-2 text-xs text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" size="sm" onClick={onEditModels} className="h-8 cursor-pointer gap-1 px-2 text-xs text-muted-foreground hover:text-foreground">
               <Pencil className="h-3 w-3" /> Models
             </Button>
           </div>
@@ -275,7 +279,7 @@ export function StageGenerate({
         <p className="text-sm text-muted-foreground" aria-live="polite">
           {runner.isRunning && activeModelName ? (
             <span className="flex items-center gap-2">
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" />
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-600 [[data-omni-theme=dark]_&]:text-cyan-400" />
               Generating with {activeModelName}... {doneCount} of {totalImages} done
             </span>
           ) : started ? (
@@ -287,7 +291,7 @@ export function StageGenerate({
         <div className="flex items-center gap-2">
           <p className="text-xs text-muted-foreground">{selected.size} selected</p>
           {runner.isRunning && (
-            <Button variant="outline" size="sm" onClick={runner.stop} className="h-7 cursor-pointer gap-1.5 text-xs">
+            <Button variant="outline" size="sm" onClick={runner.stop} className="h-8 cursor-pointer gap-1.5 text-xs">
               <Square className="h-3 w-3" />
               Stop
             </Button>
@@ -307,7 +311,7 @@ export function StageGenerate({
           <p className="text-xs text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400">
             Connection lost while polling — your jobs are still running server-side.
           </p>
-          <Button variant="outline" size="sm" onClick={() => runner.resumePolling(generatingIds)} className="h-7 cursor-pointer gap-1.5 text-xs">
+          <Button variant="outline" size="sm" onClick={() => runner.resumePolling(generatingIds)} className="h-8 cursor-pointer gap-1.5 text-xs">
             <RefreshCw className="h-3 w-3" />
             Reconnect
           </Button>
@@ -318,7 +322,7 @@ export function StageGenerate({
         <div className="flex flex-col items-center gap-3 py-10">
           <Button
             onClick={handleGenerate}
-            disabled={selections.length === 0 || runner.isRunning}
+            disabled={selections.length === 0 || runner.isRunning || existingAssets.isLoading || existingAssets.isFetching}
             className={cn(
               'cursor-pointer gap-2 text-white transition-all duration-300 hover:opacity-90',
               insufficient ? 'bg-gradient-to-r from-amber-500 to-orange-600' : 'bg-gradient-to-r from-cyan-500 to-violet-600',

@@ -6,7 +6,7 @@
  * phase lands. Unavailable modes are visibly disabled with an honest note.
  */
 
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -29,10 +29,12 @@ const cardVariants = {
 };
 
 export function OmniImagesHub({ onBack, onSelectMode }: OmniImagesHubProps) {
+  // ui-rules: entrance/hover animations respect prefers-reduced-motion.
+  const reduceMotion = useReducedMotion();
   return (
     <div className="flex h-full flex-col overflow-y-auto px-4 py-6 sm:px-8">
       <motion.div
-        initial={{ opacity: 0, y: 8 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
         className="mx-auto w-full max-w-3xl"
@@ -57,7 +59,7 @@ export function OmniImagesHub({ onBack, onSelectMode }: OmniImagesHubProps) {
 
       <motion.div
         variants={containerVariants}
-        initial="hidden"
+        initial={reduceMotion ? false : "hidden"}
         animate="show"
         className="mx-auto mt-6 grid w-full max-w-3xl grid-cols-1 gap-3 sm:grid-cols-2"
       >

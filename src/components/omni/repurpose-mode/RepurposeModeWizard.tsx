@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,8 @@ interface RepurposeModeWizardProps {
 }
 
 export function RepurposeModeWizard({ onExit, onHandoff }: RepurposeModeWizardProps) {
+  // ui-rules: entrance/hover animations respect prefers-reduced-motion.
+  const reduceMotion = useReducedMotion();
   const createRun = useCreateOmniRun();
   const updateRun = useUpdateOmniRun();
 
@@ -144,7 +146,7 @@ export function RepurposeModeWizard({ onExit, onHandoff }: RepurposeModeWizardPr
       </div>
 
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.22, ease: 'easeOut' }}
         className="flex-1 overflow-y-auto px-4 py-5 sm:px-6"

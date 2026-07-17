@@ -90,7 +90,7 @@ export function RepurposeSourcePicker({ selectedKeys, onAdd, onToggleOff }: Repu
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2" role="tablist" aria-label="Image sources">
+      <div className="flex gap-2" role="group" aria-label="Image sources">
         {([
           ['upload', 'Upload', Upload],
           ['files', 'Media library', FolderOpen],
@@ -98,8 +98,7 @@ export function RepurposeSourcePicker({ selectedKeys, onAdd, onToggleOff }: Repu
         ] as const).map(([id, label, Icon]) => (
           <button
             key={id}
-            role="tab"
-            aria-selected={tab === id}
+            aria-pressed={tab === id}
             onClick={() => setTab(id)}
             className={cn(
               'flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors duration-200',
@@ -148,7 +147,9 @@ export function RepurposeSourcePicker({ selectedKeys, onAdd, onToggleOff }: Repu
       )}
 
       {tab === 'files' && (
-        files.isLoading ? (
+        files.isError ? (
+          <p className="py-8 text-center text-sm text-destructive">Could not load the Files library. Reopen this tab to retry.</p>
+        ) : files.isLoading ? (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="aspect-square rounded-lg" />)}
           </div>
@@ -173,7 +174,9 @@ export function RepurposeSourcePicker({ selectedKeys, onAdd, onToggleOff }: Repu
       )}
 
       {tab === 'content_library' && (
-        libraryItems.isLoading ? (
+        libraryItems.isError ? (
+          <p className="py-8 text-center text-sm text-destructive">Could not load the Content Library. Reopen this tab to retry.</p>
+        ) : libraryItems.isLoading ? (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="aspect-square rounded-lg" />)}
           </div>

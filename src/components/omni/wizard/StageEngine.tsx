@@ -15,7 +15,7 @@
  *   route to edit-capable models; text-to-image would silently ignore them).
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Check, ChevronDown, ChevronUp, Loader2, Minus, Plus, Search, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -89,6 +89,11 @@ export function StageEngine({ initialSelections, initialSpecs, hasReferences, re
   const [filter, setFilter] = useState('');
   const [browseAll, setBrowseAll] = useState(false);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
+  // QA UI-W4: a pagination cursor from one result set must never be sent
+  // with a different search — new filter, first page.
+  useEffect(() => {
+    setCursor(undefined);
+  }, [filter]);
 
   const catalog = useFalCatalog(
     browseAll ? { capability: hasReferences ? 'image-to-image' : 'text-to-image', q: filter.trim() || undefined, cursor, limit: 30 } : { capability: 'text-to-image', limit: 1 },
@@ -224,11 +229,11 @@ export function StageEngine({ initialSelections, initialSpecs, hasReferences, re
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Variants</span>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="icon" onClick={() => setVariants(entry.id, -1)} disabled={sel.variants <= 1} aria-label="Fewer variants" className="h-7 w-7 cursor-pointer">
+                <Button variant="outline" size="icon" onClick={() => setVariants(entry.id, -1)} disabled={sel.variants <= 1} aria-label="Fewer variants" className="h-8 w-8 cursor-pointer">
                   <Minus className="h-3 w-3" />
                 </Button>
                 <span className="w-6 text-center text-sm font-semibold">{sel.variants}</span>
-                <Button variant="outline" size="icon" onClick={() => setVariants(entry.id, 1)} disabled={sel.variants >= 10} aria-label="More variants" className="h-7 w-7 cursor-pointer">
+                <Button variant="outline" size="icon" onClick={() => setVariants(entry.id, 1)} disabled={sel.variants >= 10} aria-label="More variants" className="h-8 w-8 cursor-pointer">
                   <Plus className="h-3 w-3" />
                 </Button>
               </div>
@@ -360,7 +365,7 @@ export function StageEngine({ initialSelections, initialSpecs, hasReferences, re
             <div className="flex justify-center">
               <Button variant="ghost" onClick={() => setCursor(catalog.data?.nextCursor ?? undefined)} className="cursor-pointer gap-1.5 text-muted-foreground">
                 <ChevronDown className="h-4 w-4" />
-                Load more
+                Next page
               </Button>
             </div>
           )}

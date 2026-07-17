@@ -98,7 +98,16 @@ export function InspireMe({ onPick, disabled }: InspireMeProps) {
               </div>
             )}
 
-            {batch && !mine.isPending && (
+            {batch && !mine.isPending && batch.ideas.length === 0 && (
+              <div className="flex flex-col items-center gap-3 py-14 text-center">
+                <p className="text-sm text-muted-foreground">No usable ideas came back this round.</p>
+                <Button variant="outline" size="sm" onClick={handleMine} className="cursor-pointer gap-1.5">
+                  <RefreshCw className="h-3.5 w-3.5" /> New batch
+                </Button>
+              </div>
+            )}
+
+            {batch && !mine.isPending && batch.ideas.length > 0 && (
               <>
                 <div className="flex items-center justify-between gap-3">
                   <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">

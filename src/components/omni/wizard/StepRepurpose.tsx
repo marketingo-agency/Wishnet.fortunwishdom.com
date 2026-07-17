@@ -66,7 +66,7 @@ const TileAction = ({ label, onClick, disabled, children }: { label: string; onC
         onClick={onClick}
         disabled={disabled}
         aria-label={label}
-        className="h-7 w-7 cursor-pointer text-muted-foreground transition-colors duration-200 hover:text-foreground"
+        className="h-8 w-8 cursor-pointer text-muted-foreground transition-colors duration-200 hover:text-foreground"
       >
         {children}
       </Button>
@@ -107,7 +107,7 @@ function RepurposeTile({
       <div className="group/tile relative flex aspect-square items-center justify-center bg-muted/40">
         {job.status === 'working' ? (
           <div className="flex flex-col items-center gap-1.5">
-            <Loader2 className="h-5 w-5 animate-spin text-cyan-400" />
+            <Loader2 className="h-5 w-5 animate-spin text-cyan-600 [[data-omni-theme=dark]_&]:text-cyan-400" />
             <p className="text-[11px] text-muted-foreground">{job.mode === 'redesign' ? 'Re-designing…' : job.mode === 'extend' ? 'Extending…' : 'Cropping…'}</p>
           </div>
         ) : job.status === 'failed' ? (
@@ -149,15 +149,18 @@ function RepurposeTile({
 
       <div className="border-t border-border p-2">
         <p className="truncate text-[11px] font-medium">{network.label} · {preset.label}</p>
+        {/* flex-wrap: the 3 chips overflow a 2-col tile at 375px otherwise
+            (the card is overflow-hidden, so a clipped chip stayed focusable
+            but invisible — QA UI-C1). aria-pressed buttons, not a radio
+            widget: no roving-tabindex contract to break (QA UI-W6). */}
         {(job.status === 'pending' || job.status === 'failed') && (
-          <div className="mt-1 flex items-center gap-1" role="radiogroup" aria-label={`${preset.label} tier`}>
+          <div className="mt-1 flex flex-wrap items-center gap-1" role="group" aria-label={`${preset.label} tier`}>
             {(['crop', 'extend', 'redesign'] as const).map((m) => {
               const Icon = m === 'crop' ? Crop : m === 'extend' ? Expand : Wand2;
               return (
                 <button
                   key={m}
-                  role="radio"
-                  aria-checked={job.mode === m}
+                  aria-pressed={job.mode === m}
                   title={`${MODE_LABELS[m]}${m === suggested ? ' (suggested)' : ''}`}
                   onClick={() => onSetMode(m)}
                   className={cn(
@@ -412,12 +415,11 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
-        <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Repurpose mode">
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Repurpose mode">
           {([['suggested', 'Suggested', Sparkles], ['redesign', 'AI re-design', Wand2], ['extend', 'AI extend', Expand], ['crop', 'Smart crop (free)', Crop]] as const).map(([m, label, Icon]) => (
             <button
               key={m}
-              role="radio"
-              aria-checked={mode === m}
+              aria-pressed={mode === m}
               onClick={() => setGlobalMode(m)}
               className={cn(
                 'flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-200',

@@ -32,39 +32,54 @@ export const HISTORY_SORTS: { id: HistorySort; label: string }[] = [
   { id: 'title', label: 'Title A-Z' },
 ];
 
+interface RunsCursor {
+  t: string;
+  id: string;
+}
+
 interface RunsPage {
   runs: OmniRun[];
-  nextCursor: string | null;
+  nextCursor: RunsCursor | null;
 }
 
 /**
  * Cursor-paginated runs (HIST-09 sort + infinite scroll). Time sorts use a
- * strict keyset cursor on the sort column (microsecond timestamps make ties
- * effectively impossible; pages are still deduped by id downstream). Title
- * sort fetches in recency order and sorts the loaded pages client-side —
- * titles are nullable/duplicated, which breaks a naive title keyset.
+ * COMPOSITE keyset on (sort column, id): the updated_at trigger stamps every
+ * row of one bulk UPDATE (e.g. bulk Archive) with the identical transaction
+ * timestamp, so a strict single-column cursor would silently drop the tie
+ * rows that straddle a page boundary (QA CR-W2). Title sort fetches in
+ * recency order and sorts the loaded pages client-side — titles are
+ * nullable/duplicated, which breaks a naive title keyset.
  */
 export function useOmniRunsInfinite(sort: HistorySort) {
   const timeCol = sort === 'updated_desc' ? 'updated_at' : 'created_at';
   const ascending = sort === 'created_asc';
   return useInfiniteQuery<RunsPage>({
     queryKey: ['omni-runs', sort],
-    initialPageParam: null as string | null,
+    initialPageParam: null as RunsCursor | null,
     queryFn: async ({ pageParam }) => {
       let query = supabase
         .from('omni_runs')
         .select('*')
         .order(timeCol, { ascending })
+        .order('id', { ascending: true })
         .limit(PAGE_SIZE);
-      const cursor = pageParam as string | null;
-      if (cursor) query = ascending ? query.gt(timeCol, cursor) : query.lt(timeCol, cursor);
+      const cursor = pageParam as RunsCursor | null;
+      if (cursor) {
+        const op = ascending ? 'gt' : 'lt';
+        query = query.or(
+          `${timeCol}.${op}."${cursor.t}",and(${timeCol}.eq."${cursor.t}",id.gt."${cursor.id}")`,
+        );
+      }
       const { data, error } = await query;
       if (error) throw error;
       const runs = (data ?? []) as OmniRun[];
       const last = runs[runs.length - 1] as (OmniRun & Record<string, unknown>) | undefined;
       return {
         runs,
-        nextCursor: runs.length === PAGE_SIZE && last ? String(last[timeCol]) : null,
+        nextCursor: runs.length === PAGE_SIZE && last
+          ? { t: String(last[timeCol]), id: last.id }
+          : null,
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,

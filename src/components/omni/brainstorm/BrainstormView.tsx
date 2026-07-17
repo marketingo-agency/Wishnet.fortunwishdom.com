@@ -138,14 +138,14 @@ export function BrainstormView({ runId, onRunCreated, onLocked, onExit }: Brains
         </div>
         <div className="flex items-center gap-1.5">
           <Select value={provider} onValueChange={(v) => { setProvider(v as 'openai' | 'gemini'); setModel('default'); }}>
-            <SelectTrigger className="h-8 w-[100px] text-xs" aria-label="Provider"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="cursor-pointer h-8 w-[100px] text-xs" aria-label="Provider"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="openai" className="text-xs">OpenAI</SelectItem>
               <SelectItem value="gemini" className="text-xs">Gemini</SelectItem>
             </SelectContent>
           </Select>
           <Select value={model} onValueChange={setModel}>
-            <SelectTrigger className="h-8 w-[150px] text-xs" aria-label="Model"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="cursor-pointer h-8 w-[150px] text-xs" aria-label="Model"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="default" className="text-xs">Workspace default</SelectItem>
               {modelOptions.map((m) => (
@@ -169,7 +169,20 @@ export function BrainstormView({ runId, onRunCreated, onLocked, onExit }: Brains
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
         <div className="mx-auto w-full max-w-2xl space-y-4">
-          {messages.length === 0 && !busy ? (
+          {/* QA UI-W3: a resumed session must not flash the first-run hero
+              while its history is still loading (or vanish on a fetch error). */}
+          {runId && run.isLoading ? (
+            <div className="flex flex-col items-center gap-3 py-16 text-center" aria-live="polite">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white">
+                <Lightbulb className="h-5 w-5 animate-pulse" />
+              </span>
+              <p className="text-sm text-muted-foreground">Loading the conversation…</p>
+            </div>
+          ) : runId && run.isError ? (
+            <p className="py-16 text-center text-sm text-destructive">
+              Could not load this brainstorming session. Reopen it from History to retry.
+            </p>
+          ) : messages.length === 0 && !busy ? (
             <div className="flex flex-col items-center gap-4 py-16 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/20">
                 <Lightbulb className="h-8 w-8" />

@@ -561,7 +561,7 @@ Deno.serve(async (req: Request) => {
           .maybeSingle();
         const sourcePath = (sourceAsset as { storage_path: string | null } | null)?.storage_path;
         if (!sourcePath) return jsonResponse({ error: 'Source asset not found or not persisted yet' }, 400);
-        const sourceUrl = await signStoragePath(supabaseAdmin, sourcePath, 60 * 60);
+        const sourceUrl = await signStoragePath(supabaseAdmin, sourcePath, userId, 60 * 60);
         if (!sourceUrl) return jsonResponse({ error: 'Could not sign the source image' }, 500);
         imageUrls.push(sourceUrl);
       }
@@ -739,8 +739,16 @@ Deno.serve(async (req: Request) => {
       if (expandLeft + expandRight + expandTop + expandBottom < 8) {
         return jsonResponse({ error: 'The aspect already matches - use the free Smart crop instead' }, 400);
       }
+      // Bound the computed canvas (security-auditor L1): stored dims are
+      // client-writable, so an extreme aspect must not turn into a
+      // million-pixel outpaint bill. Mirrors the 8192 target clamp.
+      const outW = srcW + expandLeft + expandRight;
+      const outH = srcH + expandTop + expandBottom;
+      if (outW > 8192 || outH > 8192 || outW * outH > 48_000_000) {
+        return jsonResponse({ error: 'This source and target combination is too large to extend - use Smart crop or AI re-design instead' }, 400);
+      }
 
-      const sourceUrl = await signStoragePath(supabaseAdmin, source.storage_path, 60 * 60);
+      const sourceUrl = await signStoragePath(supabaseAdmin, source.storage_path, userId, 60 * 60);
       if (!sourceUrl) return jsonResponse({ error: 'Could not sign the source image' }, 500);
 
       const { data: asset, error: assetError } = await supabaseAdmin
@@ -807,7 +815,7 @@ Deno.serve(async (req: Request) => {
         const meta = (a.metadata ?? {}) as Record<string, unknown>;
 
         if (status === 'done' && a.storage_path) {
-          const url = await signStoragePath(supabaseAdmin, a.storage_path as string);
+          const url = await signStoragePath(supabaseAdmin, a.storage_path as string, userId);
           return { id, status: 'done', url, width: a.width, height: a.height };
         }
         if (status === 'failed') return { id, status: 'failed', error: a.error ?? 'Generation failed' };
@@ -838,7 +846,7 @@ Deno.serve(async (req: Request) => {
               metadata: { ...meta, byte_size: persisted.byteSize, seed: result.seed },
             })
             .eq('id', id);
-          const url = await signStoragePath(supabaseAdmin, persisted.storagePath);
+          const url = await signStoragePath(supabaseAdmin, persisted.storagePath, userId);
           return { id, status: 'done', url, width: image.width, height: image.height };
         } catch (e) {
           const message = e instanceof FalUserError ? e.message : 'Generation failed';
@@ -863,7 +871,7 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
       const path = (asset as { storage_path: string | null } | null)?.storage_path;
       if (!path) return jsonResponse({ error: 'Asset not found or not persisted' }, 404);
-      const url = await signStoragePath(supabaseAdmin, path);
+      const url = await signStoragePath(supabaseAdmin, path, userId);
       return jsonResponse({ url });
     }
 
@@ -936,7 +944,7 @@ Deno.serve(async (req: Request) => {
         return jsonResponse({ error: e instanceof Error ? e.message : 'Heart rules unavailable' }, 503);
       }
 
-      const signedUrl = await signStoragePath(supabaseAdmin, record.storage_path, 60 * 60);
+      const signedUrl = await signStoragePath(supabaseAdmin, record.storage_path, userId, 60 * 60);
       if (!signedUrl) return jsonResponse({ error: 'Could not access the image' }, 500);
 
       let imageBase64: string | null = null;

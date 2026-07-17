@@ -243,12 +243,11 @@ export function StageCaptions({
                     </div>
                     <div className="min-w-0 flex-1 space-y-1.5">
                       {cellOptions.length > 1 && (
-                        <div className="space-y-1" role="radiogroup" aria-label={`${net.label} caption options`}>
+                        <div className="space-y-1" role="group" aria-label={`${net.label} caption options`}>
                           {cellOptions.map((o, i) => (
                             <button
                               key={i}
-                              role="radio"
-                              aria-checked={cellChosen === o}
+                              aria-pressed={cellChosen === o}
                               onClick={() => setCaption(sourceId, networkId, o)}
                               className={cn(
                                 'block w-full cursor-pointer rounded-md border px-2 py-1 text-left text-[11px] transition-colors duration-200',
@@ -281,7 +280,7 @@ export function StageCaptions({
                           variant="ghost"
                           onClick={() => void moreOptions(sourceId, networkId)}
                           disabled={busyCell === cellKey || running}
-                          className="h-6 cursor-pointer gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+                          className="h-8 cursor-pointer gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
                         >
                           {busyCell === cellKey ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
                           More options

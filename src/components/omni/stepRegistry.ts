@@ -217,9 +217,12 @@ function stageComplete(id: StageId, state: OmniImagesState): boolean {
   }
 }
 
-/** The earliest stage whose prerequisites are not yet satisfied. */
-export function firstIncompleteStage(state: OmniImagesState): StageId {
+/** The earliest stage (at or after fromOrdinal) whose prerequisites are not
+ *  yet satisfied. Handoff modes scan from their floor: brief/engine/generate
+ *  are not part of their flow, so those prerequisites must never gate them. */
+export function firstIncompleteStage(state: OmniImagesState, fromOrdinal = 1): StageId {
   for (const stage of STAGES) {
+    if (stage.ordinal < fromOrdinal) continue;
     if (stage.id === 'finalize') break;
     if (!stageComplete(stage.id, state)) return stage.id;
   }
@@ -231,10 +234,15 @@ export function firstIncompleteStage(state: OmniImagesState): StageId {
  * mappedStage = min(ordinalMap[oldStep], firstIncompleteStage(state)).
  * A legacy run parked at old step 8 (captions) that never chose dimension
  * presets resumes at distribution, never at a dead-ended captions stage.
+ * Handoff modes (repurposing / transform) are floored at V2_HANDOFF_STAGE:
+ * they structurally lack model_selections, so the omni_images prerequisite
+ * chain would otherwise mis-clamp them onto Engine (QA CR-W1).
  */
-export function stageForLegacyStep(rawStep: number, state: OmniImagesState): StageId {
-  const mapped = V1_STEP_TO_STAGE[normalizeV1Step(rawStep)] ?? 'brief';
-  const clamp = firstIncompleteStage(state);
+export function stageForLegacyStep(rawStep: number, state: OmniImagesState, mode?: OmniMode): StageId {
+  const floor = handoffFloorOrdinal(mode) ?? 1;
+  let mapped = V1_STEP_TO_STAGE[normalizeV1Step(rawStep)] ?? 'brief';
+  if (stageOrdinal(mapped) < floor) mapped = stageForOrdinal(floor).id;
+  const clamp = firstIncompleteStage(state, floor);
   return stageOrdinal(mapped) <= stageOrdinal(clamp) ? mapped : clamp;
 }
 
@@ -253,13 +261,31 @@ export interface MigratedRunPosition {
 }
 
 /**
+ * The stage a handoff-mode run can never sit below in the Studio wizard.
+ * Repurposing lives in the wizard only from distribution on; a transform run
+ * reaches the wizard only post-handoff. Without this floor the prerequisite
+ * clamp (built on omni_images semantics — a repurposing run structurally has
+ * no model_selections) would mis-open such runs on Engine/Brief and a Next
+ * click would persist a corrupt sub-floor position.
+ */
+function handoffFloorOrdinal(mode?: OmniMode): number | null {
+  return mode === 'repurposing' || mode === 'transform_upscale'
+    ? stageOrdinal(V2_HANDOFF_STAGE)
+    : null;
+}
+
+/**
  * Resolve a run's position in the v2 stage flow from persisted data of EITHER
  * schema. v2-stamped state passes through; v1 state maps through the
- * prerequisite-aware table. State keys are never rewritten here.
+ * prerequisite-aware table, floored at the mode's handoff stage. State keys
+ * are never rewritten here.
  */
-export function migrateStepState(state: OmniImagesState, rawStep: number): MigratedRunPosition {
+export function migrateStepState(state: OmniImagesState, rawStep: number, mode?: OmniMode): MigratedRunPosition {
+  const floor = handoffFloorOrdinal(mode);
   if (isV2State(state)) {
-    const stage = stageForOrdinal(rawStep);
+    // Defense-in-depth: a v2 handoff run's ordinal can never sit below its
+    // floor either (the stamp only exists post-handoff by design).
+    const stage = stageForOrdinal(floor ? Math.max(rawStep, floor) : rawStep);
     const maxOrdinal = Math.min(
       Math.max(state.max_step_reached ?? stage.ordinal, stage.ordinal),
       STAGES.length,
@@ -267,7 +293,7 @@ export function migrateStepState(state: OmniImagesState, rawStep: number): Migra
     return { stage: stage.id, ordinal: stage.ordinal, maxStageOrdinal: maxOrdinal, state };
   }
 
-  const stageId = stageForLegacyStep(rawStep, state);
+  const stageId = stageForLegacyStep(rawStep, state, mode);
   const ordinal = stageOrdinal(stageId);
   // Map the v1 high-water mark through the same table (max of mapped values).
   const v1Reached = Math.max(state.max_step_reached ?? 0, normalizeV1Step(rawStep));

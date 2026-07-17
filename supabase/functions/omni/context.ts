@@ -121,9 +121,13 @@ export interface KnowledgeBlockOptions {
   emptyText?: string;
 }
 
-/** The raw UNTRUSTED fence (shared by every knowledge section flavor). */
+/** The raw UNTRUSTED fence (shared by every knowledge section flavor).
+ *  Fence delimiters inside the body are neutralized (security-auditor L2):
+ *  a crafted chunk must not be able to forge a fence-close and append
+ *  instructions outside the untrusted block. */
 export function fenceUntrusted(title: string, body: string): string {
-  return `${title}\n<<<UNTRUSTED CONTEXT START>>>\n${body}\n<<<UNTRUSTED CONTEXT END>>>`;
+  const safeBody = body.replace(/<<<\s*UNTRUSTED CONTEXT (START|END)\s*>>>/gi, '[fence removed]');
+  return `${title}\n<<<UNTRUSTED CONTEXT START>>>\n${safeBody}\n<<<UNTRUSTED CONTEXT END>>>`;
 }
 
 /**
