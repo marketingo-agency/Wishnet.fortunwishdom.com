@@ -27,8 +27,18 @@ import { CLGenerate } from './CLGenerate';
 import {
   CLIP_ENGINES, CLIP_NETWORK_PRESETS, CLIP_TEMPLATES, estimateClipCost, type ClipEngineOption,
 } from './clipsTemplates';
+import { snapVideoDuration } from '@/config/falVideoSpecs';
 
 const MODE = 'video_clips' as const;
+
+/** Length buttons snapped to the engine's real duration enum + deduped, so the
+ *  picker never offers a value the model would silently re-snap on render. */
+function clipLengthOptions(engine: ClipEngineOption): number[] {
+  const snapped = [6, 10, 15]
+    .filter((s) => s <= engine.maxSeconds)
+    .map((s) => snapVideoDuration(engine.modelId, s));
+  return [...new Set(snapped)].sort((a, b) => a - b);
+}
 
 interface ClipsWizardProps {
   runId: string | null;
@@ -128,7 +138,11 @@ export function ClipsWizard({ runId, onRunCreated, onExit }: ClipsWizardProps) {
     }
     const template = CLIP_TEMPLATES.find((t) => t.id === templateId) ?? CLIP_TEMPLATES[0];
     const chosen = CLIP_ENGINES.find((e) => e.id === engineId) ?? CLIP_ENGINES[0];
-    const clampedSeconds = Math.min(seconds, chosen.maxSeconds);
+    // Snap to the engine's real duration enum so the STORED length matches what
+    // the model renders (code-reviewer: Kling 2.6 takes 5|10, so 6s rendered 5s
+    // while the timeline/cost math used 6). The edge snaps too; this keeps the
+    // client's stored value + cost estimate honest.
+    const clampedSeconds = snapVideoDuration(chosen.modelId, Math.min(seconds, chosen.maxSeconds));
     const prompt = template.compose(trimmed);
     const scenes = Array.from({ length: takes }, (_, i) => ({
       idx: i + 1,
@@ -217,6 +231,8 @@ export function ClipsWizard({ runId, onRunCreated, onExit }: ClipsWizardProps) {
   };
 
   const chosenEngineForIdea = CLIP_ENGINES.find((e) => e.id === engineId) ?? CLIP_ENGINES[0];
+  const lengthOptions = clipLengthOptions(chosenEngineForIdea);
+  const effectiveSeconds = snapVideoDuration(chosenEngineForIdea.modelId, Math.min(seconds, chosenEngineForIdea.maxSeconds));
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -284,15 +300,16 @@ export function ClipsWizard({ runId, onRunCreated, onExit }: ClipsWizardProps) {
               />
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex items-center gap-1.5" role="group" aria-label="Clip length">
-                  {[6, 10, 15].map((s) => (
+                  {/* Options derived from the engine's real duration enum — no
+                      6s button for an engine that only renders 5|10 (honest). */}
+                  {lengthOptions.map((s) => (
                     <button
                       key={s}
                       onClick={() => setSeconds(s)}
                       aria-pressed={seconds === s}
-                      disabled={s > chosenEngineForIdea.maxSeconds}
                       className={cn(
                         'cursor-pointer rounded-full border px-3 py-1.5 text-xs transition-colors duration-200',
-                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                         seconds === s ? 'border-violet-500/60 bg-violet-500/10 font-medium' : 'border-border hover:border-violet-500/40',
                       )}
                     >
@@ -321,7 +338,7 @@ export function ClipsWizard({ runId, onRunCreated, onExit }: ClipsWizardProps) {
                 {CLIP_ENGINES.map((e) => (
                   <button
                     key={e.id}
-                    onClick={() => { setEngineId(e.id); setSeconds((s) => Math.min(s, e.maxSeconds)); }}
+                    onClick={() => { setEngineId(e.id); setSeconds((s) => snapVideoDuration(e.modelId, Math.min(s, e.maxSeconds))); }}
                     aria-pressed={engineId === e.id}
                     className={cn(
                       'flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl border p-3 text-left transition-colors duration-200',
@@ -339,7 +356,7 @@ export function ClipsWizard({ runId, onRunCreated, onExit }: ClipsWizardProps) {
               </div>
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[11px] text-muted-foreground" aria-live="polite">
-                  {estimateClipCost(chosenEngineForIdea, Math.min(seconds, chosenEngineForIdea.maxSeconds), takes)} · 9:16 vertical · longer stories belong in Video Studio
+                  {estimateClipCost(chosenEngineForIdea, effectiveSeconds, takes)} · 9:16 vertical · longer stories belong in Video Studio
                 </p>
                 <Button
                   size="sm"

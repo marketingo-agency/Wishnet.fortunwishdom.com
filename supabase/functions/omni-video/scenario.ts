@@ -33,7 +33,10 @@ async function resolvesToPrivate(host: string): Promise<boolean> {
   // Security-audit LOW-1: check BOTH record types - an AAAA-only domain
   // pointing at a private IPv6 host bypassed the A-only lookup.
   const resolve = (Deno as { resolveDns?: (h: string, t: string) => Promise<string[]> }).resolveDns;
-  if (!resolve) return false;
+  // Fail CLOSED: without DNS resolution the private-IP check cannot run, so a
+  // hostname cannot be cleared (parity with the whisper-api twin — the fix the
+  // 2026-07-17 security audit flagged as the one Low).
+  if (!resolve) return true;
   const lookups = await Promise.all(['A', 'AAAA'].map(async (t) => {
     try { return await resolve(host, t) ?? []; } catch { return []; }
   }));

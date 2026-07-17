@@ -196,8 +196,14 @@ export function RepurposeVideoWizard({ runId, onRunCreated, onExit }: RepurposeV
       source_asset_id: assetId,
       objective: label,
       source_duration_verified: durationS0 !== null,
-      // The old source's SFX pass is meaningless for a new source.
+      // Everything derived from the OLD source is meaningless for a new one:
+      // the SFX pass, the reframe/trim variants + their captions, and the SRT.
+      // Leaving them would let Finalize publish the previous source's media
+      // (code-reviewer Warning, 2026-07-17 QA).
       sfx_asset_id: undefined,
+      video_variants: {},
+      video_captions: {},
+      srt_path: undefined,
       scenario: { title: label, scenes: [{ idx: 1, visual_prompt: label, narration: '', duration_s: durationS0 ?? FALLBACK_DURATION_S }] },
     });
     toast.info('Source replaced on this run — redo targets to re-fan from the new video.');
