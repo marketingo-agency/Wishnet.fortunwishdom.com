@@ -28,7 +28,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/components/settings/pulsePlatforms';
-import { NETWORK_META, isLibraryNetwork } from './libraryStatus';
+import { networkMeta } from './libraryStatus';
 import { LibraryPostRow } from './LibraryPostRow';
 import { useDeleteLibraryItem, useLibraryAssetUrls, type ContentLibraryItem } from './useContentLibrary';
 
@@ -72,7 +72,7 @@ export function LibraryItemSheet({ item, onOpenChange }: LibraryItemSheetProps) 
               <SheetTitle className="pr-8">{item.title}</SheetTitle>
               <SheetDescription>
                 Saved {formatDate(item.created_at)}
-                {item.networks.length > 0 && ` for ${item.networks.filter(isLibraryNetwork).map((n) => NETWORK_META[n].label).join(', ')}`}
+                {item.networks.length > 0 && ` for ${item.networks.map((n) => networkMeta(n).label).join(', ')}`}
               </SheetDescription>
             </SheetHeader>
 

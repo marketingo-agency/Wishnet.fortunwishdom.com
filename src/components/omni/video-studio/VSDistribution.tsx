@@ -8,7 +8,7 @@
  * the master already fits ships as-is, free. GEN-01: failed variants retry.
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, Loader2, Play, RefreshCw, Share2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -61,6 +61,9 @@ function VariantRow({
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const cancelledRef = useRef(false);
+  // Leaving the stage stops the chain's polling; the utility rows keep
+  // completing server-side and restore via the persisted variant ref.
+  useEffect(() => () => { cancelledRef.current = true; }, []);
   const polled = usePolledAsset(variant?.asset_id);
 
   const targetAspect = snapReframeAspect(preset.ratio);

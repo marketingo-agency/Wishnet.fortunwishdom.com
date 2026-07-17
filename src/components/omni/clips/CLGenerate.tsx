@@ -65,7 +65,10 @@ export function CLGenerate({ runId, scenario, engine, chosenClipId, onClipCreate
           className="h-8 cursor-pointer gap-1.5 bg-gradient-to-r from-violet-500 to-purple-600 text-xs text-white transition-all duration-300 hover:opacity-90"
         >
           {runner.isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-          {runner.isRunning ? 'Generating…' : missing.length === scenario.scenes.length && !started ? 'Generate' : `Retry missing (${missing.length})`}
+          {runner.isRunning ? 'Generating…'
+            : missing.length === scenario.scenes.length && !started ? 'Generate'
+            : missing.length === 0 ? 'All takes done'
+            : `Retry missing (${missing.length})`}
         </Button>
       </div>
 

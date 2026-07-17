@@ -53,7 +53,8 @@ export function VSCaptions({ runId, assemblyAssetId, srtPath, onSrtSaved, onNext
         'transcribe',
         { asset_id: assemblyAssetId },
       );
-      const parsed = segmentsFromTranscribe(res.result);
+      const parsed = segmentsFromTranscribe(res.result)
+        .map((seg, i) => ({ ...seg, id: `seg-${Date.now()}-${i}` }));
       if (parsed.length === 0) {
         setTranscribeError('The transcription came back empty — the film may have no speech. You can continue without captions.');
         return;
@@ -138,7 +139,7 @@ export function VSCaptions({ runId, assemblyAssetId, srtPath, onSrtSaved, onNext
           </p>
           <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
             {segments.map((seg, i) => (
-              <div key={`${seg.start_s}-${i}`} className="flex items-start gap-2 rounded-lg border border-border bg-card p-2.5">
+              <div key={seg.id ?? `${seg.start_s}-${i}`} className="flex items-start gap-2 rounded-lg border border-border bg-card p-2.5">
                 <span className="mt-2 shrink-0 font-mono text-[11px] text-muted-foreground">
                   {formatSrtTime(seg.start_s).slice(3, 8)}–{formatSrtTime(seg.end_s).slice(3, 8)}
                 </span>

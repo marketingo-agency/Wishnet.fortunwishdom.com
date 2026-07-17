@@ -9,6 +9,8 @@ export interface CaptionSegment {
   start_s: number;
   end_s: number;
   text: string;
+  /** Stable UI key (editor rows re-key on delete without it). */
+  id?: string;
 }
 
 /** Segment targets: readable caption lines, not one giant block. */

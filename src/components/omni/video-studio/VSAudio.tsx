@@ -119,9 +119,9 @@ export function VSAudio({
             <h2 className="text-sm font-semibold">Voiceover</h2>
             <span className="text-[11px] text-muted-foreground">(optional)</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Select value={selectedVoice} onValueChange={setSelectedVoice} disabled={voBusy || !voices.data?.length}>
-              <SelectTrigger className="h-8 w-52 cursor-pointer text-xs" aria-label="Voice">
+              <SelectTrigger className="h-8 w-full cursor-pointer text-xs sm:w-52" aria-label="Voice">
                 <SelectValue placeholder={voices.isLoading ? 'Loading voices…' : 'Pick a voice'} />
               </SelectTrigger>
               <SelectContent>

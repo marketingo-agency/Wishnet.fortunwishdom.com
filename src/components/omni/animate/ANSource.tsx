@@ -96,6 +96,8 @@ export function ANSource({ creating, onPicked }: ANSourceProps) {
       {entryId && (
         images.isLoading ? (
           <div className="flex justify-center py-8" aria-live="polite"><Loader2 className="h-5 w-5 animate-spin text-violet-500" /></div>
+        ) : images.isError ? (
+          <p className="py-8 text-center text-xs text-destructive" role="alert">The entry images could not be loaded. Try again.</p>
         ) : (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {(images.data ?? []).map((img) => {

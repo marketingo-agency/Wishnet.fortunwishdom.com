@@ -9,7 +9,7 @@
  * via Pulse" instead of a false green success.
  */
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, Info, Loader2, PartyPopper } from 'lucide-react';
 import { toast } from 'sonner';
@@ -35,14 +35,18 @@ interface VSFinalizeVideoProps {
 }
 
 function VariantRecap({
-  variant, caption, onCaptionChange, disabled,
+  variant, caption, onCaptionChange, disabled, onReadiness,
 }: {
   variant: OmniVideoVariantRef;
   caption: string;
   onCaptionChange: (caption: string) => void;
   disabled: boolean;
+  onReadiness: (presetId: string, ready: boolean) => void;
 }) {
   const polled = usePolledAsset(variant.asset_id);
+  useEffect(() => {
+    onReadiness(variant.preset_id, polled.status === 'done');
+  }, [polled.status, variant.preset_id, onReadiness]);
   const preset = getVideoPreset(variant.network as OmniVideoNetworkId, variant.preset_id);
   return (
     <div className="rounded-lg border border-border bg-card p-3">
@@ -75,6 +79,11 @@ export function VSFinalizeVideo({
   const [description, setDescription] = useState('');
   const [finalizing, setFinalizing] = useState(false);
   const [done, setDone] = useState(runStatus === 'completed');
+  const [readiness, setReadiness] = useState<Record<string, boolean>>({});
+  const handleReadiness = useCallback((presetId: string, ready: boolean) => {
+    setReadiness((prev) => (prev[presetId] === ready ? prev : { ...prev, [presetId]: ready }));
+  }, []);
+  const allReady = Object.values(variants).every((v) => readiness[v.preset_id]);
 
   const byNetwork = useMemo(() => {
     const groups = new Map<OmniVideoNetworkId, OmniVideoVariantRef[]>();
@@ -172,6 +181,7 @@ export function VSFinalizeVideo({
                   caption={captions[v.preset_id] ?? ''}
                   onCaptionChange={(c) => onCaptionChange(v.preset_id, c)}
                   disabled={finalizing}
+                  onReadiness={handleReadiness}
                 />
               ))}
             </div>
@@ -179,11 +189,16 @@ export function VSFinalizeVideo({
         );
       })}
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-3">
+        {!allReady && Object.keys(variants).length > 0 && (
+          <p className="text-[11px] text-muted-foreground" aria-live="polite">
+            Waiting for every variant to finish (failed ones need a Redo in Distribution).
+          </p>
+        )}
         <Button
           size="sm"
           onClick={() => void finalize()}
-          disabled={finalizing || Object.keys(variants).length === 0}
+          disabled={finalizing || Object.keys(variants).length === 0 || !allReady}
           className="h-9 cursor-pointer gap-1.5 bg-gradient-to-r from-violet-500 to-purple-600 text-xs text-white transition-all duration-300 hover:opacity-90"
         >
           {finalizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
