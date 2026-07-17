@@ -8,7 +8,7 @@
  * VSFinalizeVideo. No new edge actions — video-utility covers everything.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -45,20 +45,35 @@ export function RepurposeVideoWizard({ runId, onRunCreated, onExit }: RepurposeV
   const stages = VIDEO_MODES[MODE].stages;
   const built = Math.max(VIDEO_MODES[MODE].builtThrough, 1);
 
-  const persist = async (nextOrdinal: number, patch: Partial<OmniImagesState>) => {
+  // CR-C1 fix: runner loops fire several persists from ONE stale closure, and
+  // useUpdateOmniRun replaces step_state wholesale - so (a) every write builds
+  // on a ref of the LATEST state (functional updaters compose), and (b) the
+  // network writes are serialized so an earlier write can never land last.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const persistQueue = useRef(Promise.resolve());
+  const persist = async (
+    nextOrdinal: number,
+    patch: Partial<OmniImagesState> | ((prev: OmniImagesState) => Partial<OmniImagesState>),
+  ) => {
+    const base = stateRef.current;
+    const resolved = typeof patch === 'function' ? patch(base) : patch;
     const nextState: OmniImagesState = {
-      ...state,
-      ...patch,
+      ...base,
+      ...resolved,
       video_schema_version: VIDEO_SCHEMA_VERSION,
-      max_step_reached: Math.max(position.maxStageOrdinal, nextOrdinal),
+      max_step_reached: Math.max(base.max_step_reached ?? 1, position.maxStageOrdinal, nextOrdinal),
     };
+    stateRef.current = nextState;
     setLocalState(nextState);
     if (!runId) return;
-    try {
-      await updateRun.mutateAsync({ runId, current_step: nextOrdinal, step_state: nextState });
-    } catch (e) {
-      toast.error(`Progress could not be saved: ${e instanceof Error ? e.message : 'unknown error'}`);
-    }
+    persistQueue.current = persistQueue.current
+      .then(() => updateRun.mutateAsync({ runId, current_step: nextOrdinal, step_state: nextState }))
+      .then(() => undefined)
+      .catch((e: unknown) => {
+        toast.error(`Progress could not be saved: ${e instanceof Error ? e.message : 'unknown error'}`);
+      });
+    await persistQueue.current;
   };
 
   const startRun = async (assetId: string, durationS: number, label: string) => {
@@ -165,7 +180,7 @@ export function RepurposeVideoWizard({ runId, onRunCreated, onExit }: RepurposeV
               timelineSeconds={durationS}
               variants={state.video_variants ?? {}}
               onVariantSaved={(presetId, ref) =>
-                void persist(2, { video_variants: { ...(state.video_variants ?? {}), [presetId]: ref } })}
+                void persist(2, (prev) => ({ video_variants: { ...(prev.video_variants ?? {}), [presetId]: ref } }))}
               onNext={() => void persist(3, {})}
             />
           )}
@@ -177,7 +192,7 @@ export function RepurposeVideoWizard({ runId, onRunCreated, onExit }: RepurposeV
               durationS={durationS}
               upscaleVariant={state.video_variants?.yt_longform}
               onUpscaleSaved={(ref) =>
-                void persist(3, { video_variants: { ...(state.video_variants ?? {}), [ref.preset_id]: ref } })}
+                void persist(3, (prev) => ({ video_variants: { ...(prev.video_variants ?? {}), [ref.preset_id]: ref } }))}
               onSourceReplaced={(assetId) => {
                 toast.success('The SFX version is now the working source — redo targets to re-fan from it.');
                 void persist(3, { source_asset_id: assetId });
@@ -196,7 +211,7 @@ export function RepurposeVideoWizard({ runId, onRunCreated, onExit }: RepurposeV
               variants={state.video_variants ?? {}}
               captions={state.video_captions ?? {}}
               onCaptionChange={(presetId, caption) =>
-                void persist(4, { video_captions: { ...(state.video_captions ?? {}), [presetId]: caption } })}
+                void persist(4, (prev) => ({ video_captions: { ...(prev.video_captions ?? {}), [presetId]: caption } }))}
             />
           )}
 

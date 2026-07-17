@@ -94,10 +94,15 @@ function VariantRow({
           op: 'fal-ai/workflow-utilities/trim-video',
           input: { video_url: current.url, start_time: 0, duration: preset.maxSeconds },
         });
-        if (!needsReframe) {
-          // Trim is the final step - persist the ref the moment the job exists.
-          onVariantSaved(preset.id, { asset_id: res.asset_id, network: network.id, preset_id: preset.id });
-        }
+        // Persist the paid job the moment it exists (project rule) - when a
+        // reframe follows, the ref is overwritten with the final asset below,
+        // but a tab close mid-trim now resumes instead of re-billing.
+        onVariantSaved(preset.id, {
+          asset_id: res.asset_id,
+          network: network.id,
+          preset_id: preset.id,
+          ...(needsReframe ? { note: 'intermediate trim - reframe pending' } : {}),
+        });
         current = await waitForAsset(res.asset_id, cancelled);
       }
       if (needsReframe) {

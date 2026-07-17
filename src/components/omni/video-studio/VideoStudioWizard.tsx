@@ -7,7 +7,7 @@
  * high-water mark; resumes clamp to the registry's builtThrough.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -50,20 +50,35 @@ export function VideoStudioWizard({ runId, onRunCreated, onExit }: VideoStudioWi
   const stages = VIDEO_MODES[MODE].stages;
   const built = Math.max(VIDEO_MODES[MODE].builtThrough, 1);
 
-  const persist = async (nextOrdinal: number, patch: Partial<OmniImagesState>) => {
+  // CR-C1 fix: runner loops fire several persists from ONE stale closure, and
+  // useUpdateOmniRun replaces step_state wholesale - so (a) every write builds
+  // on a ref of the LATEST state (functional updaters compose), and (b) the
+  // network writes are serialized so an earlier write can never land last.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const persistQueue = useRef(Promise.resolve());
+  const persist = async (
+    nextOrdinal: number,
+    patch: Partial<OmniImagesState> | ((prev: OmniImagesState) => Partial<OmniImagesState>),
+  ) => {
+    const base = stateRef.current;
+    const resolved = typeof patch === 'function' ? patch(base) : patch;
     const nextState: OmniImagesState = {
-      ...state,
-      ...patch,
+      ...base,
+      ...resolved,
       video_schema_version: VIDEO_SCHEMA_VERSION,
-      max_step_reached: Math.max(position.maxStageOrdinal, nextOrdinal),
+      max_step_reached: Math.max(base.max_step_reached ?? 1, position.maxStageOrdinal, nextOrdinal),
     };
+    stateRef.current = nextState;
     setLocalState(nextState);
     if (!runId) return;
-    try {
-      await updateRun.mutateAsync({ runId, current_step: nextOrdinal, step_state: nextState });
-    } catch (e) {
-      toast.error(`Progress could not be saved: ${e instanceof Error ? e.message : 'unknown error'}`);
-    }
+    persistQueue.current = persistQueue.current
+      .then(() => updateRun.mutateAsync({ runId, current_step: nextOrdinal, step_state: nextState }))
+      .then(() => undefined)
+      .catch((e: unknown) => {
+        toast.error(`Progress could not be saved: ${e instanceof Error ? e.message : 'unknown error'}`);
+      });
+    await persistQueue.current;
   };
 
   const handleScenarioPicked = async (scenario: OmniVideoScenario, sourceRunId: string | null, brief: string) => {
@@ -192,12 +207,12 @@ export function VideoStudioWizard({ runId, onRunCreated, onExit }: VideoStudioWi
               engine={engine ?? DRAFT_ENGINES[0]}
               approvedIds={state.approved_asset_ids ?? []}
               onClipCreated={(sceneIdx, assetId) => {
-                void persist(3, {
-                  scenario: {
-                    ...scenario,
-                    scenes: scenario.scenes.map((s) => (s.idx === sceneIdx ? { ...s, clip_asset_id: assetId } : s)),
+                void persist(3, (prev) => ({
+                  scenario: prev.scenario && {
+                    ...prev.scenario,
+                    scenes: prev.scenario.scenes.map((s) => (s.idx === sceneIdx ? { ...s, clip_asset_id: assetId } : s)),
                   },
-                });
+                }));
               }}
               onApprovedChange={(ids) => void persist(3, { approved_asset_ids: ids })}
               onContinue={() => void persist(4, {})}
@@ -212,12 +227,12 @@ export function VideoStudioWizard({ runId, onRunCreated, onExit }: VideoStudioWi
               musicAssetId={state.music_asset_id}
               musicPrompt={state.music_prompt}
               onNarrationChange={(sceneIdx, narration) => {
-                void persist(4, {
-                  scenario: {
-                    ...scenario,
-                    scenes: scenario.scenes.map((s) => (s.idx === sceneIdx ? { ...s, narration } : s)),
+                void persist(4, (prev) => ({
+                  scenario: prev.scenario && {
+                    ...prev.scenario,
+                    scenes: prev.scenario.scenes.map((s) => (s.idx === sceneIdx ? { ...s, narration } : s)),
                   },
-                });
+                }));
               }}
               onVoiceoverStarted={(assetId, pickedVoiceId) =>
                 void persist(4, { voiceover_asset_id: assetId, voiceover_voice_id: pickedVoiceId })}
@@ -235,12 +250,12 @@ export function VideoStudioWizard({ runId, onRunCreated, onExit }: VideoStudioWi
               musicAssetId={state.music_asset_id}
               assemblyAssetId={state.assembly_asset_id}
               onHeroStarted={(sceneIdx, assetId) => {
-                void persist(5, {
-                  scenario: {
-                    ...scenario,
-                    scenes: scenario.scenes.map((s) => (s.idx === sceneIdx ? { ...s, hero_asset_id: assetId } : s)),
+                void persist(5, (prev) => ({
+                  scenario: prev.scenario && {
+                    ...prev.scenario,
+                    scenes: prev.scenario.scenes.map((s) => (s.idx === sceneIdx ? { ...s, hero_asset_id: assetId } : s)),
                   },
-                });
+                }));
               }}
               onAssemblyStarted={(assetId) => void persist(5, { assembly_asset_id: assetId })}
               onContinue={() => void persist(6, {})}
@@ -264,7 +279,7 @@ export function VideoStudioWizard({ runId, onRunCreated, onExit }: VideoStudioWi
                 .reduce((sum, s) => sum + (s.duration_s || 0), 0) || scenario.scenes.reduce((sum, s) => sum + (s.duration_s || 0), 0)}
               variants={state.video_variants ?? {}}
               onVariantSaved={(presetId, ref) =>
-                void persist(7, { video_variants: { ...(state.video_variants ?? {}), [presetId]: ref } })}
+                void persist(7, (prev) => ({ video_variants: { ...(prev.video_variants ?? {}), [presetId]: ref } }))}
               onNext={() => void persist(8, {})}
             />
           )}
@@ -278,7 +293,7 @@ export function VideoStudioWizard({ runId, onRunCreated, onExit }: VideoStudioWi
               variants={state.video_variants ?? {}}
               captions={state.video_captions ?? {}}
               onCaptionChange={(presetId, caption) =>
-                void persist(8, { video_captions: { ...(state.video_captions ?? {}), [presetId]: caption } })}
+                void persist(8, (prev) => ({ video_captions: { ...(prev.video_captions ?? {}), [presetId]: caption } }))}
             />
           )}
           {ordinal > 1 && !scenario && (

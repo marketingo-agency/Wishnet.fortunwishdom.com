@@ -9,7 +9,7 @@
  * tail reused). Files/Omni-asset/Library sources land in the polish pass.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, Check, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -49,20 +49,35 @@ export function AnimateWizard({ runId, onRunCreated, onExit }: AnimateWizardProp
   const stages = VIDEO_MODES[MODE].stages;
   const built = Math.max(VIDEO_MODES[MODE].builtThrough, 1);
 
-  const persist = async (nextOrdinal: number, patch: Partial<OmniImagesState>) => {
+  // CR-C1 fix: runner loops fire several persists from ONE stale closure, and
+  // useUpdateOmniRun replaces step_state wholesale - so (a) every write builds
+  // on a ref of the LATEST state (functional updaters compose), and (b) the
+  // network writes are serialized so an earlier write can never land last.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const persistQueue = useRef(Promise.resolve());
+  const persist = async (
+    nextOrdinal: number,
+    patch: Partial<OmniImagesState> | ((prev: OmniImagesState) => Partial<OmniImagesState>),
+  ) => {
+    const base = stateRef.current;
+    const resolved = typeof patch === 'function' ? patch(base) : patch;
     const nextState: OmniImagesState = {
-      ...state,
-      ...patch,
+      ...base,
+      ...resolved,
       video_schema_version: VIDEO_SCHEMA_VERSION,
-      max_step_reached: Math.max(position.maxStageOrdinal, nextOrdinal),
+      max_step_reached: Math.max(base.max_step_reached ?? 1, position.maxStageOrdinal, nextOrdinal),
     };
+    stateRef.current = nextState;
     setLocalState(nextState);
     if (!runId) return;
-    try {
-      await updateRun.mutateAsync({ runId, current_step: nextOrdinal, step_state: nextState });
-    } catch (e) {
-      toast.error(`Progress could not be saved: ${e instanceof Error ? e.message : 'unknown error'}`);
-    }
+    persistQueue.current = persistQueue.current
+      .then(() => updateRun.mutateAsync({ runId, current_step: nextOrdinal, step_state: nextState }))
+      .then(() => undefined)
+      .catch((e: unknown) => {
+        toast.error(`Progress could not be saved: ${e instanceof Error ? e.message : 'unknown error'}`);
+      });
+    await persistQueue.current;
   };
 
   const startRun = async (patch: Partial<OmniImagesState>, title: string) => {
@@ -102,10 +117,12 @@ export function AnimateWizard({ runId, onRunCreated, onExit }: AnimateWizardProp
   const selectedNetworks = new Set(Object.values(state.video_variants ?? {}).map((v) => v.network));
 
   const toggleNetwork = (network: string, presetId: string) => {
-    const variants: Record<string, OmniVideoVariantRef> = { ...(state.video_variants ?? {}) };
-    if (variants[presetId]) delete variants[presetId];
-    else if (chosenClipId) variants[presetId] = { asset_id: chosenClipId, network, preset_id: presetId };
-    void persist(4, { video_variants: variants });
+    void persist(4, (prev) => {
+      const variants: Record<string, OmniVideoVariantRef> = { ...(prev.video_variants ?? {}) };
+      if (variants[presetId]) delete variants[presetId];
+      else if (chosenClipId) variants[presetId] = { asset_id: chosenClipId, network, preset_id: presetId };
+      return { video_variants: variants };
+    });
   };
 
   return (
@@ -244,7 +261,7 @@ export function AnimateWizard({ runId, onRunCreated, onExit }: AnimateWizardProp
                   variants={state.video_variants ?? {}}
                   captions={state.video_captions ?? {}}
                   onCaptionChange={(presetId, caption) =>
-                    void persist(4, { video_captions: { ...(state.video_captions ?? {}), [presetId]: caption } })}
+                    void persist(4, (prev) => ({ video_captions: { ...(prev.video_captions ?? {}), [presetId]: caption } }))}
                 />
               </div>
             ) : (

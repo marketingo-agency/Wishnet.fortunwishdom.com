@@ -15,6 +15,10 @@ import { callOmniVideo } from '@/lib/omniApi';
 import { pollVideoAssets } from './useVideoScenes';
 
 const POLL_MS = 3500;
+/** Background jobs (assembly chains) can legitimately run for minutes, but a
+ *  row stuck 'generating' past this is unrecoverable client-side (CR-W fix:
+ *  surface it instead of spinning forever). */
+const MAX_POLL_MS = 20 * 60_000;
 
 export interface ElevenVoice {
   voice_id: string;
@@ -66,8 +70,13 @@ export function usePolledAsset(assetId: string | null | undefined): PolledAssetS
 
     let cancelled = false;
     let errors = 0;
+    const startedAt = Date.now();
     const tick = async () => {
       while (!cancelled) {
+        if (Date.now() - startedAt > MAX_POLL_MS) {
+          if (!cancelled) setState({ status: 'failed', error: 'This job is taking unusually long. Reopen the run later — if it still has not finished, retry it.' });
+          return;
+        }
         try {
           const [r] = await pollVideoAssets([assetId]);
           errors = 0;

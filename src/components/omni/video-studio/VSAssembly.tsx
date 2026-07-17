@@ -9,7 +9,7 @@
  * asset row — closing the tab is safe. Continues to stage 6 (Captions).
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Clapperboard, Crown, Film, Loader2, RefreshCw, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -42,17 +42,25 @@ interface VSAssemblyProps {
 /** One scene row: cut status + hero re-render lifecycle (sub-component so
  *  each row can poll its own hero asset — the EntryImageLoader pattern). */
 function SceneCutRow({
-  runId, scene, approved, heroBusyGlobal, onHeroStarted,
+  runId, scene, approved, heroBusyGlobal, onHeroStarted, onHeroStatus,
 }: {
   runId: string;
   scene: OmniScenarioScene;
   approved: boolean;
   heroBusyGlobal: boolean;
   onHeroStarted: (sceneIdx: number, assetId: string) => void;
+  onHeroStatus: (sceneIdx: number, done: boolean) => void;
 }) {
   const hero = usePolledAsset(scene.hero_asset_id);
   const [submitting, setSubmitting] = useState(false);
   const supersededRef = useRef(false);
+
+  // CR-W fix: the cut prefers a hero ONLY once it is done - a failed or
+  // still-rendering hero must never block assembly (the approved draft
+  // stays in the cut until the hero actually lands).
+  useEffect(() => {
+    onHeroStatus(scene.idx, hero.status === 'done');
+  }, [hero.status, scene.idx, onHeroStatus]);
 
   // Tag the draft once its hero lands (best-effort, Sentry-logged).
   useEffect(() => {
@@ -107,7 +115,7 @@ function SceneCutRow({
           ) : heroBusy ? (
             'Hero rendering — the draft stays in the cut until it lands'
           ) : hero.status === 'failed' ? (
-            <span className="text-destructive">Hero failed: {hero.error}</span>
+            <span className="text-destructive">Hero failed ({hero.error}) — the approved draft stays in the cut</span>
           ) : inCut ? 'Draft cut (approved)' : 'Not in the cut — approve its draft in Scenes, or render a hero'}
         </p>
       </div>
@@ -137,13 +145,18 @@ export function VSAssembly({
   const music = usePolledAsset(musicAssetId);
   const assembly = usePolledAsset(assemblyAssetId);
   const [resolution, setResolution] = useState<'1080p' | '720p'>('1080p');
+  const [heroDone, setHeroDone] = useState<Record<number, boolean>>({});
+  const handleHeroStatus = useCallback((sceneIdx: number, done: boolean) => {
+    setHeroDone((prev) => (prev[sceneIdx] === done ? prev : { ...prev, [sceneIdx]: done }));
+  }, []);
 
-  // A scene is in the cut with its hero (once done) or its approved draft.
-  // Hero DONE-ness is only known to each row's poller, so the cut computed
-  // here treats a scene with a hero id as hero-intent: assembly re-checks
-  // readiness server-side (a not-yet-persisted asset 400s with a clear message).
+  // A scene is in the cut with its DONE hero, else its approved draft
+  // (CR-W fix: a failed/pending hero falls back instead of blocking).
+  const assetFor = (s: OmniScenarioScene): string | undefined =>
+    (s.hero_asset_id && heroDone[s.idx] ? s.hero_asset_id : undefined)
+    ?? (s.clip_asset_id && approved.has(s.clip_asset_id) ? s.clip_asset_id : undefined);
   const cutScenes = scenario.scenes
-    .filter((s) => s.hero_asset_id || (s.clip_asset_id && approved.has(s.clip_asset_id)))
+    .filter((s) => assetFor(s))
     .sort((a, b) => a.idx - b.idx);
   const timelineSeconds = cutScenes.reduce((sum, s) => sum + (s.duration_s || 0), 0);
   const assemblyBusy = assembly.status === 'generating' || assembly.status === 'persisting';
@@ -157,7 +170,7 @@ export function VSAssembly({
     }
     try {
       const assetId = await actions.assemble({
-        scene_asset_ids: cutScenes.map((s) => s.hero_asset_id ?? s.clip_asset_id!) as string[],
+        scene_asset_ids: cutScenes.map((s) => assetFor(s)!) as string[],
         timeline_seconds: timelineSeconds,
         ...(voiceoverAssetId && vo.status === 'done' ? { voiceover_asset_id: voiceoverAssetId } : {}),
         ...(musicAssetId && music.status === 'done' ? { music_asset_id: musicAssetId } : {}),
@@ -194,6 +207,7 @@ export function VSAssembly({
               approved={!!scene.clip_asset_id && approved.has(scene.clip_asset_id)}
               heroBusyGlobal={assemblyBusy}
               onHeroStarted={onHeroStarted}
+              onHeroStatus={handleHeroStatus}
             />
           ))}
         </div>

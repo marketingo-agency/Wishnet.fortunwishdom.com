@@ -338,7 +338,7 @@ Deno.serve(async (req: Request) => {
 
       const { data: assets } = await supabaseAdmin
         .from('omni_assets')
-        .select('id, run_id, model_id, status, storage_path, error, metadata')
+        .select('id, run_id, model_id, status, storage_path, error, metadata, updated_at')
         .in('id', assetIds)
         .eq('user_id', userId);
 
@@ -362,7 +362,16 @@ Deno.serve(async (req: Request) => {
         const modelId = a.model_id as string | null;
         if (typeof requestId !== 'string' || !modelId) {
           // Background jobs (voiceover / assembly) have no fal id: their
-          // waitUntil worker flips the row - report progress as-is.
+          // waitUntil worker flips the row - report progress as-is. A worker
+          // killed mid-chain (edge wall-clock ceiling) leaves the row stuck
+          // 'generating' with NO reclaim path, so a stale row fails honestly
+          // and re-opens the retry (CR-W fix).
+          const staleMs = Date.now() - new Date(a.updated_at as string).getTime();
+          if (staleMs > 15 * 60_000) {
+            const message = 'The background job stalled (the server worker was interrupted). Retry it.';
+            await supabaseAdmin.from('omni_assets').update({ status: 'failed', error: message }).eq('id', id);
+            return { id, status: 'failed', error: message };
+          }
           if (meta.kind === 'voiceover' || meta.kind === 'assembly') {
             return { id, status: 'generating' };
           }
