@@ -38,7 +38,14 @@
 ### Plan 2 Phase 0 (2026-07-17, via fal-ai MCP on Sam's key — paid calls logged in Budget)
 - **Edge worker ceiling (docs, load-bearing for D-V7/D-V8):** wall clock 400s on paid plans (waitUntil bounded by the same 400s), memory 256MB, CPU 2s/request, request-idle timeout 150s (504 if no response). Confirms: VO renders fit waitUntil; video renders NEVER wait in-request; ≤50MB in-request persist threshold is safe against the 256MB isolate (arrayBuffer + upload copy ≈ 2-3× file size).
 - **Seedance 2.0 t2v schema (re-verified live):** duration enum "4".."15"|"auto" (STRINGS), resolution 480p|720p|1080p|4k, aspect auto|21:9|16:9|4:3|1:1|3:4|9:16, generate_audio bool (no cost delta per schema note), bitrate_mode standard|high. Queue URLs confirmed at 2-segment app id (bytedance/seedance-2.0).
-- Probe A (calibration + retention + compose input): request 019f6ded-7910… (4s 480p 16:9). Probe B (compose mismatch input): request 019f6ded-8459… (4s 480p 9:16). Results pending.
+- **Probe A FINDING (load-bearing, new landmine):** benign prompt ("calm mountain lake at sunrise") with generate_audio=true → queue status COMPLETED but result fetch **422 content_policy_violation: "Output audio has sensitive content" (partner_validation_failed)**. Seedance's OUTPUT validation can reject arbitrary innocent clips at the RESULT stage → video-poll MUST treat completed-but-422 as a failed asset surfacing fal's detail (fal-runner's mapFalError already covers falResult 422s ✓); billing of rejected outputs unknown → REQUIRES HUMAN dashboard check. Audio-less retry submitted (019f6df3-c493…).
+- **Probe B SUCCESS + persist math (D-V8):** 4s 480p 9:16 w/ audio = **801,993 bytes (~0.2MB/s at 480p)** → extrapolation: 15s 1080p hero ≈ 20-30MB (in-request OK), 60s 1080p final ≈ 90-120MB (finisher/waitUntil territory), 4k long-form breaches 200MB → cap + "split it" message validated. URL host `v3b.fal.media` (subdomain of fal.media ✓ host-validation compatible).
+- **Probe A2 (audio-less retry) SUCCESS:** same benign prompt w/ generate_audio=false → 668,362 bytes 16:9. Confirms the probe-A rejection was specifically Seedance's AUDIO output validator. Mitigation for the build: audio-less drafts are immune; audio clips need the completed-but-422 failure path + user-facing retry.
+- **Probe C (lyria2):** 6,291,544-byte WAV (~32.7s — Lyria2 beds are WAV not MP3; ~48kHz stereo). $0.10.
+- **Probe (b) compose w/ mismatched inputs — VERDICTS (D-V4-shaping):** (1) it ACCEPTS mismatched aspects and normalizes onto a canvas from the FIRST video keyframe (output 864×496 ≈ clip 1's 480p 16:9; the 9:16 clip squeezed in) → scenes MUST be uniform-aspect before assembly (reframe first). (2) **keyframe `duration` does NOT clip media**: the 32.7s WAV under an 8000ms keyframe extended the container to 32.768s (video frames end ~8.1s) → ALWAYS pre-trim audio beds to the timeline length before compose. (3) Output container is **MOV** (`video/mov`, .mp4 filename), fps 23 → persist path needs a mov/quicktime mime mapping; finals should pass through a normalizing step (merge-videos w/ explicit resolution+fps, or loudnorm re-mux) for platform-safe mp4.
+- **Probe (c) merge-audio-video — VERDICT:** schema = {video_url, audio_url, start_offset} ONLY. **No volume/ducking param** (D-V5 confirmed); the audio REPLACES the video's track.
+- **Probe (e) persist stress — VERDICT (data + docs):** 480p ≈ 0.2MB/s (0.8MB/4s w/ audio); composed 8s draft = 1.2MB. Extrapolation: 15s 1080p hero ≈ 20-30MB → in-request persist OK; 60s+ 1080p finals ≈ 90-120MB → waitUntil/finisher only; 4k long-form breaches 200MB → cap + "split" message stands. Full persistFalMedia stress runs at Phase 2's deploy verification (needs the deployed action).
+- **Probe (d) retention:** probe B completed ~03:36; re-poll ≥04:10 (wakeup armed). DEVIATION (logged): Phase 1 foundations begin during this passive wait — retention gates only Phase 2's finisher design; Phase 0 closes with the retention verdict before any Phase 2 work.
 - Unit-count calibration caveat: the stored fal key is API-scope (no billing read — proven 2026-06-14), and queue results don't carry billed units → if the result payload lacks billing info, real-$ calibration goes to REQUIRES HUMAN (fal dashboard usage page) and `calibrate:true` stays on Seedance pricing rows.
 
 ## REQUIRES HUMAN (accumulating)
@@ -48,10 +55,12 @@
 4. **Token hygiene**: no new tokens were pasted this program (MCP-authenticated deploys); nothing to rotate so far.
 
 ## Budget spent
-- Part One cap: $15. **Spent: ~$0.11 estimated** (pending Seedance unit calibration):
-  - 2026-07-17 Plan2/P0 probe A: Seedance 2.0 t2v 4s 480p 16:9 — $0.014/unit, units unknown (est ~$0.05)
-  - 2026-07-17 Plan2/P0 probe B: Seedance 2.0 t2v 4s 480p 9:16 — est ~$0.05
-  - (compose/merge probes to follow: ~$0.001 each; lyria2 music bed if needed: $0.10)
+- Part One cap: $15. **Spent: ~$0.27 estimated** (Seedance units uncalibrated — API-scope key can't read billing; REQUIRES HUMAN dashboard check):
+  - 2026-07-17 Plan2/P0 probe A: Seedance t2v 4s 480p (output REJECTED by content policy — billing unknown, est $0-0.05)
+  - probe B: Seedance t2v 4s 480p 9:16 — est ~$0.05
+  - probe A2: Seedance t2v 4s 480p 16:9 audio-less — est ~$0.05
+  - probe C: lyria2 bed — $0.10
+  - compose + metadata: ~$0.01
 
 ## Open issues
 - **QA-admin provisioning blocked (2026-07-16, updated 07-17):** PROGRESS: GoTrue signup retry SUCCEEDED — QA user `claude.qa.wishnet@gmail.com` now EXISTS (id `4867c456-57d7-4308-8f50-2f119518956c`), status unconfirmed. Classifier still denies BOTH the `UPDATE auth.users SET email_confirmed_at` and even the password-grant login curl. REMAINING FOR SAM (one click): Supabase Dashboard → Authentication → Users → confirm `claude.qa.wishnet@gmail.com` (then grant admin per the 2026-05-21 audit pattern: profiles/user_roles) — unblocks the whole Part Two Playwright pass. The password was set this session (transcript); treat as temp — DELETE the QA user + its data after Part Two. Browser-gated acceptance items stay self-verified via tests + code inspection meanwhile.
