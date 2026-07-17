@@ -25,6 +25,11 @@ const EXT_BY_MIME: Record<string, string> = {
   // compose emits MOV containers named .mp4 (Phase-0 probe verdict).
   'video/mov': 'mp4',
   'video/quicktime': 'mp4',
+  // audio outputs (voiceover mp3, lyria2 WAV beds) share the bucket.
+  'audio/mpeg': 'mp3',
+  'audio/mp3': 'mp3',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
 };
 
 export function videoExtForMime(mime: string): string {
@@ -40,12 +45,15 @@ export function isFalMediaHost(url: string): boolean {
   }
 }
 
-/** MP4/MOV start with an ftyp box at offset 4; webm/mkv with an EBML header. */
-function looksLikeVideo(bytes: Uint8Array): boolean {
+/** MP4/MOV (ftyp at offset 4), webm/mkv (EBML), WAV (RIFF), MP3 (ID3/frame sync). */
+function looksLikeMedia(bytes: Uint8Array): boolean {
   if (bytes.length < 12) return false;
   const ftyp = bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
   const ebml = bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
-  return ftyp || ebml;
+  const riff = bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46;
+  const id3 = bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33;
+  const mp3 = bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0;
+  return ftyp || ebml || riff || id3 || mp3;
 }
 
 export interface PersistedVideo {
@@ -79,7 +87,7 @@ export async function persistFalVideo(
     throw new Error('The rendered video exceeds the size cap. Split the timeline into shorter parts and re-assemble.');
   }
   const bytes = new Uint8Array(buf);
-  if (!looksLikeVideo(bytes)) throw new Error('The downloaded file is not a video container');
+  if (!looksLikeMedia(bytes)) throw new Error('The downloaded file is not a recognized media container');
 
   const mimeType = contentType || res.headers.get('content-type') || 'video/mp4';
   const storagePath = `${ownerId}/omni-videos/${runId}/${assetId}.${videoExtForMime(mimeType)}`;

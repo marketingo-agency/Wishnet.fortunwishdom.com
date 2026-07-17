@@ -21,6 +21,8 @@ import {
   HARD_MAX_BYTES, IN_REQUEST_MAX_BYTES, claimForPersist, isFalMediaHost, persistFalVideo, signVideoPath,
 } from './persist.ts';
 import { fetchUrlText, generateScenario } from './scenario.ts';
+import { getElevenKey, listVoices, renderVoiceover, type VoiceoverLine } from './audio.ts';
+import { assembleRun, mediaUrlFrom } from './assembly.ts';
 
 // 60/min: generation surfaces poll every ~3-4s; one active run fits.
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 60 });
@@ -78,7 +80,7 @@ async function falVideoResult(
     throw new Error(`fal result failed (${res.status}): ${bodyText.slice(0, 300)}`);
   }
   const data = await res.json() as Record<string, unknown>;
-  const candidates: unknown[] = [data.video, ...(Array.isArray(data.videos) ? data.videos : [])];
+  const candidates: unknown[] = [data.video, data.audio, data.media, ...(Array.isArray(data.videos) ? data.videos : [])];
   for (const c of candidates) {
     const f = c as { url?: string; content_type?: string; file_size?: number } | null;
     if (f && typeof f.url === 'string' && f.url.length > 0) {
@@ -89,7 +91,10 @@ async function falVideoResult(
       };
     }
   }
-  throw new FalUserError('The job completed but returned no video output.');
+  // Utility results carry bare URL strings (compose/merge return video_url).
+  const bare = mediaUrlFrom(data);
+  if (bare) return { url: bare, contentType: null, fileSize: null };
+  throw new FalUserError('The job completed but returned no media output.');
 }
 
 /** Signed URL for an OWN image asset in the private files bucket (i2v frames). */
@@ -302,7 +307,10 @@ Deno.serve(async (req: Request) => {
 
         if (status === 'done' && a.storage_path) {
           const url = await signVideoPath(supabaseAdmin, a.storage_path as string, userId);
-          return { id, status: 'done', url, duration_s: meta.duration_s ?? null };
+          const thumb = typeof meta.thumb_path === 'string'
+            ? await signVideoPath(supabaseAdmin, meta.thumb_path, userId)
+            : null;
+          return { id, status: 'done', url, thumb_url: thumb, duration_s: meta.duration_s ?? null };
         }
         if (status === 'failed') return { id, status: 'failed', error: a.error ?? 'Generation failed' };
         if (status === 'discarded') return { id, status: 'discarded' };
@@ -311,6 +319,11 @@ Deno.serve(async (req: Request) => {
         const requestId = meta.fal_request_id;
         const modelId = a.model_id as string | null;
         if (typeof requestId !== 'string' || !modelId) {
+          // Background jobs (voiceover / assembly) have no fal id: their
+          // waitUntil worker flips the row - report progress as-is.
+          if (meta.kind === 'voiceover' || meta.kind === 'assembly') {
+            return { id, status: 'generating' };
+          }
           return { id, status: 'failed', error: 'Missing generation reference' };
         }
 
@@ -459,6 +472,203 @@ Deno.serve(async (req: Request) => {
         return jsonResponse({ error: 'Failed to create the output record' }, 500);
       }
       return jsonResponse({ asset_id: (asset as { id: string }).id, request_id: submission.requestId });
+    }
+
+    // -- list-voices (ElevenLabs picker; key shared via pulse_connections) ----
+    if (action === 'list-voices') {
+      const key = await getElevenKey(supabaseAdmin);
+      if (!key) return jsonResponse({ error: 'ElevenLabs is not connected. Add the key in Pulse Settings.' }, 503);
+      try {
+        const voices = await listVoices(key);
+        return jsonResponse({ voices });
+      } catch (e) {
+        return jsonResponse({ error: e instanceof Error ? e.message : 'Could not list voices' }, 502);
+      }
+    }
+
+    // -- voiceover-render (whisper long-job pattern; polled omni_assets row) --
+    if (action === 'voiceover-render') {
+      const runId = body.run_id;
+      if (!(await ownRun(runId))) return jsonResponse({ error: 'Run not found' }, 404);
+      const rawLines = Array.isArray(body.lines) ? body.lines.slice(0, 64) : [];
+      const lines: VoiceoverLine[] = rawLines
+        .map((l: Record<string, unknown>) => ({
+          text: typeof l?.text === 'string' ? l.text.trim().slice(0, 5000) : '',
+          voice_id: typeof l?.voice_id === 'string' ? l.voice_id.slice(0, 64) : '',
+        }))
+        .filter((l: VoiceoverLine) => l.text && l.voice_id);
+      if (lines.length === 0) return jsonResponse({ error: 'At least one narration line with a voice is required' }, 400);
+
+      const key = await getElevenKey(supabaseAdmin);
+      if (!key) return jsonResponse({ error: 'ElevenLabs is not connected. Add the key in Pulse Settings.' }, 503);
+
+      const { data: asset, error: assetError } = await supabaseAdmin
+        .from('omni_assets')
+        .insert({
+          user_id: userId,
+          run_id: runId,
+          kind: 'audio',
+          model_id: null,
+          prompt: null,
+          status: 'generating',
+          metadata: { kind: 'voiceover', lines: lines.length },
+        })
+        .select('id')
+        .single();
+      if (assetError || !asset) {
+        console.error('omni-video: voiceover asset insert error:', assetError?.message);
+        return jsonResponse({ error: 'Failed to create the voiceover record' }, 500);
+      }
+      const assetId = (asset as { id: string }).id;
+      EdgeRuntime.waitUntil(renderVoiceover({
+        supabaseAdmin, ownerId: userId, runId: runId as string, assetId, lines, key,
+        modelId: 'eleven_multilingual_v2',
+      }));
+      return jsonResponse({ asset_id: assetId, status: 'generating' });
+    }
+
+    // -- music-generate (lyria2 bed; polled like any fal-backed asset) --------
+    if (action === 'music-generate') {
+      const falKey = await getFalKey(supabaseAdmin);
+      if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
+      const runId = body.run_id;
+      if (!(await ownRun(runId))) return jsonResponse({ error: 'Run not found' }, 404);
+      const prompt = typeof body.prompt === 'string' && body.prompt.trim()
+        ? body.prompt.trim().slice(0, 500)
+        : 'quiet ambient instrumental bed, soft pads, calm, minimal, background music';
+
+      const { data: asset, error: assetError } = await supabaseAdmin
+        .from('omni_assets')
+        .insert({
+          user_id: userId,
+          run_id: runId,
+          kind: 'audio',
+          model_id: 'fal-ai/lyria2',
+          prompt,
+          status: 'generating',
+          metadata: { kind: 'music' },
+        })
+        .select('id')
+        .single();
+      if (assetError || !asset) {
+        console.error('omni-video: music asset insert error:', assetError?.message);
+        return jsonResponse({ error: 'Failed to create the music record' }, 500);
+      }
+      const assetId = (asset as { id: string }).id;
+      try {
+        const submission = await falSubmit(falKey, 'fal-ai/lyria2', { prompt });
+        await supabaseAdmin
+          .from('omni_assets')
+          .update({ metadata: { kind: 'music', fal_request_id: submission.requestId } })
+          .eq('id', assetId);
+        return jsonResponse({ asset_id: assetId, request_id: submission.requestId });
+      } catch (e) {
+        const message = e instanceof FalUserError ? e.message : 'Music generation could not be submitted';
+        await supabaseAdmin.from('omni_assets').update({ status: 'failed', error: message }).eq('id', assetId);
+        if (e instanceof FalUserError) return jsonResponse({ asset_id: assetId, error: message }, 400);
+        throw e;
+      }
+    }
+
+    // -- assemble-run (merge -> mix -> loudnorm -> persist; background job) ---
+    if (action === 'assemble-run') {
+      const falKey = await getFalKey(supabaseAdmin);
+      if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
+      const runId = body.run_id;
+      if (!(await ownRun(runId))) return jsonResponse({ error: 'Run not found' }, 404);
+
+      const sceneIds = Array.isArray(body.scene_asset_ids)
+        ? body.scene_asset_ids.filter((x: unknown) => typeof x === 'string').slice(0, 32)
+        : [];
+      if (sceneIds.length === 0) return jsonResponse({ error: 'At least one scene clip is required' }, 400);
+
+      const sceneUrls: string[] = [];
+      for (const id of sceneIds) {
+        const url = await signOwnAsset(supabaseAdmin, id, userId);
+        if (!url) return jsonResponse({ error: 'A scene clip is missing or not persisted yet' }, 400);
+        sceneUrls.push(url);
+      }
+      const voiceoverUrl = typeof body.voiceover_asset_id === 'string'
+        ? await signOwnAsset(supabaseAdmin, body.voiceover_asset_id, userId) ?? undefined
+        : undefined;
+      if (typeof body.voiceover_asset_id === 'string' && !voiceoverUrl) {
+        return jsonResponse({ error: 'The voiceover is not ready yet' }, 400);
+      }
+      const musicUrl = typeof body.music_asset_id === 'string'
+        ? await signOwnAsset(supabaseAdmin, body.music_asset_id, userId) ?? undefined
+        : undefined;
+      if (typeof body.music_asset_id === 'string' && !musicUrl) {
+        return jsonResponse({ error: 'The music bed is not ready yet' }, 400);
+      }
+
+      const timelineSeconds = Math.min(Math.max(Number(body.timeline_seconds) || 0, 1), 3600);
+      const resolution = body.resolution === '720p' ? '720p' : '1080p';
+      const fps = body.fps === 24 || body.fps === 25 ? body.fps as number : 30;
+
+      const { data: asset, error: assetError } = await supabaseAdmin
+        .from('omni_assets')
+        .insert({
+          user_id: userId,
+          run_id: runId,
+          kind: 'video',
+          model_id: 'fal-ai/ffmpeg-api/compose',
+          prompt: null,
+          status: 'generating',
+          metadata: { kind: 'assembly', scenes: sceneIds.length, duration_s: timelineSeconds },
+        })
+        .select('id')
+        .single();
+      if (assetError || !asset) {
+        console.error('omni-video: assembly asset insert error:', assetError?.message);
+        return jsonResponse({ error: 'Failed to create the assembly record' }, 500);
+      }
+      const assetId = (asset as { id: string }).id;
+      EdgeRuntime.waitUntil(assembleRun({
+        supabaseAdmin, falKey, ownerId: userId, runId: runId as string, assetId,
+        sceneUrls, timelineSeconds, voiceoverUrl, musicUrl, resolution, fps,
+      }));
+      return jsonResponse({ asset_id: assetId, status: 'generating' });
+    }
+
+    // -- transcribe (word-level via ElevenLabs Scribe on fal; wizper fallback) -
+    if (action === 'transcribe') {
+      const falKey = await getFalKey(supabaseAdmin);
+      if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
+      const assetId = body.asset_id;
+      if (typeof assetId !== 'string') return jsonResponse({ error: 'asset_id is required' }, 400);
+      const mediaUrl = await signOwnAsset(supabaseAdmin, assetId, userId);
+      if (!mediaUrl) return jsonResponse({ error: 'Asset not found or not persisted yet' }, 404);
+
+      const runStt = async (modelId: string, input: Record<string, unknown>) => {
+        const submission = await falSubmit(falKey, modelId, input);
+        for (let i = 0; i < 90; i++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const s = await falStatus(falKey, modelId, submission.requestId);
+          if (s.status === 'COMPLETED') {
+            const appId = modelId.split('/').slice(0, 2).join('/');
+            const res = await fetch(`${QUEUE_BASE}/${appId}/requests/${submission.requestId}`, {
+              headers: { Authorization: `Key ${falKey}` },
+              signal: AbortSignal.timeout(30_000),
+            });
+            if (!res.ok) throw new Error(`transcription result failed (${res.status})`);
+            return await res.json() as Record<string, unknown>;
+          }
+        }
+        throw new Error('Transcription timed out');
+      };
+
+      try {
+        const result = await runStt('fal-ai/elevenlabs/speech-to-text', { audio_url: mediaUrl });
+        return jsonResponse({ engine: 'scribe', result });
+      } catch (scribeError) {
+        console.warn('omni-video: scribe failed, falling back to wizper:', scribeError instanceof Error ? scribeError.message : scribeError);
+        try {
+          const result = await runStt('fal-ai/wizper', { audio_url: mediaUrl });
+          return jsonResponse({ engine: 'wizper', result });
+        } catch (e) {
+          return jsonResponse({ error: e instanceof Error ? e.message : 'Transcription failed' }, 502);
+        }
+      }
     }
 
     // -- scenario-generate -----
