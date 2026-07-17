@@ -119,7 +119,7 @@ export function ANDirection({ state, onMotion, onTalk }: ANDirectionProps) {
             </SelectContent>
           </Select>
           {voices.isError && (
-            <p className="text-[11px] text-amber-600 [[data-omni-theme=dark]_&]:text-amber-400" role="status">
+            <p className="text-[11px] text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400" role="status">
               {voices.error instanceof Error ? voices.error.message : 'ElevenLabs voices are unavailable.'}
             </p>
           )}

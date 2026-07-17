@@ -101,7 +101,7 @@ function SceneCutRow({
         </p>
         <p className="mt-0.5 text-[11px] text-muted-foreground">
           {hero.status === 'done' ? (
-            <span className="inline-flex items-center gap-1 text-amber-600 [[data-omni-theme=dark]_&]:text-amber-400">
+            <span className="inline-flex items-center gap-1 text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400">
               <Crown className="h-3 w-3" /> Hero cut
             </span>
           ) : heroBusy ? (
@@ -232,7 +232,7 @@ export function VSAssembly({
           </div>
         </div>
         {audioPending && (
-          <p className="text-[11px] text-amber-600 [[data-omni-theme=dark]_&]:text-amber-400" aria-live="polite">
+          <p className="text-[11px] text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400" aria-live="polite">
             Audio is still rendering — assembly unlocks when it lands (or fails, in which case the film assembles without it).
           </p>
         )}

@@ -55,7 +55,7 @@ export function VSStoryboardCast({ scenario, initialEngineId, onNext }: VSStoryb
                 <ImageOff className="h-4 w-4 text-muted-foreground/50" />
               )}
             </div>
-            <p className="truncate px-2 py-1 text-[10px] text-muted-foreground">
+            <p className="truncate px-2 py-1 text-[11px] text-muted-foreground">
               <span className="font-semibold text-foreground">S{scene.idx}</span> · {scene.duration_s}s · {scene.visual_prompt}
             </p>
           </div>
@@ -82,7 +82,7 @@ export function VSStoryboardCast({ scenario, initialEngineId, onNext }: VSStoryb
                 <p className="text-sm font-medium">
                   {option.label}
                   {option.id === suggested.id && (
-                    <span className="ml-2 rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 [[data-omni-theme=dark]_&]:text-violet-300">Suggested</span>
+                    <span className="ml-2 rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[11px] font-semibold text-violet-700 [[data-omni-theme=dark]_&]:text-violet-300">Suggested</span>
                   )}
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">{option.blurb}</p>

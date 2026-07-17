@@ -162,7 +162,7 @@ function VariantRow({
         </p>
       )}
       {variant?.note && !failed && (
-        <p className="mt-2 text-[11px] text-amber-600 [[data-omni-theme=dark]_&]:text-amber-400">{variant.note}</p>
+        <p className="mt-2 text-[11px] text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400">{variant.note}</p>
       )}
       {ready && polled.url && (
         <video src={polled.url} controls preload="metadata" className="mt-2 max-h-56 w-full rounded-md border border-border object-contain" aria-label={`${network.label} ${preset.label} variant`} />

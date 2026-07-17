@@ -116,7 +116,7 @@ export function ANSource({ creating, onPicked }: ANSourceProps) {
                 >
                   <img src={data.publicUrl} alt={label} loading="lazy" className="h-full w-full object-cover" />
                   {img.angle && (
-                    <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">{img.angle}</span>
+                    <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[11px] text-white">{img.angle}</span>
                   )}
                 </button>
               );

@@ -144,7 +144,7 @@ export function VSAudio({
           </div>
         </div>
         {voices.isError && (
-          <p className="text-xs text-amber-600 [[data-omni-theme=dark]_&]:text-amber-400" role="status">
+          <p className="text-xs text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400" role="status">
             {voices.error instanceof Error ? voices.error.message : 'ElevenLabs voices are unavailable.'}
           </p>
         )}
@@ -213,7 +213,7 @@ export function VSAudio({
       </section>
 
       <div className="flex items-center justify-end gap-3">
-        <p className={cn('text-[11px] text-muted-foreground', (voBusy || musicBusy) && 'text-amber-600 [[data-omni-theme=dark]_&]:text-amber-400')}>
+        <p className={cn('text-[11px] text-muted-foreground', (voBusy || musicBusy) && 'text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400')}>
           {voBusy || musicBusy
             ? 'Audio is still rendering — you can continue; assembly will wait for it.'
             : vo.status === 'done' || music.status === 'done'

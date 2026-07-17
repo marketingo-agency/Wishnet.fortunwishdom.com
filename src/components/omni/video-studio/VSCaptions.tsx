@@ -115,7 +115,7 @@ export function VSCaptions({ runId, assemblyAssetId, srtPath, onSrtSaved, onNext
           </Button>
         </div>
         {srtPath && (
-          <p className="flex items-center gap-1.5 text-[11px] text-emerald-600 [[data-omni-theme=dark]_&]:text-emerald-400">
+          <p className="flex items-center gap-1.5 text-[11px] text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-400">
             <Check className="h-3.5 w-3.5" /> An SRT sidecar is already saved for this film{segments.length > 0 ? ' — saving again replaces it.' : '. Re-transcribe to edit it.'}
           </p>
         )}
@@ -125,7 +125,7 @@ export function VSCaptions({ runId, assemblyAssetId, srtPath, onSrtSaved, onNext
           </p>
         )}
         {transcribeError && (
-          <p className="flex items-start gap-1.5 text-xs text-amber-600 [[data-omni-theme=dark]_&]:text-amber-400" role="status">
+          <p className="flex items-start gap-1.5 text-xs text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400" role="status">
             <XCircle className="mt-px h-3.5 w-3.5 shrink-0" /> {transcribeError}
           </p>
         )}
@@ -139,7 +139,7 @@ export function VSCaptions({ runId, assemblyAssetId, srtPath, onSrtSaved, onNext
           <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
             {segments.map((seg, i) => (
               <div key={`${seg.start_s}-${i}`} className="flex items-start gap-2 rounded-lg border border-border bg-card p-2.5">
-                <span className="mt-2 shrink-0 font-mono text-[10px] text-muted-foreground">
+                <span className="mt-2 shrink-0 font-mono text-[11px] text-muted-foreground">
                   {formatSrtTime(seg.start_s).slice(3, 8)}–{formatSrtTime(seg.end_s).slice(3, 8)}
                 </span>
                 <Textarea
