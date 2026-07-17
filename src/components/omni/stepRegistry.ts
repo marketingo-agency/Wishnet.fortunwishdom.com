@@ -306,6 +306,168 @@ export function migrateStepState(state: OmniImagesState, rawStep: number, mode?:
   return { stage: stageId, ordinal, maxStageOrdinal, state };
 }
 
+// ── Videos track (Plan 2 D-V1): mode-keyed stage sequences ────────────────────
+
+export type ModeFamily = 'images' | 'videos';
+
+export type VideoModeId =
+  | 'video_scenario'
+  | 'omni_videos'
+  | 'video_clips'
+  | 'video_animate'
+  | 'video_repurpose';
+
+export const MODE_FAMILY: Record<OmniMode, ModeFamily> = {
+  omni_images: 'images',
+  transform_upscale: 'images',
+  repurposing: 'images',
+  surprise_me: 'images',
+  brainstorming: 'images',
+  video_scenario: 'videos',
+  omni_videos: 'videos',
+  video_clips: 'videos',
+  video_animate: 'videos',
+  video_repurpose: 'videos',
+};
+
+export function modeFamily(mode: OmniMode): ModeFamily {
+  return MODE_FAMILY[mode] ?? 'images';
+}
+
+export function isVideoMode(mode: OmniMode): mode is VideoModeId {
+  return modeFamily(mode) === 'videos';
+}
+
+/** step_state.video_schema_version stamped by every video-mode persist.
+ *  Independent of the images schema_version: video runs are born on their own
+ *  stage ordinals — there is no legacy video schema to migrate. */
+export const VIDEO_SCHEMA_VERSION = 1;
+
+export interface VideoStageDef {
+  id: string;
+  /** 1-based; persisted as omni_runs.current_step for video-family runs. */
+  ordinal: number;
+  title: string;
+}
+
+export interface VideoModeDef {
+  mode: VideoModeId;
+  stages: VideoStageDef[];
+  /**
+   * Interim-terminal marker (Plan 2 §4): the last stage ordinal actually BUILT.
+   * Resumes and jumps clamp here while later stages land phase by phase; a
+   * mode with builtThrough 0 has no built surface yet (hub stub only).
+   * Raised per phase as stages ship — this is execution state, kept in code
+   * so tests pin it.
+   */
+  builtThrough: number;
+}
+
+const videoStages = (titles: [string, string][]): VideoStageDef[] =>
+  titles.map(([id, title], i) => ({ id, ordinal: i + 1, title }));
+
+export const VIDEO_MODES: Record<VideoModeId, VideoModeDef> = {
+  video_scenario: {
+    mode: 'video_scenario',
+    // Phase 4 shipped all four Scenario Studio stages.
+    builtThrough: 4,
+    stages: videoStages([
+      ['brief', 'Brief'],
+      ['structure', 'Structure'],
+      ['storyboard', 'Storyboard'],
+      ['export', 'Export & handoff'],
+    ]),
+  },
+  omni_videos: {
+    mode: 'omni_videos',
+    // Phases 5-7 shipped the full pipeline: scenario through finalize.
+    builtThrough: 8,
+    stages: videoStages([
+      ['scenario', 'Scenario'],
+      ['storyboard_cast', 'Storyboard & cast'],
+      ['scenes', 'Scenes'],
+      ['audio', 'Audio'],
+      ['assembly', 'Assembly'],
+      ['captions', 'Captions'],
+      ['distribution', 'Distribution'],
+      ['finalize', 'Finalize'],
+    ]),
+  },
+  video_clips: {
+    mode: 'video_clips',
+    // Phase 8: the full 4-screen fast lane is live.
+    builtThrough: 4,
+    stages: videoStages([
+      ['idea', 'Idea'],
+      ['generate', 'Generate'],
+      ['captions_format', 'Captions & format'],
+      ['finalize', 'Finalize'],
+    ]),
+  },
+  video_animate: {
+    mode: 'video_animate',
+    // Phase 9: source / direction / generate / finalize all live.
+    builtThrough: 4,
+    stages: videoStages([
+      ['source', 'Source'],
+      ['direction', 'Motion or talk'],
+      ['generate', 'Generate & review'],
+      ['finalize', 'Formats & finalize'],
+    ]),
+  },
+  video_repurpose: {
+    mode: 'video_repurpose',
+    // Phase 10: source / targets / process / finalize all live.
+    builtThrough: 4,
+    stages: videoStages([
+      ['source', 'Source video'],
+      ['targets', 'Targets'],
+      ['process', 'Process & review'],
+      ['finalize', 'Finalize'],
+    ]),
+  },
+};
+
+export function videoModeDef(mode: VideoModeId): VideoModeDef {
+  return VIDEO_MODES[mode];
+}
+
+export function videoStageForOrdinal(mode: VideoModeId, ordinal: number): VideoStageDef {
+  const stages = VIDEO_MODES[mode].stages;
+  const clamped = Math.min(Math.max(Math.trunc(ordinal), 1), stages.length);
+  return stages[clamped - 1];
+}
+
+/** Clamp a resume/jump ordinal to the mode's built range (interim-terminal). */
+export function clampToBuilt(mode: VideoModeId, ordinal: number): number {
+  const built = Math.max(VIDEO_MODES[mode].builtThrough, 1);
+  return Math.min(Math.max(Math.trunc(ordinal), 1), built);
+}
+
+export interface VideoRunPosition {
+  stage: VideoStageDef;
+  ordinal: number;
+  maxStageOrdinal: number;
+}
+
+/** Resolve a video run's rendered position: current_step clamped to the built
+ *  range, high-water from max_step_reached (also clamped — a row persisted by
+ *  a newer build never resumes into a stage this build can't render). */
+export function resolveVideoPosition(mode: VideoModeId, state: OmniImagesState, rawStep: number): VideoRunPosition {
+  const ordinal = clampToBuilt(mode, rawStep);
+  const maxStageOrdinal = clampToBuilt(mode, Math.max(state.max_step_reached ?? ordinal, ordinal));
+  return { stage: videoStageForOrdinal(mode, ordinal), ordinal, maxStageOrdinal };
+}
+
+/** Family-aware surface resolution: every video mode renders on its own
+ *  surface (no mid-flow handoffs like transform); images modes keep the
+ *  existing resolver. */
+export type AnyWizardSurface = WizardSurface | VideoModeId;
+
+export function surfaceForRunMode(mode: OmniMode, step: number): AnyWizardSurface {
+  return isVideoMode(mode) ? mode : surfaceForStep(mode, step);
+}
+
 // ── History jump validation ───────────────────────────────────────────────────
 
 /**
@@ -321,6 +483,19 @@ export function migrateStepState(state: OmniImagesState, rawStep: number, mode?:
  */
 export function validateJumpTarget(run: OmniRun, targetStep: number): number | null {
   const state = (run.step_state ?? {}) as OmniImagesState;
+
+  // Video-family runs jump within their own mode sequence, clamped to the
+  // built range (interim-terminal rule) and the run's high-water mark.
+  if (isVideoMode(run.mode)) {
+    const def = VIDEO_MODES[run.mode];
+    const step = Math.trunc(targetStep);
+    if (step < 1 || step > def.stages.length) return null;
+    const highWater = clampToBuilt(
+      run.mode,
+      Math.max(run.current_step, state.max_step_reached ?? 0, 1),
+    );
+    return step <= highWater ? step : null;
+  }
 
   if (isV2State(state)) {
     const floor = run.mode === 'transform_upscale' || run.mode === 'repurposing'

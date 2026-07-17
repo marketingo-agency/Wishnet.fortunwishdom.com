@@ -19,17 +19,25 @@ export const DEFAULT_OMNI_SETTINGS: OmniSettings = {
 /** The four entry tracks on the Omni home screen. */
 export type OmniTrack = 'brainstorming' | 'images' | 'audios' | 'videos';
 
-/** Workflow modes persisted in omni_runs.mode (Images track sequences). */
+/** Workflow modes persisted in omni_runs.mode (Images + Videos tracks — the
+ *  DB CHECK was widened with the five video modes in migration 20260717050000). */
 export type OmniMode =
   | 'omni_images'
   | 'transform_upscale'
   | 'repurposing'
   | 'surprise_me'
-  | 'brainstorming';
+  | 'brainstorming'
+  | 'video_scenario'
+  | 'omni_videos'
+  | 'video_clips'
+  | 'video_animate'
+  | 'video_repurpose';
 
 export type OmniRunStatus = 'active' | 'completed' | 'failed' | 'archived';
 
-export type OmniAssetStatus = 'pending' | 'generating' | 'done' | 'failed' | 'discarded';
+/** 'persisting' = the D-V7 compare-and-set claim taken by whichever of
+ *  client-poll / finisher wins the persist race (video assets). */
+export type OmniAssetStatus = 'pending' | 'generating' | 'persisting' | 'done' | 'failed' | 'discarded';
 
 export interface OmniRun {
   id: string;
@@ -181,6 +189,70 @@ export interface OmniImagesState {
    *  runs pre-seeded from a Wishpedia entry (no new mode, no migration). */
   origin?: 'character_studio';
   character_entry_id?: string;
+  /** Video-family schema stamp (Plan 2 D-V1). Independent of the images
+   *  schema_version: video modes are born at video_schema_version 1 and
+   *  current_step holds their own stage ordinal from day one. */
+  video_schema_version?: number;
+  /** Video pre-production artifact (Plan 2 D-V2). */
+  scenario?: OmniVideoScenario;
+  /** Draft engine picked in Video Studio stage 2 (vsEngines id). */
+  video_engine_id?: string;
+  /** Provenance: the Scenario Studio run this Studio run was seeded from. */
+  scenario_source_run_id?: string;
+  /** Stage 4 audio artifacts (Plan 2 Phase 6a): polled omni_assets rows. */
+  voiceover_asset_id?: string;
+  voiceover_voice_id?: string;
+  music_asset_id?: string;
+  music_prompt?: string;
+  /** Stage 5 output (Phase 6b): the assembled film's omni_assets row. */
+  assembly_asset_id?: string;
+  /** Stage 6 (Phase 7): SRT sidecar path in the omni-video bucket (D-V8). */
+  srt_path?: string;
+  /** Stage 7 (Phase 7): per-preset distribution variants. */
+  video_variants?: Record<string, OmniVideoVariantRef>;
+  /** Stage 8 (Phase 7): per-preset caption overrides. */
+  video_captions?: Record<string, string>;
+  /** Animate mode (Phase 9). */
+  animate_path?: 'motion' | 'talk';
+  animate_refs?: OmniAnimateRef[];
+  animate_prompt?: string;
+  animate_script?: string;
+  animate_voice_id?: string;
+  animate_vo_asset_id?: string;
+}
+
+export interface OmniAnimateRef {
+  /** wishpedia_entry_images.id (resolved server-side, never a raw URL). */
+  wishpedia_image_id: string;
+  /** Public wishpedia-media URL, persisted for preview only. */
+  url: string;
+  label: string;
+}
+
+export interface OmniVideoVariantRef {
+  asset_id: string;
+  network: string;
+  preset_id: string;
+  /** Honest processing note (e.g. "2:3 snapped to 9:16"). */
+  note?: string;
+}
+
+// ── Videos track (Plan 2 D-V2) ────────────────────────────────────────────────
+
+export interface OmniScenarioScene {
+  idx: number;
+  visual_prompt: string;
+  narration: string;
+  duration_s: number;
+  camera?: string;
+  keyframe_asset_id?: string;
+  clip_asset_id?: string;
+  hero_asset_id?: string;
+}
+
+export interface OmniVideoScenario {
+  title: string;
+  scenes: OmniScenarioScene[];
 }
 
 // ── Brainstorming (Mode 6) ───────────────────────────────────────────────────

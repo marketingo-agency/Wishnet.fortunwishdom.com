@@ -364,3 +364,106 @@ describe('stepRegistry: jump validation', () => {
     expect(validateJumpTarget(run, 9)).toBeNull();
   });
 });
+
+// ── Plan 2 D-V1: video-mode sequences (written in Phase 1, per the plan) ──────
+
+import {
+  MODE_FAMILY, VIDEO_MODES, VIDEO_SCHEMA_VERSION, clampToBuilt, isVideoMode,
+  modeFamily, resolveVideoPosition, surfaceForRunMode, videoStageForOrdinal,
+  type VideoModeId,
+} from './stepRegistry';
+
+const VIDEO_IDS: VideoModeId[] = ['video_scenario', 'omni_videos', 'video_clips', 'video_animate', 'video_repurpose'];
+
+describe('stepRegistry: video mode registry (D-V1)', () => {
+  it('classifies every mode into a family (no gaps)', () => {
+    expect(Object.keys(MODE_FAMILY).sort()).toEqual([
+      'brainstorming', 'omni_images', 'omni_videos', 'repurposing', 'surprise_me',
+      'transform_upscale', 'video_animate', 'video_clips', 'video_repurpose', 'video_scenario',
+    ]);
+    for (const id of VIDEO_IDS) {
+      expect(modeFamily(id)).toBe('videos');
+      expect(isVideoMode(id)).toBe(true);
+    }
+    expect(modeFamily('omni_images')).toBe('images');
+    expect(isVideoMode('repurposing')).toBe(false);
+  });
+
+  it('every video sequence has contiguous 1-based ordinals and the planned length', () => {
+    const expectedLengths: Record<VideoModeId, number> = {
+      video_scenario: 4, omni_videos: 8, video_clips: 4, video_animate: 4, video_repurpose: 4,
+    };
+    for (const id of VIDEO_IDS) {
+      const def = VIDEO_MODES[id];
+      expect(def.mode).toBe(id);
+      expect(def.stages).toHaveLength(expectedLengths[id]);
+      def.stages.forEach((s, i) => {
+        expect(s.ordinal).toBe(i + 1);
+        expect(s.title.length).toBeGreaterThan(0);
+      });
+    }
+  });
+
+  it('video runs are born at video_schema_version 1', () => {
+    expect(VIDEO_SCHEMA_VERSION).toBe(1);
+  });
+
+  it('clampToBuilt enforces the interim-terminal rule per mode', () => {
+    // Scenario Studio shipped fully in Phase 4; the other modes are unbuilt.
+    expect(VIDEO_MODES.video_scenario.builtThrough).toBe(4);
+    expect(clampToBuilt('video_scenario', 9)).toBe(4);
+    expect(clampToBuilt('video_scenario', 2)).toBe(2);
+    expect(VIDEO_MODES.omni_videos.builtThrough).toBe(8);
+    expect(clampToBuilt('omni_videos', 9)).toBe(8);
+    expect(clampToBuilt('omni_videos', 2)).toBe(2);
+    expect(VIDEO_MODES.video_clips.builtThrough).toBe(4);
+    expect(clampToBuilt('video_clips', 9)).toBe(4);
+    expect(VIDEO_MODES.video_animate.builtThrough).toBe(4);
+    expect(clampToBuilt('video_animate', 9)).toBe(4);
+    expect(VIDEO_MODES.video_repurpose.builtThrough).toBe(4);
+    expect(clampToBuilt('video_repurpose', 9)).toBe(4);
+    expect(clampToBuilt('video_repurpose', 0)).toBe(1);
+  });
+
+  it('resolveVideoPosition clamps both the position and the high-water to the built range', () => {
+    const pos = resolveVideoPosition('omni_videos', { max_step_reached: 9 }, 9);
+    expect(pos.ordinal).toBe(8);
+    expect(pos.maxStageOrdinal).toBe(8);
+    expect(pos.stage.id).toBe('finalize');
+    expect(videoStageForOrdinal('omni_videos', 99).id).toBe('finalize');
+    const built = resolveVideoPosition('video_scenario', { max_step_reached: 4 }, 3);
+    expect(built.ordinal).toBe(3);
+    expect(built.maxStageOrdinal).toBe(4);
+    expect(built.stage.id).toBe('storyboard');
+  });
+
+  it('validateJumpTarget clamps video jumps to built + high-water and rejects off-range', () => {
+    const unbuilt = {
+      id: 'r', mode: 'omni_videos', current_step: 6,
+      step_state: { max_step_reached: 7, video_schema_version: 1 },
+      status: 'active',
+    } as unknown as OmniRun;
+    // omni_videos is fully built (8 stages); jumps clamp to the high-water.
+    expect(validateJumpTarget(unbuilt, 1)).toBe(1);
+    expect(validateJumpTarget(unbuilt, 7)).toBe(7);
+    expect(validateJumpTarget(unbuilt, 8)).toBeNull();
+    expect(validateJumpTarget(unbuilt, 0)).toBeNull();
+    expect(validateJumpTarget(unbuilt, 9)).toBeNull();
+    // A built mode jumps within its reached range.
+    const scenarioRun = {
+      id: 's', mode: 'video_scenario', current_step: 2,
+      step_state: { max_step_reached: 3, video_schema_version: 1 },
+      status: 'active',
+    } as unknown as OmniRun;
+    expect(validateJumpTarget(scenarioRun, 3)).toBe(3);
+    expect(validateJumpTarget(scenarioRun, 4)).toBeNull();
+  });
+
+  it('surfaceForRunMode routes video modes to their own surface and leaves images untouched', () => {
+    expect(surfaceForRunMode('video_clips', 3)).toBe('video_clips');
+    expect(surfaceForRunMode('video_scenario', 1)).toBe('video_scenario');
+    expect(surfaceForRunMode('transform_upscale', 3)).toBe('transform_upscale');
+    expect(surfaceForRunMode('transform_upscale', 8)).toBe('omni_images');
+    expect(surfaceForRunMode('omni_images', 2)).toBe('omni_images');
+  });
+});

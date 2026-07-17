@@ -39,6 +39,9 @@ export function LibraryItemCard({ item, coverUrl, onOpen }: LibraryItemCardProps
       )}
     >
       <div className="relative aspect-video w-full overflow-hidden bg-muted">
+        {item.media_type === 'video' && (
+          <span className="absolute left-2 top-2 z-10 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">Video</span>
+        )}
         {coverUrl ? (
           // Signed Supabase storage URL: plain img matches the rest of the app's storage rendering.
           <img src={coverUrl} alt={item.title} className="h-full w-full object-cover" loading="lazy" />

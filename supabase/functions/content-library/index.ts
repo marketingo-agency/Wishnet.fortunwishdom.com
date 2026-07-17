@@ -90,6 +90,13 @@ interface PostRow {
   caption: string | null;
   status: string;
   scheduled_at: string | null;
+  media_type: string | null;
+}
+
+/** Omni assets live in two buckets: images in 'files', videos (and their
+ *  sidecars) in 'omni-video' - the storage path layout tells them apart. */
+function bucketForPath(storagePath: string): string {
+  return storagePath.includes('/omni-videos/') ? 'omni-video' : 'files';
 }
 
 /** Publish one post through its connector; mutates the row to a terminal/parked state. */
@@ -100,6 +107,15 @@ async function dispatchPost(supabaseAdmin: AdminClient, post: PostRow, connectio
       .update({ status: 'failed', error: `Unknown network: ${post.network}` })
       .eq('id', post.id);
     return 'failed';
+  }
+
+  // D-V10: scheduled auto-publishing stays IMAGE-only in v1 - video posts
+  // park honestly and publish manually through Pulse (upload-post route).
+  if (post.media_type === 'video') {
+    await supabaseAdmin.from('content_library_posts')
+      .update({ status: 'queued', error: 'Video posts publish manually via Pulse (upload-post). Automatic connectors are image-only for now.' })
+      .eq('id', post.id);
+    return 'queued';
   }
 
   if (!connector.isConfigured(connections)) {
@@ -127,7 +143,7 @@ async function dispatchPost(supabaseAdmin: AdminClient, post: PostRow, connectio
       .eq('id', post.id);
     return 'failed';
   }
-  const { data: signed } = await supabaseAdmin.storage.from('files').createSignedUrl(storagePath, 60 * 60);
+  const { data: signed } = await supabaseAdmin.storage.from(bucketForPath(storagePath)).createSignedUrl(storagePath, 60 * 60);
   const imageUrl = signed?.signedUrl;
   if (!imageUrl) {
     await supabaseAdmin.from('content_library_posts')
@@ -166,14 +182,17 @@ async function dispatchDue(supabaseAdmin: AdminClient): Promise<Record<string, n
   const nowIso = new Date().toISOString();
   const { data: scheduled } = await supabaseAdmin
     .from('content_library_posts')
-    .select('id, item_id, network, asset_id, caption, status, scheduled_at')
+    .select('id, item_id, network, asset_id, caption, status, scheduled_at, media_type')
     .eq('status', 'scheduled')
     .lte('scheduled_at', nowIso)
     .limit(20);
+  // Parked video posts would re-park every sweep - the dispatcher retries
+  // image posts only; video rows wait for their manual Pulse publish.
   const { data: queued } = await supabaseAdmin
     .from('content_library_posts')
-    .select('id, item_id, network, asset_id, caption, status, scheduled_at')
+    .select('id, item_id, network, asset_id, caption, status, scheduled_at, media_type')
     .eq('status', 'queued')
+    .eq('media_type', 'image')
     .limit(20);
 
   const posts = [...((scheduled as PostRow[] | null) ?? []), ...((queued as PostRow[] | null) ?? [])];
@@ -250,7 +269,7 @@ Deno.serve(async (req: Request) => {
       if (typeof postId !== 'string') return jsonResponse({ error: 'post_id is required' }, 400);
       const { data: post } = await supabaseAdmin
         .from('content_library_posts')
-        .select('id, item_id, network, asset_id, caption, status, scheduled_at')
+        .select('id, item_id, network, asset_id, caption, status, scheduled_at, media_type')
         .eq('id', postId)
         .maybeSingle();
       if (!post) return jsonResponse({ error: 'Post not found' }, 404);
@@ -322,6 +341,25 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: true });
     }
 
+    // -- mark-posted (record a MANUAL Pulse/upload-post publish honestly) -----
+    // Video posts bypass the connectors (D-V10); after the admin publishes
+    // through pulse-api upload-post, this flips the row so the library
+    // reflects reality instead of a stale 'draft'.
+    if (action === 'mark-posted') {
+      const postId = body.post_id;
+      if (typeof postId !== 'string' || !UUID_RE.test(postId)) {
+        return jsonResponse({ error: 'A valid post_id is required' }, 400);
+      }
+      const externalId = typeof body.external_post_id === 'string' ? body.external_post_id.slice(0, 200) : 'pulse-upload-post';
+      const { error } = await supabaseAdmin
+        .from('content_library_posts')
+        .update({ status: 'posted', posted_at: new Date().toISOString(), external_post_id: externalId, error: null })
+        .eq('id', postId)
+        .neq('status', 'posted');
+      if (error) return jsonResponse({ error: 'Failed to record the publish' }, 500);
+      return jsonResponse({ success: true });
+    }
+
     // -- library-asset-urls (cross-user signed URLs for the admin library) ----
     if (action === 'library-asset-urls') {
       const assetIds = Array.isArray(body.asset_ids)
@@ -330,15 +368,23 @@ Deno.serve(async (req: Request) => {
       if (assetIds.length === 0) return jsonResponse({ error: 'asset_ids is required' }, 400);
       const { data: assets } = await supabaseAdmin
         .from('omni_assets')
-        .select('id, storage_path')
+        .select('id, storage_path, metadata')
         .in('id', assetIds);
       const urls: Record<string, string> = {};
-      for (const a of (assets as { id: string; storage_path: string | null }[] | null) ?? []) {
+      const thumbs: Record<string, string> = {};
+      for (const a of (assets as { id: string; storage_path: string | null; metadata: Record<string, unknown> | null }[] | null) ?? []) {
         if (!a.storage_path) continue;
-        const { data: signed } = await supabaseAdmin.storage.from('files').createSignedUrl(a.storage_path, 60 * 60 * 24);
+        const bucket = bucketForPath(a.storage_path);
+        const { data: signed } = await supabaseAdmin.storage.from(bucket).createSignedUrl(a.storage_path, 60 * 60 * 24);
         if (signed?.signedUrl) urls[a.id] = signed.signedUrl;
+        // Video assets carry an extract-frame thumbnail sidecar (Plan 2).
+        const thumbPath = a.metadata?.thumb_path;
+        if (typeof thumbPath === 'string') {
+          const { data: signedThumb } = await supabaseAdmin.storage.from('omni-video').createSignedUrl(thumbPath, 60 * 60 * 24);
+          if (signedThumb?.signedUrl) thumbs[a.id] = signedThumb.signedUrl;
+        }
       }
-      return jsonResponse({ urls });
+      return jsonResponse({ urls, thumbs });
     }
 
     // -- delete-item (remove a library entry; its posts cascade via FK) -----
