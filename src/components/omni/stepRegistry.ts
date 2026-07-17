@@ -417,7 +417,8 @@ export const VIDEO_MODES: Record<VideoModeId, VideoModeDef> = {
   },
   video_repurpose: {
     mode: 'video_repurpose',
-    builtThrough: 0,
+    // Phase 10: source / targets / process / finalize all live.
+    builtThrough: 4,
     stages: videoStages([
       ['source', 'Source video'],
       ['targets', 'Targets'],

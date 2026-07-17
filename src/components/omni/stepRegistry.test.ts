@@ -420,11 +420,9 @@ describe('stepRegistry: video mode registry (D-V1)', () => {
     expect(clampToBuilt('video_clips', 9)).toBe(4);
     expect(VIDEO_MODES.video_animate.builtThrough).toBe(4);
     expect(clampToBuilt('video_animate', 9)).toBe(4);
-    for (const id of VIDEO_IDS.filter((m) => !['video_scenario', 'omni_videos', 'video_clips', 'video_animate'].includes(m))) {
-      expect(VIDEO_MODES[id].builtThrough).toBe(0);
-      expect(clampToBuilt(id, 5)).toBe(1);
-      expect(clampToBuilt(id, 0)).toBe(1);
-    }
+    expect(VIDEO_MODES.video_repurpose.builtThrough).toBe(4);
+    expect(clampToBuilt('video_repurpose', 9)).toBe(4);
+    expect(clampToBuilt('video_repurpose', 0)).toBe(1);
   });
 
   it('resolveVideoPosition clamps both the position and the high-water to the built range', () => {

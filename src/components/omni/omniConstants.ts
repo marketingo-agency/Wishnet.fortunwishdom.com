@@ -205,8 +205,8 @@ export const OMNI_VIDEO_MODES: OmniVideoModeDef[] = [
     description: 'A master video fanned into per-network variants: AI reframe without cropping, trim to length, thumbnails, upscale.',
     icon: Recycle,
     accent: 'text-teal-400',
-    available: false,
-    availabilityNote: 'Lands in Phase 10 of this build.',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'history',
