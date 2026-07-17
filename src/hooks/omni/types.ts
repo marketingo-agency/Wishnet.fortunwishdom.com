@@ -195,6 +195,10 @@ export interface OmniImagesState {
   video_schema_version?: number;
   /** Video pre-production artifact (Plan 2 D-V2). */
   scenario?: OmniVideoScenario;
+  /** Draft engine picked in Video Studio stage 2 (vsEngines id). */
+  video_engine_id?: string;
+  /** Provenance: the Scenario Studio run this Studio run was seeded from. */
+  scenario_source_run_id?: string;
 }
 
 // ── Videos track (Plan 2 D-V2) ────────────────────────────────────────────────

@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * ScenarioWizard: the Scenario Studio orchestrator (Plan 2 Phase 4).
- * Four stages on the video registry's own ordinals (video_schema_version 1):
- * 1 Brief → 2 Structure → 3 Storyboard → 4 Export & handoff. Persists after
- * every stage advance with a max_step_reached high-water; resumes clamp to
- * the registry's builtThrough (interim-terminal rule).
+ * VideoStudioWizard: the omni_videos orchestrator (Plan 2 Phase 5 — stages
+ * 1-3 of 8). Video-ordinal persistence with a high-water mark; resumes clamp
+ * to the registry's builtThrough; stages 4-8 land in Phases 6-7 (interim-
+ * terminal rule — the Scenes stage ends with an honest "continues in Phase 6"
+ * panel, never a dead end).
  */
 
 import { useMemo, useState } from 'react';
@@ -14,33 +14,28 @@ import { ArrowLeft, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import {
-  VIDEO_MODES, VIDEO_SCHEMA_VERSION, resolveVideoPosition,
-} from '../stepRegistry';
+import { VIDEO_MODES, VIDEO_SCHEMA_VERSION, resolveVideoPosition } from '../stepRegistry';
 import { useCreateOmniRun, useOmniRun, useUpdateOmniRun } from '@/hooks/omni';
 import type { OmniImagesState, OmniVideoScenario } from '@/hooks/omni';
-import { ScenarioBrief } from './ScenarioBrief';
-import { ScenarioStructure } from './ScenarioStructure';
-import { ScenarioStoryboard } from './ScenarioStoryboard';
-import { ScenarioExport } from './ScenarioExport';
+import { DRAFT_ENGINES } from './vsEngines';
+import { VSScenario } from './VSScenario';
+import { VSStoryboardCast } from './VSStoryboardCast';
+import { VSScenes } from './VSScenes';
 
-const MODE = 'video_scenario' as const;
+const MODE = 'omni_videos' as const;
 
-interface ScenarioWizardProps {
+interface VideoStudioWizardProps {
   runId: string | null;
   onRunCreated: (runId: string) => void;
   onExit: () => void;
-  /** Activated in Phase 5: seeds a Video Studio run from this scenario. */
-  onHandoffToStudio?: (studioRunId: string) => void;
 }
 
-export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio }: ScenarioWizardProps) {
+export function VideoStudioWizard({ runId, onRunCreated, onExit }: VideoStudioWizardProps) {
   const reduceMotion = useReducedMotion();
   const run = useOmniRun(runId);
   const createRun = useCreateOmniRun();
   const updateRun = useUpdateOmniRun();
   const [localState, setLocalState] = useState<OmniImagesState | null>(null);
-  const [finishing, setFinishing] = useState(false);
 
   const state: OmniImagesState = useMemo(
     () => localState ?? ((run.data?.step_state ?? {}) as OmniImagesState),
@@ -49,6 +44,7 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
   const rawStep = run.data?.current_step ?? 1;
   const position = resolveVideoPosition(MODE, state, runId ? rawStep : 1);
   const stages = VIDEO_MODES[MODE].stages;
+  const built = Math.max(VIDEO_MODES[MODE].builtThrough, 1);
 
   const persist = async (nextOrdinal: number, patch: Partial<OmniImagesState>) => {
     const nextState: OmniImagesState = {
@@ -66,7 +62,7 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
     }
   };
 
-  const handleGenerated = async (brief: string, scenario: OmniVideoScenario) => {
+  const handleScenarioPicked = async (scenario: OmniVideoScenario, sourceRunId: string | null, brief: string) => {
     if (!runId) {
       try {
         const created = await createRun.mutateAsync({
@@ -76,6 +72,7 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
           step_state: {
             objective: brief,
             scenario,
+            scenario_source_run_id: sourceRunId ?? undefined,
             video_schema_version: VIDEO_SCHEMA_VERSION,
             max_step_reached: 2,
           },
@@ -83,76 +80,24 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
         setLocalState((created.step_state ?? {}) as OmniImagesState);
         onRunCreated(created.id);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : 'Could not create the scenario run');
+        toast.error(e instanceof Error ? e.message : 'Could not create the Studio run');
       }
       return;
     }
-    await persist(2, { objective: brief, scenario, title: scenario.title });
-  };
-
-  const handleSendToStudio = async () => {
-    if (!runId || !state.scenario || finishing) return;
-    setFinishing(true);
-    try {
-      const created = await createRun.mutateAsync({
-        mode: 'omni_videos',
-        title: state.scenario.title.slice(0, 80),
-        current_step: 2,
-        step_state: {
-          objective: state.objective,
-          scenario: state.scenario,
-          scenario_source_run_id: runId,
-          video_schema_version: VIDEO_SCHEMA_VERSION,
-          max_step_reached: 2,
-        },
-      });
-      // The scenario itself stays a finished artifact.
-      await updateRun.mutateAsync({
-        runId,
-        status: 'completed',
-        step_state: { ...state, video_schema_version: VIDEO_SCHEMA_VERSION, max_step_reached: stages.length },
-        current_step: stages.length,
-      });
-      toast.success('Sent to Video Studio.');
-      onHandoffToStudio?.(created.id);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not hand off to Video Studio');
-    } finally {
-      setFinishing(false);
-    }
-  };
-
-  const handleFinish = async () => {
-    if (!runId || finishing) return;
-    setFinishing(true);
-    try {
-      await updateRun.mutateAsync({
-        runId,
-        status: 'completed',
-        title: state.scenario?.title,
-        step_state: { ...state, video_schema_version: VIDEO_SCHEMA_VERSION, max_step_reached: stages.length },
-        current_step: stages.length,
-      });
-      toast.success('Scenario saved. Retake or reopen it anytime from History.');
-      onExit();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not save the scenario');
-    } finally {
-      setFinishing(false);
-    }
+    await persist(2, { objective: brief, scenario, scenario_source_run_id: sourceRunId ?? undefined, title: scenario.title });
   };
 
   if (runId && run.isLoading) {
     return (
       <div className="flex h-full items-center justify-center" aria-live="polite">
-        <Loader2 className="h-6 w-6 animate-spin text-violet-500" />
+        <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
       </div>
     );
   }
   if (runId && run.isError) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-        <p className="text-sm text-destructive">Could not load this scenario run.</p>
+        <p className="text-sm text-destructive">Could not load this Video Studio run.</p>
         <Button variant="outline" size="sm" onClick={onExit} className="h-8 cursor-pointer text-xs">Back to the Videos hub</Button>
       </div>
     );
@@ -160,13 +105,15 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
 
   const ordinal = position.ordinal;
   const scenario = state.scenario;
+  const engine = DRAFT_ENGINES.find((e) => e.id === state.video_engine_id) ?? null;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6">
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Scenario Studio · Stage {ordinal} of {stages.length}
+            Video Studio · Stage {ordinal} of {stages.length}
+            {built < stages.length && ` · built through stage ${built} in this phase`}
           </p>
           <h1 className="truncate text-sm font-semibold sm:text-base">{stages[ordinal - 1].title}</h1>
         </div>
@@ -186,7 +133,7 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
             variant="ghost"
             size="icon"
             onClick={onExit}
-            aria-label="Exit Scenario Studio"
+            aria-label="Exit Video Studio"
             className="h-8 w-8 cursor-pointer text-muted-foreground transition-colors duration-200 hover:text-foreground"
           >
             <X className="h-4 w-4" />
@@ -194,22 +141,21 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
         </div>
       </div>
 
-      {/* Stage rail: reached stages are clickable (high-water). */}
       <div className="flex shrink-0 gap-1.5 border-b border-border px-4 py-2 sm:px-6" role="group" aria-label="Stages">
         {stages.map((s) => {
-          const reachable = s.ordinal <= position.maxStageOrdinal;
+          const reachable = s.ordinal <= Math.min(position.maxStageOrdinal, built);
           return (
             <button
               key={s.id}
               onClick={() => reachable && s.ordinal !== ordinal && void persist(s.ordinal, {})}
               disabled={!reachable}
-              aria-label={`${s.title}${reachable ? '' : ' (not reached yet)'}`}
+              aria-label={`${s.title}${reachable ? '' : s.ordinal > built ? ' (lands in a later phase)' : ' (not reached yet)'}`}
               aria-current={s.ordinal === ordinal ? 'step' : undefined}
               className={cn(
                 'h-1.5 flex-1 rounded-full transition-colors duration-200',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                s.ordinal === ordinal ? 'bg-violet-500'
-                  : reachable ? 'cursor-pointer bg-violet-500/35 hover:bg-violet-500/60'
+                s.ordinal === ordinal ? 'bg-purple-500'
+                  : reachable ? 'cursor-pointer bg-purple-500/35 hover:bg-purple-500/60'
                   : 'bg-muted',
               )}
             />
@@ -226,37 +172,37 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
       >
         <div className="mx-auto w-full max-w-3xl">
           {ordinal === 1 && (
-            <ScenarioBrief initialBrief={state.objective ?? ''} onGenerated={(b, sc) => void handleGenerated(b, sc)} />
+            <VSScenario onPicked={(sc, src, brief) => void handleScenarioPicked(sc, src, brief)} />
           )}
           {ordinal === 2 && scenario && (
-            <ScenarioStructure
-              brief={state.objective ?? ''}
+            <VSStoryboardCast
               scenario={scenario}
-              onChange={(sc) => setLocalState({ ...state, scenario: sc })}
-              onNext={() => void persist(3, {})}
+              initialEngineId={state.video_engine_id}
+              onNext={(picked) => void persist(3, { video_engine_id: picked.id })}
             />
           )}
           {ordinal === 3 && scenario && runId && (
-            <ScenarioStoryboard
+            <VSScenes
               runId={runId}
               scenario={scenario}
-              onChange={(sc) => void persist(3, { scenario: sc })}
-              onNext={() => void persist(4, {})}
-            />
-          )}
-          {ordinal === 4 && scenario && (
-            <ScenarioExport
-              scenario={scenario}
-              onFinish={() => void handleFinish()}
-              onSendToStudio={onHandoffToStudio ? () => void handleSendToStudio() : undefined}
-              finishing={finishing}
+              engine={engine ?? DRAFT_ENGINES[0]}
+              approvedIds={state.approved_asset_ids ?? []}
+              onClipCreated={(sceneIdx, assetId) => {
+                void persist(3, {
+                  scenario: {
+                    ...scenario,
+                    scenes: scenario.scenes.map((s) => (s.idx === sceneIdx ? { ...s, clip_asset_id: assetId } : s)),
+                  },
+                });
+              }}
+              onApprovedChange={(ids) => void persist(3, { approved_asset_ids: ids })}
             />
           )}
           {ordinal > 1 && !scenario && (
             <div className="flex flex-col items-center gap-3 py-16 text-center">
               <p className="text-sm text-muted-foreground">This run has no scenario yet.</p>
               <Button variant="outline" size="sm" onClick={() => void persist(1, {})} className="h-8 cursor-pointer text-xs">
-                Back to the brief
+                Back to the scenario stage
               </Button>
             </div>
           )}

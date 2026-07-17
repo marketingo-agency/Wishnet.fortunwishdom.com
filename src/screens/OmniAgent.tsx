@@ -30,6 +30,7 @@ import { HistoryView } from '@/components/omni/history/HistoryView';
 import { BrainstormView } from '@/components/omni/brainstorm/BrainstormView';
 import { VideosHub } from '@/components/omni/VideosHub';
 import { ScenarioWizard } from '@/components/omni/scenario/ScenarioWizard';
+import { VideoStudioWizard } from '@/components/omni/video-studio/VideoStudioWizard';
 import { resolveSurfaceForRun } from '@/components/omni/history/historyRouting';
 import { isVideoMode } from '@/components/omni/stepRegistry';
 import { OMNI_TRACKS } from '@/components/omni/omniConstants';
@@ -46,7 +47,7 @@ const IMAGES_MODE_IDS: ImagesMode[] = ['omni_images', 'character_studio', 'trans
 
 const TRACK_IDS = OMNI_TRACKS.map((t) => t.id) as string[];
 
-type VideosMode = 'hub' | 'history' | 'video_scenario';
+type VideosMode = 'hub' | 'history' | 'video_scenario' | 'omni_videos';
 
 export default function OmniAgent() {
   const router = useRouter();
@@ -99,7 +100,7 @@ export default function OmniAgent() {
     }
     if (track === 'videos') {
       const mode = params.get('mode');
-      if (mode === 'history' || mode === 'video_scenario') setVideosMode(mode);
+      if (mode === 'history' || mode === 'video_scenario' || mode === 'omni_videos') setVideosMode(mode);
       const run = params.get('run');
       if (run) setWizardRunId(run);
     }
@@ -179,9 +180,9 @@ export default function OmniAgent() {
     // until a mode's surface is built, History resumes stay put with an
     // honest note instead of dropping the run onto a foreign wizard.
     if (isVideoMode(run.mode)) {
-      if (run.mode === 'video_scenario') {
+      if (run.mode === 'video_scenario' || run.mode === 'omni_videos') {
         setView('videos');
-        openVideosMode('video_scenario', run.id);
+        openVideosMode(run.mode, run.id);
         return;
       }
       toast.info('This video workspace lands in a later phase of the current build.');
@@ -304,7 +305,7 @@ export default function OmniAgent() {
                 <VideosHub
                   onBack={goHome}
                   onSelectMode={(mode) => {
-                    if (mode === 'history' || mode === 'video_scenario') openVideosMode(mode);
+                    if (mode === 'history' || mode === 'video_scenario' || mode === 'omni_videos') openVideosMode(mode);
                     // Other mode surfaces ship phase by phase (cards are inert until then).
                   }}
                 />
@@ -314,6 +315,15 @@ export default function OmniAgent() {
                 <ScenarioWizard
                   runId={wizardRunId}
                   onRunCreated={(id) => openVideosMode('video_scenario', id)}
+                  onExit={() => openVideosMode('hub')}
+                  onHandoffToStudio={(id) => openVideosMode('omni_videos', id)}
+                />
+              )}
+
+              {view === 'videos' && videosMode === 'omni_videos' && (
+                <VideoStudioWizard
+                  runId={wizardRunId}
+                  onRunCreated={(id) => openVideosMode('omni_videos', id)}
                   onExit={() => openVideosMode('hub')}
                 />
               )}

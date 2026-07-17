@@ -413,7 +413,9 @@ describe('stepRegistry: video mode registry (D-V1)', () => {
     expect(VIDEO_MODES.video_scenario.builtThrough).toBe(4);
     expect(clampToBuilt('video_scenario', 9)).toBe(4);
     expect(clampToBuilt('video_scenario', 2)).toBe(2);
-    for (const id of VIDEO_IDS.filter((m) => m !== 'video_scenario')) {
+    expect(VIDEO_MODES.omni_videos.builtThrough).toBe(3);
+    expect(clampToBuilt('omni_videos', 8)).toBe(3);
+    for (const id of VIDEO_IDS.filter((m) => m !== 'video_scenario' && m !== 'omni_videos')) {
       expect(VIDEO_MODES[id].builtThrough).toBe(0);
       expect(clampToBuilt(id, 5)).toBe(1);
       expect(clampToBuilt(id, 0)).toBe(1);
@@ -422,9 +424,9 @@ describe('stepRegistry: video mode registry (D-V1)', () => {
 
   it('resolveVideoPosition clamps both the position and the high-water to the built range', () => {
     const pos = resolveVideoPosition('omni_videos', { max_step_reached: 7 }, 5);
-    expect(pos.ordinal).toBe(1);
-    expect(pos.maxStageOrdinal).toBe(1);
-    expect(pos.stage.id).toBe('scenario');
+    expect(pos.ordinal).toBe(3);
+    expect(pos.maxStageOrdinal).toBe(3);
+    expect(pos.stage.id).toBe('scenes');
     expect(videoStageForOrdinal('omni_videos', 99).id).toBe('finalize');
     const built = resolveVideoPosition('video_scenario', { max_step_reached: 4 }, 3);
     expect(built.ordinal).toBe(3);
@@ -438,9 +440,10 @@ describe('stepRegistry: video mode registry (D-V1)', () => {
       step_state: { max_step_reached: 7, video_schema_version: 1 },
       status: 'active',
     } as unknown as OmniRun;
-    // builtThrough 0 → only stage 1 is jumpable today.
+    // omni_videos is built through stage 3 → jumps clamp there.
     expect(validateJumpTarget(unbuilt, 1)).toBe(1);
-    expect(validateJumpTarget(unbuilt, 2)).toBeNull();
+    expect(validateJumpTarget(unbuilt, 3)).toBe(3);
+    expect(validateJumpTarget(unbuilt, 4)).toBeNull();
     expect(validateJumpTarget(unbuilt, 0)).toBeNull();
     expect(validateJumpTarget(unbuilt, 9)).toBeNull();
     // A built mode jumps within its reached range.

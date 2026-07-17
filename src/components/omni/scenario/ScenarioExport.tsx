@@ -17,10 +17,12 @@ import type { OmniVideoScenario } from '@/hooks/omni';
 interface ScenarioExportProps {
   scenario: OmniVideoScenario;
   onFinish: () => void;
+  /** Present once Video Studio exists (Phase 5+); absent keeps the honest stub. */
+  onSendToStudio?: () => void;
   finishing: boolean;
 }
 
-export function ScenarioExport({ scenario, onFinish, finishing }: ScenarioExportProps) {
+export function ScenarioExport({ scenario, onFinish, onSendToStudio, finishing }: ScenarioExportProps) {
   const [thumbs, setThumbs] = useState<Record<number, string>>({});
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -99,16 +101,28 @@ export function ScenarioExport({ scenario, onFinish, finishing }: ScenarioExport
       </div>
 
       <div className="flex flex-col items-stretch justify-end gap-2 border-t pt-4 sm:flex-row sm:items-center">
-        <Button
-          variant="outline"
-          disabled
-          aria-label="Send to Video Studio (lands in Phase 5 of this build)"
-          className="cursor-not-allowed gap-1.5 opacity-65"
-        >
-          <Clapperboard className="h-4 w-4" />
-          Send to Video Studio
-          <span className="rounded-full border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Phase 5</span>
-        </Button>
+        {onSendToStudio ? (
+          <Button
+            variant="outline"
+            onClick={onSendToStudio}
+            disabled={finishing}
+            className="cursor-pointer gap-1.5"
+          >
+            <Clapperboard className="h-4 w-4" />
+            Send to Video Studio
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            disabled
+            aria-label="Send to Video Studio (lands in Phase 5 of this build)"
+            className="cursor-not-allowed gap-1.5 opacity-65"
+          >
+            <Clapperboard className="h-4 w-4" />
+            Send to Video Studio
+            <span className="rounded-full border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Phase 5</span>
+          </Button>
+        )}
         <Button
           onClick={onFinish}
           disabled={finishing}

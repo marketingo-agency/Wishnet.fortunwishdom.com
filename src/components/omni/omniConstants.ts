@@ -178,8 +178,8 @@ export const OMNI_VIDEO_MODES: OmniVideoModeDef[] = [
     description: 'The full production pipeline: scenario, per-scene clips in draft and hero tiers, voiceover and music, assembly, captions, distribution.',
     icon: Clapperboard,
     accent: 'text-purple-400',
-    available: false,
-    availabilityNote: 'Lands in Phase 5 of this build.',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'video_clips',

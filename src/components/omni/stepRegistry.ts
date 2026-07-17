@@ -380,7 +380,8 @@ export const VIDEO_MODES: Record<VideoModeId, VideoModeDef> = {
   },
   omni_videos: {
     mode: 'omni_videos',
-    builtThrough: 0,
+    // Phase 5 shipped stages 1-3 (scenario / storyboard & cast / scenes).
+    builtThrough: 3,
     stages: videoStages([
       ['scenario', 'Scenario'],
       ['storyboard_cast', 'Storyboard & cast'],
