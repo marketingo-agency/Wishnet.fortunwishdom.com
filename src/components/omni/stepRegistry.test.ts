@@ -475,6 +475,9 @@ describe('stepRegistry: video mode registry (D-V1)', () => {
   it('surfaceForRunMode routes video modes to their own surface and leaves images untouched', () => {
     expect(surfaceForRunMode('video_clips', 3)).toBe('video_clips');
     expect(surfaceForRunMode('video_scenario', 1)).toBe('video_scenario');
+    expect(surfaceForRunMode('omni_podcast', 2)).toBe('omni_podcast');
+    expect(surfaceForRunMode('podcast_scenario', 1)).toBe('podcast_scenario');
+    expect(surfaceForRunMode('podcast_video', 4)).toBe('podcast_video');
     expect(surfaceForRunMode('transform_upscale', 3)).toBe('transform_upscale');
     expect(surfaceForRunMode('transform_upscale', 8)).toBe('omni_images');
     expect(surfaceForRunMode('omni_images', 2)).toBe('omni_images');

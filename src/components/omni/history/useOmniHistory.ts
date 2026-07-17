@@ -259,9 +259,27 @@ async function listRunFolder(bucket: string, folder: string): Promise<string[]> 
 const RUN_MEDIA_FOLDERS = (userId: string, runId: string): { bucket: string; folder: string }[] => [
   { bucket: 'files', folder: `${userId}/omni-images/${runId}` },
   { bucket: 'omni-video', folder: `${userId}/omni-videos/${runId}` },
+  // Plan 3: podcast working files. podcast-public (the live feed's bucket) is
+  // deliberately ABSENT — published episodes must survive run deletion
+  // (GUID permanence; the episode row's run_id is SET NULL on delete).
+  { bucket: 'omni-audio', folder: `${userId}/omni-podcast/${runId}` },
 ];
 
-async function deleteOneRun(run: OmniRun, userId: string): Promise<{ libraryFailed: boolean }> {
+async function deleteOneRun(run: OmniRun, userId: string): Promise<{ libraryFailed: boolean; publishedEpisode: boolean }> {
+  // Plan 3 published-episode guard: the run's WORKING audio is deleted, but a
+  // published episode keeps serving from podcast-public (never touched here)
+  // and its row survives via run_id SET NULL. Surface a warning so the user
+  // knows the feed copy lives on.
+  let publishedEpisode = false;
+  {
+    const { data: episodes } = await supabase
+      .from('podcast_episodes')
+      .select('id, status')
+      .eq('run_id', run.id)
+      .eq('status', 'published')
+      .limit(1);
+    publishedEpisode = (((episodes ?? []) as { id: string }[]).length > 0);
+  }
   // HIST-04: check for linked Content Library items UNCONDITIONALLY — status
   // is not proof (a completed run can be demoted, an item can outlive a
   // status flip). Items found are removed in ONE batched edge call (HIST-08)
@@ -306,7 +324,7 @@ async function deleteOneRun(run: OmniRun, userId: string): Promise<{ libraryFail
   }
   const { error } = await supabase.from('omni_runs').delete().eq('id', run.id);
   if (error) throw error;
-  return { libraryFailed };
+  return { libraryFailed, publishedEpisode };
 }
 
 /**
@@ -327,12 +345,14 @@ export function useDeleteRuns() {
       let deleted = 0;
       let failed = 0;
       const libraryWarnings: string[] = [];
+      const publishedWarnings: string[] = [];
 
       const deleteBatch = async (runs: OmniRun[]) => {
         for (const run of runs) {
           try {
-            const { libraryFailed } = await deleteOneRun(run, userId);
+            const { libraryFailed, publishedEpisode } = await deleteOneRun(run, userId);
             if (libraryFailed) libraryWarnings.push(run.title || 'Untitled run');
+            if (publishedEpisode) publishedWarnings.push(run.title || 'Untitled run');
             deleted += 1;
           } catch (e) {
             failed += 1;
@@ -357,9 +377,9 @@ export function useDeleteRuns() {
       } else {
         await deleteBatch(target);
       }
-      return { deleted, failed, libraryWarnings };
+      return { deleted, failed, libraryWarnings, publishedWarnings };
     },
-    onSuccess: ({ deleted, failed, libraryWarnings }) => {
+    onSuccess: ({ deleted, failed, libraryWarnings, publishedWarnings }) => {
       invalidate();
       const message = failed > 0 ? `${deleted} deleted. ${failed} failed` : `${deleted} deleted`;
       if (failed > 0) toast.error(message);
@@ -370,6 +390,13 @@ export function useDeleteRuns() {
       }
       if (libraryWarnings.length > 3) {
         toast.warning(`${libraryWarnings.length - 3} more runs kept their Content Library entries.`);
+      }
+      // Feed stability (Plan 3): the published copy is intentionally preserved.
+      for (const title of publishedWarnings.slice(0, 3)) {
+        toast.warning(`"${title}": its published episode stays live on the feed. Unpublish it in Publish & Feed to take it down.`);
+      }
+      if (publishedWarnings.length > 3) {
+        toast.warning(`${publishedWarnings.length - 3} more runs kept their published episodes.`);
       }
     },
     onError: (e: Error) => toast.error(e.message),

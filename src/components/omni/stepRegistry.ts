@@ -510,7 +510,7 @@ export function resolveVideoPosition(mode: WizardModeId, state: OmniImagesState,
 export type AnyWizardSurface = WizardSurface | WizardModeId;
 
 export function surfaceForRunMode(mode: OmniMode, step: number): AnyWizardSurface {
-  return isVideoMode(mode) ? mode : surfaceForStep(mode, step);
+  return isVideoMode(mode) || isAudioMode(mode) ? mode : surfaceForStep(mode, step);
 }
 
 // ── History jump validation ───────────────────────────────────────────────────
