@@ -278,8 +278,8 @@ export const OMNI_AUDIO_MODES: OmniAudioModeDef[] = [
     description: 'Self-hosted RSS per show with the AI disclosure baked in, a one-time directory checklist, and one-click episode publishing.',
     icon: Rss,
     accent: 'text-orange-300',
-    available: false,
-    availabilityNote: 'Lands in Phase 9',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'history',

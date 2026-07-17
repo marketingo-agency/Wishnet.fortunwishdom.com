@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 export interface EpisodeRow {
   id: string;
+  show_id: string;
   title: string;
   description: string | null;
   audio_path: string | null;
@@ -21,7 +22,7 @@ export function usePodcastEpisodes() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('podcast_episodes')
-        .select('id, title, description, audio_path, cover_path, duration_s, status')
+        .select('id, show_id, title, description, audio_path, cover_path, duration_s, status')
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) throw error;

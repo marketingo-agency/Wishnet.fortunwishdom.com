@@ -1374,6 +1374,7 @@ export type Database = {
           guid: string | null
           id: string
           public_audio_path: string | null
+          public_cover_path: string | null
           published_at: string | null
           run_id: string | null
           show_id: string
@@ -1394,6 +1395,7 @@ export type Database = {
           guid?: string | null
           id?: string
           public_audio_path?: string | null
+          public_cover_path?: string | null
           published_at?: string | null
           run_id?: string | null
           show_id: string
@@ -1414,6 +1416,7 @@ export type Database = {
           guid?: string | null
           id?: string
           public_audio_path?: string | null
+          public_cover_path?: string | null
           published_at?: string | null
           run_id?: string | null
           show_id?: string

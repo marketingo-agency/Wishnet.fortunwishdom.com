@@ -27,6 +27,7 @@ import {
 import { FalUserError, falStatus, falSubmit } from '../omni/fal-runner.ts';
 import { buildHeartBlock, buildKnowledgeBlock, fetchHeartRules, retrieveKnowledge } from '../omni/context.ts';
 import { openAiTuning } from '../omni/llm.ts';
+import { buildFeedXml, type FeedEpisode, type FeedShow } from './feed.ts';
 
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 60 });
 
@@ -149,6 +150,161 @@ async function resolvePersonas(
       } as PodcastPersonaBrief;
     })
     .filter((p): p is PodcastPersonaBrief => p !== null);
+}
+
+// -- Publish & Feed (Phase 9, D-A6) -------------------------------------------
+
+const PUBLIC_BUCKET = 'podcast-public';
+export const DEFAULT_SITE_LINK = 'https://wishnet.fortunwishdom.com';
+
+function publicUrl(supabaseUrl: string, path: string): string {
+  return `${supabaseUrl}/storage/v1/object/public/${PUBLIC_BUCKET}/${path}`;
+}
+
+interface EpisodeRow {
+  id: string;
+  show_id: string;
+  title: string;
+  description: string | null;
+  audio_path: string | null;
+  public_audio_path: string | null;
+  cover_path: string | null;
+  public_cover_path: string | null;
+  duration_s: number | null;
+  bytes: number | null;
+  guid: string | null;
+  status: string;
+  published_at: string | null;
+}
+
+interface ShowRow {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  language: string;
+  category: string | null;
+  feed_config: Record<string, unknown>;
+}
+
+/**
+ * Regenerate shows/{slug}/feed.xml from podcast_episodes (the table is the
+ * authority, never step_state). Mints + stores the show-level podcast:guid
+ * ONCE (landmine #1: it never changes after that). Returns the feed URL.
+ */
+async function regenerateFeed(supabaseAdmin: AdminClient, supabaseUrl: string, showId: string): Promise<string> {
+  const { data: showRow, error: showError } = await supabaseAdmin
+    .from('podcast_shows')
+    .select('id, name, slug, description, language, category, feed_config')
+    .eq('id', showId)
+    .single();
+  if (showError || !showRow) throw new Error('Show not found');
+  const show = showRow as unknown as ShowRow;
+  const config = (show.feed_config ?? {}) as Record<string, unknown>;
+
+  let podcastGuid = typeof config.podcast_guid === 'string' ? config.podcast_guid : '';
+  if (!podcastGuid) {
+    podcastGuid = crypto.randomUUID();
+    await supabaseAdmin
+      .from('podcast_shows')
+      .update({ feed_config: { ...config, podcast_guid: podcastGuid } })
+      .eq('id', showId);
+  }
+
+  const { data: episodeRows } = await supabaseAdmin
+    .from('podcast_episodes')
+    .select('id, show_id, title, description, audio_path, public_audio_path, cover_path, public_cover_path, duration_s, bytes, guid, status, published_at')
+    .eq('show_id', showId)
+    .eq('status', 'published')
+    .order('published_at', { ascending: false });
+  const episodes = ((episodeRows ?? []) as unknown as EpisodeRow[])
+    .filter((e) => e.public_audio_path && e.guid);
+
+  const feedUrl = publicUrl(supabaseUrl, `shows/${show.slug}/feed.xml`);
+  // The disclosure is default-ON (D-A6): an empty override falls back.
+  const disclosure = typeof config.disclosure_text === 'string' && config.disclosure_text.trim()
+    ? config.disclosure_text.trim()
+    : DEFAULT_DISCLOSURE_LINE;
+
+  const feedShow: FeedShow = {
+    name: show.name,
+    slug: show.slug,
+    description: show.description ?? '',
+    language: show.language || 'en',
+    category: (typeof config.category === 'string' && config.category) || show.category || 'Society & Culture',
+    explicit: config.explicit === true,
+    ownerEmail: typeof config.owner_email === 'string' ? config.owner_email : '',
+    author: (typeof config.author === 'string' && config.author) || show.name,
+    artworkUrl: typeof config.artwork_url === 'string' ? config.artwork_url : '',
+    siteLink: (typeof config.site_link === 'string' && config.site_link) || DEFAULT_SITE_LINK,
+    podcastGuid,
+    disclosureText: disclosure,
+  };
+  const feedEpisodes: FeedEpisode[] = episodes.map((e) => ({
+    title: e.title,
+    description: e.description ?? '',
+    audioUrl: publicUrl(supabaseUrl, e.public_audio_path!),
+    bytes: e.bytes ?? 0,
+    mimeType: 'audio/mpeg',
+    guid: e.guid!,
+    publishedAt: e.published_at ?? new Date().toISOString(),
+    durationS: e.duration_s,
+    coverUrl: e.public_cover_path ? publicUrl(supabaseUrl, e.public_cover_path) : null,
+  }));
+
+  const xml = buildFeedXml(feedShow, feedUrl, feedEpisodes);
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from(PUBLIC_BUCKET)
+    .upload(`shows/${show.slug}/feed.xml`, new TextEncoder().encode(xml), {
+      contentType: 'application/rss+xml',
+      upsert: true,
+    });
+  if (uploadError) throw new Error(`Feed upload failed: ${uploadError.message}`);
+  return feedUrl;
+}
+
+/** Copy one private omni-audio object into the public bucket (size-capped). */
+async function copyToPublic(
+  supabaseAdmin: AdminClient,
+  sourcePath: string,
+  targetPath: string,
+  contentType: string,
+  maxBytes: number,
+): Promise<number> {
+  const { data: blob, error } = await supabaseAdmin.storage.from(AUDIO_BUCKET).download(sourcePath);
+  if (error || !blob) throw new Error(`Could not read the source file: ${error?.message ?? 'not found'}`);
+  const buf = await blob.arrayBuffer();
+  if (buf.byteLength > maxBytes) throw new Error('The file exceeds the publish size cap');
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from(PUBLIC_BUCKET)
+    .upload(targetPath, buf, { contentType, upsert: true });
+  if (uploadError) throw new Error(`Public upload failed: ${uploadError.message}`);
+  return buf.byteLength;
+}
+
+/** Probe the real duration via the fal metadata endpoint (best-effort). */
+async function probeDuration(falKey: string | null, mediaUrl: string): Promise<number | null> {
+  if (!falKey) return null;
+  try {
+    const submission = await falSubmit(falKey, 'fal-ai/ffmpeg-api/metadata', { media_url: mediaUrl });
+    for (let i = 0; i < 25; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      const s = await falStatus(falKey, 'fal-ai/ffmpeg-api/metadata', submission.requestId);
+      if (s.status === 'COMPLETED') {
+        const res = await fetch(`${QUEUE_BASE}/fal-ai/ffmpeg-api/requests/${submission.requestId}`, {
+          headers: { Authorization: `Key ${falKey}` },
+          signal: AbortSignal.timeout(30_000),
+        });
+        const data = await res.json().catch(() => ({})) as { media?: { duration?: number }; duration?: number };
+        const duration = data.media?.duration ?? data.duration;
+        return typeof duration === 'number' && duration > 0 ? Math.round(duration) : null;
+      }
+    }
+    return null;
+  } catch (e) {
+    console.error('omni-podcast: duration probe failed:', e instanceof Error ? e.message : e);
+    return null;
+  }
 }
 
 /** Render ONE claimed chunk row: TTS its lines, upload, flip the row. */
@@ -600,6 +756,101 @@ Deno.serve(async (req: Request) => {
         await supabaseAdmin.from('omni_assets').update({ status: 'failed', error: message }).eq('id', episodeId);
         if (e instanceof FalUserError) return jsonResponse({ asset_id: episodeId, error: message }, 400);
         throw e;
+      }
+    }
+
+    // -- Publish & Feed actions (Phase 9, ADMIN-gated: the feed is a public
+    // outward-facing artifact, not a per-user one) ---------------------------
+    if (action === 'publish-episode' || action === 'unpublish-episode' || action === 'feed-regenerate') {
+      const { data: isAdmin, error: adminErr } = await supabaseAdmin.rpc('is_admin', { _user_id: userId });
+      if (adminErr || !isAdmin) return jsonResponse({ error: 'Admin access required' }, 403);
+
+      if (action === 'feed-regenerate') {
+        const showId = typeof body.show_id === 'string' ? body.show_id : '';
+        if (!showId) return jsonResponse({ error: 'show_id is required' }, 400);
+        try {
+          const feedUrl = await regenerateFeed(supabaseAdmin, supabaseUrl, showId);
+          return jsonResponse({ feed_url: feedUrl });
+        } catch (e) {
+          return jsonResponse({ error: e instanceof Error ? e.message : 'Feed regeneration failed' }, 500);
+        }
+      }
+
+      const episodeId = typeof body.episode_id === 'string' ? body.episode_id : '';
+      if (!episodeId) return jsonResponse({ error: 'episode_id is required' }, 400);
+      const { data: episodeRow } = await supabaseAdmin
+        .from('podcast_episodes')
+        .select('id, show_id, title, description, audio_path, public_audio_path, cover_path, public_cover_path, duration_s, bytes, guid, status, published_at')
+        .eq('id', episodeId)
+        .maybeSingle();
+      const episode = episodeRow as unknown as EpisodeRow | null;
+      if (!episode) return jsonResponse({ error: 'Episode not found' }, 404);
+      const { data: showRow } = await supabaseAdmin
+        .from('podcast_shows')
+        .select('id, slug')
+        .eq('id', episode.show_id)
+        .single();
+      const slug = (showRow as { slug: string } | null)?.slug;
+      if (!slug) return jsonResponse({ error: 'The episode has no show' }, 400);
+
+      if (action === 'unpublish-episode') {
+        // The feed entry goes; the public object and the GUID stay (landmine
+        // #1: a re-publish must reuse the same GUID or apps duplicate it).
+        const { error } = await supabaseAdmin
+          .from('podcast_episodes')
+          .update({ status: 'draft' })
+          .eq('id', episodeId);
+        if (error) return jsonResponse({ error: 'Could not unpublish the episode' }, 500);
+        try {
+          const feedUrl = await regenerateFeed(supabaseAdmin, supabaseUrl, episode.show_id);
+          return jsonResponse({ feed_url: feedUrl, status: 'draft' });
+        } catch (e) {
+          return jsonResponse({ error: e instanceof Error ? e.message : 'Feed regeneration failed after unpublish' }, 500);
+        }
+      }
+
+      // publish-episode
+      if (!episode.audio_path) return jsonResponse({ error: 'The episode has no audio file' }, 400);
+      try {
+        const audioTarget = `shows/${slug}/${episode.id}.mp3`;
+        const bytes = await copyToPublic(supabaseAdmin, episode.audio_path, audioTarget, 'audio/mpeg', EPISODE_MAX_BYTES);
+        let publicCoverPath: string | null = episode.public_cover_path;
+        if (episode.cover_path) {
+          const ext = episode.cover_path.split('.').pop()?.toLowerCase() ?? 'png';
+          const coverTarget = `shows/${slug}/${episode.id}-cover.${ext}`;
+          const coverType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'webp' ? 'image/webp' : 'image/png';
+          await copyToPublic(supabaseAdmin, episode.cover_path, coverTarget, coverType, 20 * 1024 * 1024);
+          publicCoverPath = coverTarget;
+        }
+        // The GUID is minted ONCE; re-publishing an unpublished episode
+        // reuses it so podcast apps never see a duplicate entry.
+        const guid = episode.guid ?? crypto.randomUUID();
+        const falKey = await getFalKey(supabaseAdmin);
+        const probed = await probeDuration(falKey, publicUrl(supabaseUrl, audioTarget));
+        const { error: updateError } = await supabaseAdmin
+          .from('podcast_episodes')
+          .update({
+            status: 'published',
+            published_at: episode.published_at ?? new Date().toISOString(),
+            guid,
+            bytes,
+            duration_s: probed ?? episode.duration_s,
+            public_audio_path: audioTarget,
+            public_cover_path: publicCoverPath,
+          })
+          .eq('id', episodeId);
+        if (updateError) throw new Error(updateError.message);
+        const feedUrl = await regenerateFeed(supabaseAdmin, supabaseUrl, episode.show_id);
+        return jsonResponse({
+          feed_url: feedUrl,
+          enclosure_url: publicUrl(supabaseUrl, audioTarget),
+          guid,
+          bytes,
+          duration_s: probed ?? episode.duration_s,
+          duration_probed: probed !== null,
+        });
+      } catch (e) {
+        return jsonResponse({ error: e instanceof Error ? e.message : 'Publish failed' }, 500);
       }
     }
 

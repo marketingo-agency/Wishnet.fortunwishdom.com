@@ -92,7 +92,7 @@ export function useCreateShow() {
 export function useUpdateShow() {
   const invalidate = useInvalidateShows();
   return useMutation({
-    mutationFn: async ({ id, ...input }: { id: string } & Partial<Pick<PodcastShow, 'name' | 'description' | 'language' | 'category'>> & { default_cast?: DefaultCast }) => {
+    mutationFn: async ({ id, ...input }: { id: string } & Partial<Pick<PodcastShow, 'name' | 'description' | 'language' | 'category'>> & { default_cast?: DefaultCast; feed_config?: Record<string, unknown> }) => {
       const { error } = await supabase
         .from('podcast_shows')
         .update(input as never)
