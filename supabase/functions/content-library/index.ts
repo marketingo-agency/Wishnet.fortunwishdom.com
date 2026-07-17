@@ -341,6 +341,25 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: true });
     }
 
+    // -- mark-posted (record a MANUAL Pulse/upload-post publish honestly) -----
+    // Video posts bypass the connectors (D-V10); after the admin publishes
+    // through pulse-api upload-post, this flips the row so the library
+    // reflects reality instead of a stale 'draft'.
+    if (action === 'mark-posted') {
+      const postId = body.post_id;
+      if (typeof postId !== 'string' || !UUID_RE.test(postId)) {
+        return jsonResponse({ error: 'A valid post_id is required' }, 400);
+      }
+      const externalId = typeof body.external_post_id === 'string' ? body.external_post_id.slice(0, 200) : 'pulse-upload-post';
+      const { error } = await supabaseAdmin
+        .from('content_library_posts')
+        .update({ status: 'posted', posted_at: new Date().toISOString(), external_post_id: externalId, error: null })
+        .eq('id', postId)
+        .neq('status', 'posted');
+      if (error) return jsonResponse({ error: 'Failed to record the publish' }, 500);
+      return jsonResponse({ success: true });
+    }
+
     // -- library-asset-urls (cross-user signed URLs for the admin library) ----
     if (action === 'library-asset-urls') {
       const assetIds = Array.isArray(body.asset_ids)
