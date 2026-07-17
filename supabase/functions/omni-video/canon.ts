@@ -22,16 +22,34 @@ export interface CanonCharacter {
 }
 
 const MAX_CAST = 6;
-const MAX_IMAGES_PER_CHARACTER = 4;
+const MAX_IMAGES_PER_CHARACTER = 6;
+/** Wishpedia entries are qualified ("Wishu - Bag Charm", "Wishu - Ritual
+ *  Ascension"), but people refer to the character by its base name ("Wishu").
+ *  Split on a space-surrounded dash/colon/pipe to get that base name; a
+ *  hyphenated single word (no surrounding spaces) is left intact. */
+const NAME_SEP = /\s+[—–\-:|]\s+/;
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function baseName(name: string): string {
+  const first = name.split(NAME_SEP)[0]?.trim();
+  return first && first.length > 0 ? first : name.trim();
+}
+
+function nameMatches(candidate: string, hay: string): boolean {
+  const c = candidate.toLowerCase().trim();
+  if (c.length < 3) return false; // 1-2 char names would false-positive
+  return new RegExp(`(^|[^a-z0-9])${escapeRegExp(c)}(?=[^a-z0-9]|$)`).test(hay);
+}
+
 /**
- * Resolve every active Wishpedia entry whose NAME appears (word-boundary,
- * case-insensitive) in the given text. Sorted by name length descending so
- * "Wishu Prime" wins over "Wishu" when both match the same span.
+ * Resolve active Wishpedia entries referenced in the text (word-boundary,
+ * case-insensitive) by their FULL name OR their base name, then GROUP entries
+ * that share a base name into one canon character with pooled reference art.
+ * So "Wishu" resolves all three "Wishu - ..." entries into a single Wishu
+ * character carrying every canon image (the 2026-07-17 E2E fix).
  */
 export async function resolveCanonCharacters(
   supabaseAdmin: AdminClient,
@@ -49,14 +67,8 @@ export async function resolveCanonCharacters(
   }
   const hay = ` ${text.toLowerCase()} `;
   const matched = ((entries ?? []) as { id: string; name: string | null; description: string | null }[])
-    .filter((e) => {
-      const name = (e.name ?? '').trim();
-      if (name.length < 3) return false; // 1-2 char names would false-positive
-      const re = new RegExp(`(^|[^a-z0-9])${escapeRegExp(name.toLowerCase())}(?=[^a-z0-9]|$)`);
-      return re.test(hay);
-    })
-    .sort((a, b) => (b.name ?? '').length - (a.name ?? '').length)
-    .slice(0, MAX_CAST);
+    .map((e) => ({ ...e, base: baseName(e.name ?? '') }))
+    .filter((e) => e.base.length >= 3 && (nameMatches(e.name ?? '', hay) || nameMatches(e.base, hay)));
   if (matched.length === 0) return [];
 
   const { data: images } = await supabaseAdmin
@@ -65,17 +77,32 @@ export async function resolveCanonCharacters(
     .in('entry_id', matched.map((m) => m.id))
     .order('sort_order', { ascending: true });
   const rows = ((images ?? []) as { id: string; entry_id: string; is_primary: boolean; sort_order: number }[]);
+  const imagesFor = (entryId: string) => rows
+    .filter((i) => i.entry_id === entryId)
+    .sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order)
+    .map((i) => i.id);
 
-  return matched.map((e) => ({
-    entry_id: e.id,
-    name: sanitizeForPrompt(e.name ?? '').replace(/[\r\n\t]+/g, ' ').slice(0, 80),
-    description: sanitizeForPrompt(e.description ?? '').replace(/[\r\n\t]+/g, ' ').slice(0, 400),
-    image_ids: rows
-      .filter((i) => i.entry_id === e.id)
-      .sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order)
-      .slice(0, MAX_IMAGES_PER_CHARACTER)
-      .map((i) => i.id),
-  }));
+  // Group by base name (case-insensitive); the character keeps the first
+  // entry's casing, its first non-empty description, and pooled canon art.
+  const groups = new Map<string, CanonCharacter>();
+  for (const e of matched) {
+    const key = e.base.toLowerCase();
+    const cleanName = sanitizeForPrompt(e.base).replace(/[\r\n\t]+/g, ' ').slice(0, 80);
+    const desc = sanitizeForPrompt(e.description ?? '').replace(/[\r\n\t]+/g, ' ').slice(0, 400);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.image_ids = [...new Set([...existing.image_ids, ...imagesFor(e.id)])].slice(0, MAX_IMAGES_PER_CHARACTER);
+      if (!existing.description && desc) existing.description = desc;
+    } else {
+      groups.set(key, {
+        entry_id: e.id,
+        name: cleanName,
+        description: desc,
+        image_ids: imagesFor(e.id).slice(0, MAX_IMAGES_PER_CHARACTER),
+      });
+    }
+  }
+  return [...groups.values()].slice(0, MAX_CAST);
 }
 
 /** Union two cast lists by entry id (input-resolved + output-re-resolved). */
