@@ -33,6 +33,7 @@ export function PersonaEditorSheet({ open, onOpenChange, persona }: PersonaEdito
   const [speakingStyle, setSpeakingStyle] = useState('');
   const [voiceId, setVoiceId] = useState('');
   const [portraitUrl, setPortraitUrl] = useState('');
+  const [portraitFailed, setPortraitFailed] = useState(false);
   const [wishpediaEntryId, setWishpediaEntryId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -44,6 +45,7 @@ export function PersonaEditorSheet({ open, onOpenChange, persona }: PersonaEdito
     setSpeakingStyle(persona?.speaking_style ?? '');
     setVoiceId(persona?.voice_id ?? '');
     setPortraitUrl(persona?.portrait_url ?? '');
+    setPortraitFailed(false);
     setWishpediaEntryId(persona?.wishpedia_entry_id ?? null);
   }, [open, persona]);
 
@@ -108,13 +110,13 @@ export function PersonaEditorSheet({ open, onOpenChange, persona }: PersonaEdito
           <div className="space-y-1.5">
             <Label htmlFor="persona-voice">ElevenLabs voice</Label>
             {notConnected ? (
-              <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 [[data-omni-theme=dark]_&]:text-amber-400">
+              <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400">
                 ElevenLabs is not connected. Add the API key in Pulse Settings to pick and preview voices; the persona can be saved without one.
               </p>
             ) : (
               <div className="flex items-center gap-2">
                 <Select value={voiceId} onValueChange={setVoiceId} disabled={loadingVoices}>
-                  <SelectTrigger id="persona-voice" className="flex-1">
+                  <SelectTrigger id="persona-voice" className="flex-1 cursor-pointer">
                     <SelectValue placeholder={loadingVoices ? 'Loading voices…' : 'Pick a voice'} />
                   </SelectTrigger>
                   <SelectContent>
@@ -143,20 +145,20 @@ export function PersonaEditorSheet({ open, onOpenChange, persona }: PersonaEdito
           <div className="space-y-1.5">
             <Label htmlFor="persona-portrait">Portrait</Label>
             <div className="flex items-start gap-3">
-              {portraitUrl ? (
+              {portraitUrl && !portraitFailed ? (
                 <img
                   src={portraitUrl}
                   alt={`Portrait of ${name || 'the persona'}`}
                   className="h-16 w-16 shrink-0 rounded-lg border border-border object-cover"
-                  onError={() => setPortraitUrl('')}
+                  onError={() => setPortraitFailed(true)}
                 />
               ) : (
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-dashed border-border text-[10px] text-muted-foreground">
-                  None
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-dashed border-border px-1 text-center text-[10px] text-muted-foreground">
+                  {portraitFailed ? "Couldn't load" : 'None'}
                 </div>
               )}
               <div className="flex-1 space-y-2">
-                <Input id="persona-portrait" value={portraitUrl} onChange={(e) => setPortraitUrl(e.target.value)} placeholder="Image URL (or pick a character)" />
+                <Input id="persona-portrait" value={portraitUrl} onChange={(e) => { setPortraitUrl(e.target.value); setPortraitFailed(false); }} placeholder="Image URL (or pick a character)" />
                 <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)} className="cursor-pointer gap-1.5">
                   <BookOpen className="h-3.5 w-3.5" />
                   Pick a Wishpedia character

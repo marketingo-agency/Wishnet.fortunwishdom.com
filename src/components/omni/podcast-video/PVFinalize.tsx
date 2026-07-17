@@ -45,7 +45,7 @@ function AssetCard({ assetId, label }: { assetId: string; label: string }) {
       {asset.status === 'done' && asset.url ? (
         <video src={asset.url} controls preload="metadata" className="mt-2 max-h-56 w-full rounded-lg" aria-label={label} />
       ) : (
-        <p className="mt-2 text-[11px] text-muted-foreground" aria-live="polite">
+        <p className={`mt-2 text-[11px] ${asset.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`} aria-live="polite">
           {asset.status === 'failed' ? asset.error : 'Loading…'}
         </p>
       )}
@@ -103,7 +103,7 @@ export function PVFinalize({ state, runId, onFinish }: PVFinalizeProps) {
 
       <div className="flex flex-col justify-end gap-2 border-t border-border pt-4 sm:flex-row">
         {savedItemId ? (
-          <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 [[data-omni-theme=dark]_&]:text-emerald-400">
+          <span className="flex items-center gap-1 text-xs font-medium text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-400">
             <Check className="h-4 w-4" />
             In the Content Library
           </span>

@@ -63,7 +63,7 @@ export function PDCast({ state, onNext }: PDCastProps) {
                 onValueChange={(v) => setCast((prev) => ({ ...prev, [label]: v }))}
                 disabled={isLoading}
               >
-                <SelectTrigger className="flex-1" aria-label={`Persona for ${label}`}>
+                <SelectTrigger className="flex-1 cursor-pointer" aria-label={`Persona for ${label}`}>
                   <SelectValue placeholder={isLoading ? 'Loading personas…' : 'Pick a persona'} />
                 </SelectTrigger>
                 <SelectContent>
@@ -75,7 +75,7 @@ export function PDCast({ state, onNext }: PDCastProps) {
                 </SelectContent>
               </Select>
               {missingVoice && (
-                <span className="flex shrink-0 items-center gap-1 text-[11px] text-amber-600 [[data-omni-theme=dark]_&]:text-amber-400">
+                <span className="flex shrink-0 items-center gap-1 text-[11px] text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400">
                   <AlertTriangle className="h-3.5 w-3.5" />
                   No voice
                 </span>
@@ -91,7 +91,7 @@ export function PDCast({ state, onNext }: PDCastProps) {
       </div>
 
       {personas.length === 0 && !isLoading && (
-        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 [[data-omni-theme=dark]_&]:text-amber-400">
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400">
           No personas exist yet. Create them in Cast &amp; Personas on the Audios hub.
         </p>
       )}

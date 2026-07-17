@@ -79,7 +79,7 @@ export function PSShowBrief({ initialShowId, initialBrief, onOutlined }: PSShowB
       <div className="space-y-1.5">
         <Label htmlFor="ps-show">Show</Label>
         <Select value={showId} onValueChange={setShowId} disabled={loadingShows}>
-          <SelectTrigger id="ps-show">
+          <SelectTrigger id="ps-show" className="cursor-pointer">
             <SelectValue placeholder={loadingShows ? 'Loading shows…' : 'Pick a show'} />
           </SelectTrigger>
           <SelectContent>
@@ -138,7 +138,8 @@ export function PSShowBrief({ initialShowId, initialBrief, onOutlined }: PSShowB
             min={5}
             max={90}
             value={minutes}
-            onChange={(e) => setMinutes(Math.min(90, Math.max(5, Math.round(Number(e.target.value) || 30))))}
+            onChange={(e) => setMinutes(Number(e.target.value))}
+            onBlur={() => setMinutes((m) => Math.min(90, Math.max(5, Math.round(Number(m) || 30))))}
           />
         </div>
       </div>

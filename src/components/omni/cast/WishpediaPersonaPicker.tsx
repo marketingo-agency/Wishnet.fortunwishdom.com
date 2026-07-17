@@ -31,7 +31,7 @@ interface WishpediaPersonaPickerProps {
 export function WishpediaPersonaPicker({ open, onOpenChange, onPick }: WishpediaPersonaPickerProps) {
   const [search, setSearch] = useState('');
   const [loadingId, setLoadingId] = useState<string | null>(null);
-  const { data: entries = [], isLoading } = useWishpediaEntries({ search });
+  const { data: entries = [], isLoading, isError } = useWishpediaEntries({ search });
 
   const pickEntry = async (entryId: string, name: string, description: string | null) => {
     setLoadingId(entryId);
@@ -84,7 +84,10 @@ export function WishpediaPersonaPicker({ open, onOpenChange, onPick }: Wishpedia
               <Loader2 className="h-5 w-5 animate-spin" />
             </div>
           )}
-          {!isLoading && entries.length === 0 && (
+          {!isLoading && isError && (
+            <p className="py-8 text-center text-sm text-destructive">Couldn&apos;t load Wishpedia. Close and retry.</p>
+          )}
+          {!isLoading && !isError && entries.length === 0 && (
             <p className="py-8 text-center text-sm text-muted-foreground">No entries match.</p>
           )}
           {entries.map((entry) => (

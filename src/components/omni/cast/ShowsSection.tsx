@@ -62,7 +62,7 @@ function ShowCastEditor({ show, personas }: { show: PodcastShow; personas: OmniP
               aria-label="Speaker label"
             />
             <Select value={personaId} onValueChange={(v) => setEntry(index, label, v)}>
-              <SelectTrigger className="flex-1" aria-label={`Persona for ${label || 'this speaker'}`}>
+              <SelectTrigger className="flex-1 cursor-pointer" aria-label={`Persona for ${label || 'this speaker'}`}>
                 <SelectValue placeholder="Pick a persona" />
               </SelectTrigger>
               <SelectContent>
@@ -110,7 +110,7 @@ function ShowCastEditor({ show, personas }: { show: PodcastShow; personas: OmniP
 }
 
 export function ShowsSection({ personas }: ShowsSectionProps) {
-  const { data: shows = [], isLoading } = usePodcastShows();
+  const { data: shows = [], isLoading, isError: showsError } = usePodcastShows();
   const createShow = useCreateShow();
   const [newShowName, setNewShowName] = useState('');
 
@@ -150,7 +150,12 @@ export function ShowsSection({ personas }: ShowsSectionProps) {
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
         )}
-        {!isLoading && shows.length === 0 && (
+        {!isLoading && showsError && (
+          <p className="rounded-xl border border-destructive/30 px-4 py-6 text-center text-xs text-destructive">
+            Couldn&apos;t load the shows. Reload the page to retry.
+          </p>
+        )}
+        {!isLoading && !showsError && shows.length === 0 && (
           <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground">
             No shows yet. A show groups episodes and later carries its own RSS feed.
           </p>

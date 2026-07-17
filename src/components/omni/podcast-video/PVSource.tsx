@@ -21,7 +21,7 @@ interface PVSourceProps {
 }
 
 export function PVSource({ state, runId, onRunCreated, onPicked }: PVSourceProps) {
-  const { data: episodes = [], isLoading } = usePodcastEpisodes();
+  const { data: episodes = [], isLoading, isError } = usePodcastEpisodes();
   const createRun = useCreateOmniRun();
   const [working, setWorking] = useState(false);
 
@@ -64,7 +64,12 @@ export function PVSource({ state, runId, onRunCreated, onPicked }: PVSourceProps
           <Loader2 className="h-5 w-5 animate-spin" />
         </div>
       )}
-      {!isLoading && episodes.length === 0 && (
+      {!isLoading && isError && (
+        <p className="rounded-xl border border-destructive/30 px-4 py-8 text-center text-xs text-destructive">
+          Couldn&apos;t load the episodes. Reload the page to retry.
+        </p>
+      )}
+      {!isLoading && !isError && episodes.length === 0 && (
         <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-xs text-muted-foreground">
           No episodes yet. Produce one in Podcast Studio first.
         </p>
@@ -76,7 +81,7 @@ export function PVSource({ state, runId, onRunCreated, onPicked }: PVSourceProps
           disabled={working}
           onClick={() => void pick(episode)}
           aria-pressed={state.podcast_episode_id === episode.id}
-          className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-border bg-card p-3 text-left transition-colors duration-200 hover:border-pink-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+          className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border p-3 text-left transition-colors duration-200 hover:border-pink-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60 ${state.podcast_episode_id === episode.id ? 'border-pink-500/50 bg-pink-500/5' : 'border-border bg-card'}`}
         >
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/50">
             <Radio className="h-4 w-4 text-pink-400" />

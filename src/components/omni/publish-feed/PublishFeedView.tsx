@@ -22,7 +22,7 @@ interface PublishFeedViewProps {
 
 export function PublishFeedView({ onExit }: PublishFeedViewProps) {
   const reduceMotion = useReducedMotion();
-  const { data: shows = [], isLoading } = usePodcastShows();
+  const { data: shows = [], isLoading, isError } = usePodcastShows();
   const [activeShowId, setActiveShowId] = useState<string | null>(null);
   const activeShow = shows.find((s) => s.id === activeShowId) ?? shows[0] ?? null;
 
@@ -45,14 +45,19 @@ export function PublishFeedView({ onExit }: PublishFeedViewProps) {
         </Button>
 
         <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
-          <span className="bg-gradient-to-r from-orange-400 to-rose-500 bg-clip-text text-transparent">Publish &amp; Feed</span>
+          <span className="bg-gradient-to-r from-orange-600 to-rose-600 bg-clip-text text-transparent [[data-omni-theme=dark]_&]:from-orange-400 [[data-omni-theme=dark]_&]:to-rose-500">Publish &amp; Feed</span>
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Self-hosted RSS per show. Publishing is admin-only; the feed URL is permanent once submitted to directories.
         </p>
 
         {isLoading && <Skeleton className="mt-5 h-40 rounded-xl" />}
-        {!isLoading && shows.length === 0 && (
+        {!isLoading && isError && (
+          <p className="mt-5 rounded-xl border border-destructive/30 px-4 py-10 text-center text-sm text-destructive">
+            Couldn&apos;t load the shows. Reload the page to retry.
+          </p>
+        )}
+        {!isLoading && !isError && shows.length === 0 && (
           <p className="mt-5 rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
             No shows yet. Create one in Cast &amp; Personas.
           </p>
@@ -69,7 +74,7 @@ export function PublishFeedView({ onExit }: PublishFeedViewProps) {
                   'cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-200',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   activeShow?.id === s.id
-                    ? 'border-orange-500/50 bg-orange-500/10 text-orange-600 [[data-omni-theme=dark]_&]:text-orange-400'
+                    ? 'border-orange-500/50 bg-orange-500/10 text-orange-700 [[data-omni-theme=dark]_&]:text-orange-400'
                     : 'border-border text-muted-foreground hover:border-orange-500/30 hover:text-foreground',
                 )}
               >

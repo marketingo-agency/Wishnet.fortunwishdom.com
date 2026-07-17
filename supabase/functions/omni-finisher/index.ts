@@ -277,7 +277,13 @@ async function assemblySweep(supabaseAdmin: AdminClient, falKey: string): Promis
     const outro = await jingle('outro_jingle_asset_id');
     if (outro) urls.push(outro);
 
-    const { data: episodeAsset } = await supabaseAdmin
+    // The insert IS the atomic claim (partial unique index, QA Critical):
+    // a concurrent client Assemble losing the race gets 23505 and adopts
+    // this row; if the CLIENT won, this insert 23505s and the sweep skips.
+    // step_state is deliberately NOT touched here - a wholesale step_state
+    // write from the sweep could clobber a live client's concurrent persist
+    // (the CR-C1 hazard); the client discovers the episode row on resume.
+    const { data: episodeAsset, error: episodeInsertError } = await supabaseAdmin
       .from('omni_assets')
       .insert({
         user_id: run.user_id,
@@ -290,16 +296,18 @@ async function assemblySweep(supabaseAdmin: AdminClient, falKey: string): Promis
       })
       .select('id')
       .single();
-    if (!episodeAsset) continue;
+    if (episodeInsertError || !episodeAsset) {
+      if (episodeInsertError && episodeInsertError.code !== '23505') {
+        console.error('omni-finisher: episode insert error:', episodeInsertError.message);
+      }
+      continue;
+    }
     const episodeId = (episodeAsset as { id: string }).id;
     try {
       const submission = await falSubmit(falKey, 'fal-ai/ffmpeg-api/merge-audios', { audio_urls: urls });
       await supabaseAdmin.from('omni_assets')
         .update({ metadata: { kind: 'podcast_episode', chapters: chunks.length, fal_request_id: submission.requestId, finished_by: 'finisher' } })
         .eq('id', episodeId);
-      await supabaseAdmin.from('omni_runs')
-        .update({ step_state: { ...state, render_stage: 'assembling' } })
-        .eq('id', run.id);
       submitted += 1;
     } catch (e) {
       const message = e instanceof FalUserError ? e.message : 'Episode assembly could not be submitted';
@@ -329,12 +337,14 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Unauthorized' }, 401);
     }
 
+    // TTS recovery needs only the ElevenLabs key - never gate it on fal.
+    const tts = await ttsSweep(supabaseAdmin);
+
     const { data: llm } = await supabaseAdmin.from('llm_settings').select('fal_api_key').single();
     const falKey = ((llm?.fal_api_key as string | null) || Deno.env.get('FAL_KEY') || '').trim();
-    if (!falKey) return json({ swept: 0, note: 'fal not configured' });
+    if (!falKey) return json({ swept: 0, tts_rendered: tts, note: 'fal not configured' });
 
     const summary = await sweep(supabaseAdmin, falKey);
-    const tts = await ttsSweep(supabaseAdmin);
     const assembled = await assemblySweep(supabaseAdmin, falKey);
     return json({ success: true, ...summary, tts_rendered: tts, assemblies_submitted: assembled });
   } catch (e) {

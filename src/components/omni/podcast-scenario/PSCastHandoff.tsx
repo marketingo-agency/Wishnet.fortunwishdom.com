@@ -70,7 +70,7 @@ export function PSCastHandoff({ state, onFinish, onSendToStudio, finishing }: PS
                 </div>
               )}
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-600 [[data-omni-theme=dark]_&]:text-orange-400">{label}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-700 [[data-omni-theme=dark]_&]:text-orange-400">{label}</p>
                 <p className="truncate text-xs font-medium">{persona?.name ?? 'Missing persona'}</p>
               </div>
             </div>

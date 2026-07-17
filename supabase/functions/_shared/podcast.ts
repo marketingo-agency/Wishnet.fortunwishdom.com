@@ -24,7 +24,9 @@ function isPrivateHost(host: string): boolean {
 async function resolvesToPrivate(host: string): Promise<boolean> {
   if (/^[\d.]+$/.test(host) || host.includes(':')) return isPrivateHost(host);
   const resolve = (Deno as { resolveDns?: (h: string, t: string) => Promise<string[]> }).resolveDns;
-  if (!resolve) return false;
+  // Fail CLOSED: without DNS resolution the private-IP check cannot run, so a
+  // hostname cannot be cleared (security-auditor L2, Plan 3 QA).
+  if (!resolve) return true;
   const lookups = await Promise.all(['A', 'AAAA'].map(async (t) => {
     try { return await resolve(host, t) ?? []; } catch { return []; }
   }));

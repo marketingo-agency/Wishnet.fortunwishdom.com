@@ -35,7 +35,9 @@ export function PSScript({ state, onScriptChange, onNext }: PSScriptProps) {
   const [generatingIdx, setGeneratingIdx] = useState<number | null>(null);
   const [runningAll, setRunningAll] = useState(false);
   const stopRef = useRef(false);
-  const [editing, setEditing] = useState<{ chapter: number; segment: number } | null>(null);
+  // The edit buffer commits on blur (QA W5: per-keystroke persists flooded
+  // the serialized write queue).
+  const [editing, setEditing] = useState<{ chapter: number; segment: number; text: string } | null>(null);
 
   const doneCount = outline.chapters.filter((c) => (script[String(c.idx)] ?? []).length > 0).length;
   const allDone = doneCount === outline.chapters.length;
@@ -155,27 +157,30 @@ export function PSScript({ state, onScriptChange, onNext }: PSScriptProps) {
                     return (
                       <div key={si} className="group rounded-lg bg-muted/40 px-3 py-2">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-orange-600 [[data-omni-theme=dark]_&]:text-orange-400">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-orange-700 [[data-omni-theme=dark]_&]:text-orange-400">
                             {segment.speaker}
                           </span>
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => setEditing(isEditing ? null : { chapter: chapter.idx, segment: si })}
+                            onClick={() => setEditing(isEditing ? null : { chapter: chapter.idx, segment: si, text: segment.text })}
                             aria-label={`Edit line ${si + 1} of chapter ${chapter.idx}`}
                             className="h-6 w-6 cursor-pointer text-muted-foreground opacity-0 transition-opacity duration-200 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
                           >
                             <Pencil className="h-3 w-3" />
                           </Button>
                         </div>
-                        {isEditing ? (
+                        {isEditing && editing ? (
                           <Textarea
-                            value={segment.text}
-                            onChange={(e) => {
-                              const next = segments.map((s, i) => (i === si ? { ...s, text: e.target.value } : s));
-                              onScriptChange(chapter.idx, next);
+                            value={editing.text}
+                            onChange={(e) => setEditing({ chapter: chapter.idx, segment: si, text: e.target.value })}
+                            onBlur={() => {
+                              if (editing.text !== segment.text) {
+                                const next = segments.map((s, i) => (i === si ? { ...s, text: editing.text } : s));
+                                onScriptChange(chapter.idx, next);
+                              }
+                              setEditing(null);
                             }}
-                            onBlur={() => setEditing(null)}
                             rows={3}
                             autoFocus
                             className="mt-1 text-xs"

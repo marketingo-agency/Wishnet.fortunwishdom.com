@@ -50,7 +50,7 @@ export function AudiosHub({ onBack, onSelectMode }: AudiosHubProps) {
         </Button>
 
         <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
-          <span className="bg-gradient-to-r from-orange-400 to-rose-500 bg-clip-text text-transparent">Audios</span>
+          <span className="bg-gradient-to-r from-orange-600 to-rose-600 bg-clip-text text-transparent [[data-omni-theme=dark]_&]:from-orange-400 [[data-omni-theme=dark]_&]:to-rose-500">Audios</span>
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Pick the mode that fits where you are.
@@ -85,7 +85,7 @@ export function AudiosHub({ onBack, onSelectMode }: AudiosHubProps) {
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/50">
                     <Icon className={cn('h-[18px] w-[18px]', mode.accent)} />
                   </div>
-                  <h2 className="text-sm font-semibold">{mode.label}</h2>
+                  <span className="text-sm font-semibold">{mode.label}</span>
                 </div>
                 {mode.available ? (
                   <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:text-orange-400 group-hover:opacity-100" />

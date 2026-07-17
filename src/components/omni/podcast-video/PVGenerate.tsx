@@ -72,7 +72,22 @@ export function PVGenerate({ state, runId, persist, onNext }: PVGenerateProps) {
     setBuilding(true);
     try {
       const [audioUrl, coverUrl] = await Promise.all([signOwn(episode.audio_path), signOwn(episode.cover_path)]);
-      const durationMs = Math.max(1000, Math.round((episode.duration_s ?? 60) * 1000));
+      // The draft episode's duration_s is a word-count ESTIMATE (publish is
+      // what probes the real value) - probe the actual audio length here so
+      // the cover track spans the whole episode (QA W2). Falls back honestly.
+      let durationS = episode.duration_s ?? 60;
+      try {
+        const probe = await callOmniVideo<{ status: string; result?: { media?: { duration?: number }; duration?: number } }>('video-utility', {
+          run_id: runId,
+          op: 'fal-ai/ffmpeg-api/metadata',
+          input: { media_url: audioUrl },
+        });
+        const probed = probe.result?.media?.duration ?? probe.result?.duration;
+        if (typeof probed === 'number' && probed > 0) durationS = probed;
+      } catch {
+        toast.info('Could not probe the exact audio length - using the estimate.');
+      }
+      const durationMs = Math.max(1000, Math.round(durationS * 1000));
       const res = await callOmniVideo<{ asset_id: string }>('video-utility', {
         run_id: runId,
         op: 'fal-ai/ffmpeg-api/compose',
@@ -145,7 +160,7 @@ export function PVGenerate({ state, runId, persist, onNext }: PVGenerateProps) {
             </span>
           )}
           {audiogram.status === 'done' && (
-            <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 [[data-omni-theme=dark]_&]:text-emerald-400">
+            <span className="flex items-center gap-1 text-xs font-medium text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-400">
               <Check className="h-4 w-4" />
               Ready
             </span>

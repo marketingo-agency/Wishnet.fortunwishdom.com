@@ -44,7 +44,11 @@ export interface FeedEpisode {
 }
 
 export function xmlEscape(value: string): string {
+  // XML-1.0-illegal control characters are stripped outright (they cannot
+  // be escaped into a valid document); the control-char class is intentional.
   return value
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')

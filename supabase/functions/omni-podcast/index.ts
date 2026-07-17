@@ -235,8 +235,8 @@ async function regenerateFeed(supabaseAdmin: AdminClient, supabaseUrl: string, s
     explicit: config.explicit === true,
     ownerEmail: typeof config.owner_email === 'string' ? config.owner_email : '',
     author: (typeof config.author === 'string' && config.author) || show.name,
-    artworkUrl: typeof config.artwork_url === 'string' ? config.artwork_url : '',
-    siteLink: (typeof config.site_link === 'string' && config.site_link) || DEFAULT_SITE_LINK,
+    artworkUrl: typeof config.artwork_url === 'string' && config.artwork_url.startsWith('https://') ? config.artwork_url : '',
+    siteLink: typeof config.site_link === 'string' && config.site_link.startsWith('https://') ? config.site_link : DEFAULT_SITE_LINK,
     podcastGuid,
     disclosureText: disclosure,
   };
@@ -695,6 +695,13 @@ Deno.serve(async (req: Request) => {
         .eq('user_id', userId)
         .eq('kind', 'audio');
       const assets = (rows ?? []) as { id: string; status: string; storage_path: string | null; metadata: Record<string, unknown> | null }[];
+      // Idempotency (QA Critical): the finisher's tab-closed sweep may have
+      // assembled already - adopt its episode instead of paying for a second
+      // merge. The partial unique index is the atomic backstop.
+      const existingEpisode = assets.find((a) => a.metadata?.kind === 'podcast_episode' && a.status !== 'failed');
+      if (existingEpisode) {
+        return jsonResponse({ asset_id: existingEpisode.id, already_assembling: true });
+      }
       const chunks = assets
         .filter((a) => a.metadata?.kind === 'podcast_chunk')
         .sort((a, b) => Number(a.metadata?.chapter_idx ?? 0) - Number(b.metadata?.chapter_idx ?? 0));
@@ -741,6 +748,20 @@ Deno.serve(async (req: Request) => {
         .select('id')
         .single();
       if (assetError || !episodeAsset) {
+        // 23505 = the unique per-run episode index: a concurrent assembler
+        // (the finisher sweep) won the claim - adopt its row.
+        if (assetError?.code === '23505') {
+          const { data: winner } = await supabaseAdmin
+            .from('omni_assets')
+            .select('id')
+            .eq('run_id', runId)
+            .eq('user_id', userId)
+            .eq('kind', 'audio')
+            .neq('status', 'failed')
+            .contains('metadata', { kind: 'podcast_episode' })
+            .maybeSingle();
+          if (winner) return jsonResponse({ asset_id: (winner as { id: string }).id, already_assembling: true });
+        }
         console.error('omni-podcast: episode insert error:', assetError?.message);
         return jsonResponse({ error: 'Failed to create the episode record' }, 500);
       }
@@ -787,11 +808,12 @@ Deno.serve(async (req: Request) => {
       if (!episode) return jsonResponse({ error: 'Episode not found' }, 404);
       const { data: showRow } = await supabaseAdmin
         .from('podcast_shows')
-        .select('id, slug')
+        .select('id, slug, user_id')
         .eq('id', episode.show_id)
         .single();
       const slug = (showRow as { slug: string } | null)?.slug;
-      if (!slug) return jsonResponse({ error: 'The episode has no show' }, 400);
+      const showOwnerId = (showRow as { user_id: string } | null)?.user_id;
+      if (!slug || !showOwnerId) return jsonResponse({ error: 'The episode has no show' }, 400);
 
       if (action === 'unpublish-episode') {
         // The feed entry goes; the public object and the GUID stay (landmine
@@ -811,6 +833,12 @@ Deno.serve(async (req: Request) => {
 
       // publish-episode
       if (!episode.audio_path) return jsonResponse({ error: 'The episode has no audio file' }, 400);
+      // The paths are client-writable columns and copyToPublic reads with the
+      // service role: confine both to the show owner's namespace (the Plan-1
+      // signStoragePath lesson - never trust a client-bindable path).
+      if (!episode.audio_path.startsWith(`${showOwnerId}/`) || (episode.cover_path && !episode.cover_path.startsWith(`${showOwnerId}/`))) {
+        return jsonResponse({ error: 'The episode files are outside the show owner storage namespace' }, 403);
+      }
       try {
         const audioTarget = `shows/${slug}/${episode.id}.mp3`;
         const bytes = await copyToPublic(supabaseAdmin, episode.audio_path, audioTarget, 'audio/mpeg', EPISODE_MAX_BYTES);

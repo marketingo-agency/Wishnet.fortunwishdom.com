@@ -151,7 +151,12 @@ export function PDScriptIn({ state, runId, onRunCreated, onReady }: PDScriptInPr
               <Loader2 className="h-4 w-4 animate-spin" />
             </div>
           )}
-          {!scenarioRuns.isLoading && (scenarioRuns.data ?? []).length === 0 && (
+          {!scenarioRuns.isLoading && scenarioRuns.isError && (
+            <p className="rounded-xl border border-destructive/30 px-4 py-5 text-center text-xs text-destructive">
+              Couldn&apos;t load the scenario runs. Reload the page to retry.
+            </p>
+          )}
+          {!scenarioRuns.isLoading && !scenarioRuns.isError && (scenarioRuns.data ?? []).length === 0 && (
             <p className="rounded-xl border border-dashed border-border px-4 py-5 text-center text-xs text-muted-foreground">
               No completed Podcast Scenario runs yet. Plan one in Podcast Scenario, or paste a script below.
             </p>
@@ -179,7 +184,7 @@ export function PDScriptIn({ state, runId, onRunCreated, onReady }: PDScriptInPr
         <div className="space-y-1.5">
           <Label htmlFor="pd-show">Show</Label>
           <Select value={showId} onValueChange={setShowId}>
-            <SelectTrigger id="pd-show" className="max-w-xs">
+            <SelectTrigger id="pd-show" className="max-w-xs cursor-pointer">
               <SelectValue placeholder="Pick a show" />
             </SelectTrigger>
             <SelectContent>

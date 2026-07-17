@@ -24,7 +24,7 @@ interface CastPersonasViewProps {
 
 export function CastPersonasView({ onExit }: CastPersonasViewProps) {
   const reduceMotion = useReducedMotion();
-  const { data: personas = [], isLoading } = usePersonas();
+  const { data: personas = [], isLoading, isError: personasError } = usePersonas();
   const { data: voices = [] } = usePodcastVoices();
   const deletePersona = useDeletePersona();
 
@@ -56,7 +56,7 @@ export function CastPersonasView({ onExit }: CastPersonasViewProps) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
-              <span className="bg-gradient-to-r from-orange-400 to-rose-500 bg-clip-text text-transparent">Cast &amp; Personas</span>
+              <span className="bg-gradient-to-r from-orange-600 to-rose-600 bg-clip-text text-transparent [[data-omni-theme=dark]_&]:from-orange-400 [[data-omni-theme=dark]_&]:to-rose-500">Cast &amp; Personas</span>
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Reusable speakers for every show: identity, voice, portrait.
@@ -73,7 +73,12 @@ export function CastPersonasView({ onExit }: CastPersonasViewProps) {
 
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {isLoading && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
-          {!isLoading && personas.length === 0 && (
+          {!isLoading && personasError && (
+            <p className="col-span-full rounded-xl border border-destructive/30 px-4 py-10 text-center text-sm text-destructive">
+              Couldn&apos;t load the personas. Reload the page to retry.
+            </p>
+          )}
+          {!isLoading && !personasError && personas.length === 0 && (
             <p className="col-span-full rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
               No personas yet. Create your first host — or seed one from a Wishpedia character.
             </p>
@@ -98,7 +103,7 @@ export function CastPersonasView({ onExit }: CastPersonasViewProps) {
                       </span>
                     )}
                     {p.wishpedia_entry_id && (
-                      <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 [[data-omni-theme=dark]_&]:text-amber-400">
+                      <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400">
                         Wishpedia
                       </span>
                     )}

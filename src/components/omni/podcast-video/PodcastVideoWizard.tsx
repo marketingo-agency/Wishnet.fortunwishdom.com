@@ -148,7 +148,9 @@ export function PodcastVideoWizard({ runId, onRunCreated, onExit, onOpenAnimate 
               aria-label={`${s.title}${reachable ? '' : ' (not reached yet)'}`}
               aria-current={s.ordinal === ordinal ? 'step' : undefined}
               className={cn(
-                'h-1.5 flex-1 rounded-full transition-colors duration-200',
+                'relative h-1.5 flex-1 rounded-full transition-colors duration-200',
+                // WCAG target size: the 6px bar keeps its look; the hit area grows.
+                "before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-['']",
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 s.ordinal === ordinal ? 'bg-pink-500'
                   : reachable ? 'cursor-pointer bg-pink-500/35 hover:bg-pink-500/60'

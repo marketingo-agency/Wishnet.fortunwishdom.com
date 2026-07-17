@@ -32,14 +32,24 @@ function JingleControl({ kind, label, assetId, runId, onGenerated }: {
   onGenerated: (assetId: string) => void;
 }) {
   const [prompt, setPrompt] = useState('');
-  const [status, setStatus] = useState<'idle' | 'generating' | 'done' | 'failed'>(assetId ? 'done' : 'idle');
+  // A restored id starts at 'generating'; the first poll promotes it (no
+  // false green flash for a still-rendering jingle).
+  const [status, setStatus] = useState<'idle' | 'generating' | 'done' | 'failed'>(assetId ? 'generating' : 'idle');
   const [url, setUrl] = useState<string | null>(null);
 
-  // Poll an in-flight or restored jingle to its terminal state.
+  // Poll an in-flight or restored jingle to its terminal state; bail after
+  // 15 minutes instead of spinning forever on a stalled fal queue.
   useEffect(() => {
     if (!assetId || status === 'failed') return;
     let cancelled = false;
+    const startedAt = Date.now();
     const check = async () => {
+      if (cancelled) return;
+      if (Date.now() - startedAt > 15 * 60_000) {
+        setStatus('failed');
+        toast.error(`The ${kind} jingle is taking unusually long. Regenerate it, or come back later.`);
+        return;
+      }
       try {
         const entry = await pollAudioAsset(assetId);
         if (cancelled) return;
@@ -54,7 +64,7 @@ function JingleControl({ kind, label, assetId, runId, onGenerated }: {
           setTimeout(() => { if (!cancelled) void check(); }, 5000);
         }
       } catch {
-        // transient; the next open re-polls
+        setTimeout(() => { if (!cancelled) void check(); }, 10_000);
       }
     };
     void check();
@@ -158,7 +168,7 @@ export function PDRender({ state, runId, persist, onNext }: PDRenderProps) {
 
   const statusChip = (status: string) => {
     switch (status) {
-      case 'done': return <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-600 [[data-omni-theme=dark]_&]:text-emerald-400"><Check className="h-3.5 w-3.5" />Done</span>;
+      case 'done': return <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-400"><Check className="h-3.5 w-3.5" />Done</span>;
       case 'failed': return <span className="flex items-center gap-1 text-[11px] font-medium text-destructive"><XCircle className="h-3.5 w-3.5" />Failed</span>;
       case 'generating': return <span className="flex items-center gap-1 text-[11px] text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Rendering</span>;
       default: return <span className="text-[11px] text-muted-foreground">Queued</span>;

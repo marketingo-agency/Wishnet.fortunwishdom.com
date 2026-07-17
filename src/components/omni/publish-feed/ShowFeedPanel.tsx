@@ -95,8 +95,12 @@ export function ShowFeedPanel({ show }: ShowFeedPanelProps) {
   };
 
   const copyFeed = async () => {
-    await navigator.clipboard.writeText(canonicalFeedUrl);
-    toast.success('Feed URL copied.');
+    try {
+      await navigator.clipboard.writeText(canonicalFeedUrl);
+      toast.success('Feed URL copied.');
+    } catch {
+      toast.error('Could not access the clipboard - copy the URL manually.');
+    }
   };
 
   return (

@@ -144,7 +144,7 @@ export function PDFinalize({ state, runId, persist, onFinish }: PDFinalizeProps)
             Download MP3
           </Button>
           {libraryItemId ? (
-            <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 [[data-omni-theme=dark]_&]:text-emerald-400">
+            <span className="flex items-center gap-1 text-xs font-medium text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-400">
               <Check className="h-3.5 w-3.5" />
               In the Content Library
             </span>
@@ -172,7 +172,7 @@ export function PDFinalize({ state, runId, persist, onFinish }: PDFinalizeProps)
             </p>
           </div>
           {state.podcast_episode_id ? (
-            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-600 [[data-omni-theme=dark]_&]:text-emerald-400">
+            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-400">
               <Check className="h-4 w-4" />
               Draft created
             </span>
