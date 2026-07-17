@@ -465,7 +465,8 @@ export const VIDEO_MODES: Record<WizardModeId, VideoModeDef> = {
   },
   podcast_video: {
     mode: 'podcast_video',
-    builtThrough: 0,
+    // Phase 8: all four stages live.
+    builtThrough: 4,
     stages: videoStages([
       ['source', 'Source'],
       ['treatment', 'Treatment'],

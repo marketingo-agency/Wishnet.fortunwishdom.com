@@ -243,6 +243,9 @@ export interface OmniImagesState {
   podcast_shownotes?: OmniPodcastShownotes;
   /** The draft podcast_episodes row created at finalize. */
   podcast_episode_id?: string;
+  /** Podcast to Video (Plan 3 Phase 8): generated video assets. */
+  pv_audiogram_asset_id?: string;
+  pv_clip_asset_ids?: string[];
 }
 
 export interface OmniPodcastShownotes {

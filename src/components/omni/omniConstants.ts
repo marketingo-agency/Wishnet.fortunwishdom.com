@@ -269,8 +269,8 @@ export const OMNI_AUDIO_MODES: OmniAudioModeDef[] = [
     description: 'Full-episode audiograms for YouTube, talking-persona promo clips, and captioned vertical highlights for Reels, TikTok, and Shorts.',
     icon: Clapperboard,
     accent: 'text-pink-400',
-    available: false,
-    availabilityNote: 'Lands in Phase 8',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'publish_feed',

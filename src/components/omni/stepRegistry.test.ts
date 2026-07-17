@@ -432,13 +432,13 @@ describe('stepRegistry: video mode registry (D-V1)', () => {
     expect(VIDEO_MODES.podcast_scenario.stages.map((s) => s.id)).toEqual(['show_brief', 'outline', 'script', 'cast_handoff']);
     expect(VIDEO_MODES.omni_podcast.stages.map((s) => s.id)).toEqual(['script_in', 'cast', 'render', 'package', 'finalize']);
     expect(VIDEO_MODES.podcast_video.stages.map((s) => s.id)).toEqual(['source', 'treatment', 'generate', 'finalize']);
-    // podcast_scenario shipped in Phase 5, omni_podcast in Phase 6; the rest stay clamped.
+    // All three audio modes shipped (Phases 5, 6, 8).
     expect(VIDEO_MODES.podcast_scenario.builtThrough).toBe(4);
     expect(clampToBuilt('podcast_scenario', 5)).toBe(4);
     expect(VIDEO_MODES.omni_podcast.builtThrough).toBe(5);
     expect(clampToBuilt('omni_podcast', 9)).toBe(5);
-    expect(VIDEO_MODES.podcast_video.builtThrough).toBe(0);
-    expect(clampToBuilt('podcast_video', 5)).toBe(1);
+    expect(VIDEO_MODES.podcast_video.builtThrough).toBe(4);
+    expect(clampToBuilt('podcast_video', 5)).toBe(4);
   });
 
   it('resolveVideoPosition clamps both the position and the high-water to the built range', () => {

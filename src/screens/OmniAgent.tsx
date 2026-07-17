@@ -32,6 +32,7 @@ import { AudiosHub } from '@/components/omni/AudiosHub';
 import { CastPersonasView } from '@/components/omni/cast/CastPersonasView';
 import { PodcastScenarioWizard } from '@/components/omni/podcast-scenario/PodcastScenarioWizard';
 import { PodcastStudioWizard } from '@/components/omni/podcast-studio/PodcastStudioWizard';
+import { PodcastVideoWizard } from '@/components/omni/podcast-video/PodcastVideoWizard';
 import { ScenarioWizard } from '@/components/omni/scenario/ScenarioWizard';
 import { VideoStudioWizard } from '@/components/omni/video-studio/VideoStudioWizard';
 import { ClipsWizard } from '@/components/omni/clips/ClipsWizard';
@@ -57,7 +58,7 @@ type VideosMode = 'hub' | 'history' | 'video_scenario' | 'omni_videos' | 'video_
 type AudiosMode = 'hub' | 'history' | 'podcast_scenario' | 'omni_podcast' | 'cast_personas' | 'podcast_video' | 'publish_feed';
 /** Audio surfaces accepted from the URL — widened as each phase ships its
  *  wizard (a deep link to an unbuilt surface must land on the hub, not blank). */
-const BUILT_AUDIO_SURFACES: AudiosMode[] = ['history', 'cast_personas', 'podcast_scenario', 'omni_podcast'];
+const BUILT_AUDIO_SURFACES: AudiosMode[] = ['history', 'cast_personas', 'podcast_scenario', 'omni_podcast', 'podcast_video'];
 
 export default function OmniAgent() {
   const router = useRouter();
@@ -347,6 +348,18 @@ export default function OmniAgent() {
                   runId={wizardRunId}
                   onRunCreated={(id) => openAudiosMode('omni_podcast', id)}
                   onExit={() => openAudiosMode('hub')}
+                />
+              )}
+
+              {view === 'audios' && audiosMode === 'podcast_video' && (
+                <PodcastVideoWizard
+                  runId={wizardRunId}
+                  onRunCreated={(id) => openAudiosMode('podcast_video', id)}
+                  onExit={() => openAudiosMode('hub')}
+                  onOpenAnimate={() => {
+                    setView('videos');
+                    openVideosMode('video_animate');
+                  }}
                 />
               )}
 
