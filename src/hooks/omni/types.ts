@@ -110,9 +110,10 @@ export interface OmniRepurposedRef {
   source_asset_id: string;
   network: string;
   preset_id: string;
-  // 'redesign' = AI re-layout for the target dimension; 'crop' = free smart crop.
-  // 'ai' is the legacy outpaint-extend mode, kept for resumed older runs.
-  mode: 'crop' | 'ai' | 'redesign';
+  // 'redesign' = AI re-layout for the target dimension; 'crop' = free smart
+  // crop; 'extend' = pixel-preserving AI outpaint (subject untouched, canvas
+  // grown). 'ai' is the legacy extend mode, kept for resumed older runs.
+  mode: 'crop' | 'ai' | 'redesign' | 'extend';
 }
 
 /** A Wishpedia reference image attached to an Omni Images run for canon-accurate
@@ -134,9 +135,16 @@ export interface OmniAnalysis {
 }
 
 export interface OmniImagesState {
+  /** Step-state schema version: absent/1 = the legacy 11-step flow; 2 = the
+   *  7-stage Studio flow (current_step then holds a stage ordinal). Reads
+   *  migrate through stepRegistry.migrateStepState. */
+  schema_version?: number;
   objective?: string;
   optimized_prompt?: string;
   locked_prompt?: string;
+  /** How the locked prompt was authored: 'promptor' (already Heart-grounded
+   *  upstream) or 'raw' (user text — the edge injects the Heart digest). */
+  prompt_provenance?: 'promptor' | 'raw';
   /** Wishpedia character references attached at step 1 for canon-accurate
    *  recreation; when present the wizard auto-routes to an edit-capable model. */
   reference_image_refs?: OmniWishReferenceRef[];
@@ -167,6 +175,12 @@ export interface OmniImagesState {
   // Brainstorming (Mode 6) extras, persisted in the same engine state
   messages?: OmniChatMessage[];
   idea_locked?: boolean;
+  /** Source run id when this run was created via Retake (HIST-15 backlink). */
+  retake_of?: string;
+  /** Curated-entry marker: 'character_studio' runs are ordinary omni_images
+   *  runs pre-seeded from a Wishpedia entry (no new mode, no migration). */
+  origin?: 'character_studio';
+  character_entry_id?: string;
 }
 
 // ── Brainstorming (Mode 6) ───────────────────────────────────────────────────

@@ -20,16 +20,18 @@ import { fetchFalCatalog, findFalModel, isFalCapability } from './fal-catalog.ts
 import { applySpecToInput, modelSupportsNumImages, snapAspectRatio } from './fal-specs.ts';
 import { FalUserError, falResult, falStatus, falSubmit } from './fal-runner.ts';
 import { persistFalImage, registerInFilesManager, signStoragePath } from './storage.ts';
-import { analyzeImage, retrieveKnowledge } from './analysis.ts';
+import { analyzeImage } from './analysis.ts';
 import { mineSurpriseIdeas } from './surprise.ts';
 import { chatBrainstorm, lockIdea, type BrainstormAttachment, type BrainstormMessageInput } from './brainstorm.ts';
+import { buildHeartDigest, fetchHeartRules, retrieveKnowledge } from './context.ts';
+import { generateCaptions } from './captions.ts';
 
 // 60/min: the generation workspace polls in-flight variants every ~3s.
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 60 });
 
 let corsHeaders: Record<string, string> = getCorsHeaders(null);
 
-// ── Settings ─────────────────────────────────────────────────────────────────
+// -- Settings -----
 
 interface OmniSettingsInput {
   analysis_provider?: string;
@@ -67,52 +69,11 @@ function sanitizeSettingsInput(raw: unknown): OmniSettingsInput {
   return out;
 }
 
-// ── Heart rules (AGENT key "omni") ───────────────────────────────────────────
+// Heart rules + knowledge grounding live in the context engine (context.ts):
+// fetchHeartRules keeps its throw-on-error semantics - a Heart fetch failure
+// blocks generation, it never silently degrades.
 
-export interface HeartRule {
-  name: string;
-  content: string;
-  priority: string;
-}
-
-const PRIORITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-
-/**
- * Fetch ALL active Heart rules that are global or assigned to "omni".
- * Errors are surfaced to the caller, never silently degraded to zero rules:
- * a fetch failure blocks generation rather than producing non-compliant output.
- * Rules are sorted high priority first so the most important rules are injected
- * first and are never the ones dropped by any downstream truncation.
- * `priority` is a text column, so ordering happens in code via a rank map.
- */
-export async function fetchHeartRules(
-  supabaseAdmin: ReturnType<typeof createClient>,
-): Promise<HeartRule[]> {
-  const { data, error } = await supabaseAdmin
-    .from('heart_rules')
-    .select('name, rule_content, priority, sort_order, is_global, assigned_agents, is_active')
-    .eq('is_active', true)
-    .or('is_global.eq.true,assigned_agents.cs.{"omni"}');
-
-  if (error) {
-    console.error('Omni: Heart rules fetch error:', error.message);
-    throw new Error('Heart rules could not be loaded. Generation is blocked to guarantee brand compliance. Please try again.');
-  }
-
-  const rank = (p: string) => PRIORITY_RANK[p.toLowerCase()] ?? 2;
-
-  return (data || [])
-    .map((r: { name?: string; rule_content?: string; priority?: string; sort_order?: number }) => ({
-      name: sanitizeForPrompt(r.name ?? ''),
-      content: sanitizeForPrompt(r.rule_content ?? ''),
-      priority: r.priority ?? 'medium',
-      sortOrder: r.sort_order ?? 0,
-    }))
-    .sort((a, b) => rank(a.priority) - rank(b.priority) || a.sortOrder - b.sortOrder)
-    .map(({ name, content, priority }) => ({ name, content, priority }));
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// -- Helpers -----
 
 function jsonResponse(payload: unknown, status = 200, extraHeaders: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(payload), {
@@ -182,7 +143,7 @@ function extractCreditBalance(data: unknown): { balance: number | null; currency
   const currency = currencyOf(co) ?? currencyOf(root) ?? 'USD';
   const candidates: unknown[] = [
     credits,
-    // fal's documented shape is { credits: { current_balance, currency } } — most
+    // fal's documented shape is { credits: { current_balance, currency } } - most
     // specific path FIRST so it matches deterministically (not via the fallback).
     co?.current_balance, co?.balance, co?.amount, co?.available, co?.remaining, co?.total, co?.credits,
     root.current_balance, root.balance, root.credit_balance, root.available_credits, root.amount,
@@ -196,6 +157,11 @@ function extractCreditBalance(data: unknown): { balance: number | null; currency
 
 const FAL_NOT_CONFIGURED = 'fal.ai is not configured. Add a fal.ai API key in Settings > LLM Providers.';
 const TEST_MODEL_ID = 'fal-ai/flux/schnell';
+// Tier-2 AI extend (Plan 1 D-TIER): schema verified live 2026-07-16 - singular
+// image_url + expand_{top,bottom,left,right} px, NO prompt, interior pixels
+// untouched, ~$0.03/processed MP. bria/expand + ideogram/v3/reframe remain
+// documented alternatives pending the delivery A/B.
+const EXTEND_MODEL_ID = 'fal-ai/flux-2-pro/outpaint';
 const NETWORKS = new Set(['facebook', 'instagram', 'x', 'tiktok', 'youtube', 'pinterest']);
 
 // Per-edit-model reference-image caps (mirrors src/config/llmModels FAL_EDIT_MODELS).
@@ -295,7 +261,7 @@ async function falImageToDataUri(url: string, contentType: string | null): Promi
   }
 }
 
-// ── Server ───────────────────────────────────────────────────────────────────
+// -- Server -----
 
 Deno.serve(async (req: Request) => {
   corsHeaders = getCorsHeaders(req.headers.get('Origin'));
@@ -336,7 +302,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => ({} as Record<string, unknown>));
     const action = typeof body?.action === 'string' ? body.action : '';
 
-    // ── get-settings ─────────────────────────────────────────────────────────
+    // -- get-settings -----
     if (action === 'get-settings') {
       const { data: settings, error } = await supabaseAdmin
         .from('omni_settings')
@@ -351,7 +317,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ settings: settings ?? null });
     }
 
-    // ── save-settings ────────────────────────────────────────────────────────
+    // -- save-settings -----
     if (action === 'save-settings') {
       const clean = sanitizeSettingsInput(body.settings);
 
@@ -382,7 +348,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: true });
     }
 
-    // ── list-fal-models ──────────────────────────────────────────────────────
+    // -- list-fal-models -----
     if (action === 'list-fal-models') {
       const capability = isFalCapability(body.capability) ? body.capability : undefined;
       const q = typeof body.q === 'string' ? body.q : undefined;
@@ -394,8 +360,17 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ ...page, falConfigured: falKey !== null });
     }
 
-    // ── fal-submit ───────────────────────────────────────────────────────────
+    // -- fal-submit (admin-only raw passthrough; KB-GAP-5) -----
+    // No shipped client surface calls this action (grep-verified 2026-07-16):
+    // every user funnel goes through variant-submit, which creates asset rows
+    // and grounds prompts. Raw submits stay available to admins for debugging
+    // only, with the same prompt cap the governed path enforces.
     if (action === 'fal-submit') {
+      const { data: isSubmitAdmin, error: submitAdminErr } = await supabaseAdmin.rpc('is_admin', { _user_id: userId });
+      if (submitAdminErr || !isSubmitAdmin) {
+        return jsonResponse({ error: 'Admin access required' }, 403);
+      }
+
       const falKey = await getFalKey(supabaseAdmin);
       if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
 
@@ -403,6 +378,10 @@ Deno.serve(async (req: Request) => {
       const input = body.input;
       if (typeof modelId !== 'string' || !input || typeof input !== 'object' || Array.isArray(input)) {
         return jsonResponse({ error: 'model_id (string) and input (object) are required' }, 400);
+      }
+      const rawPrompt = (input as Record<string, unknown>).prompt;
+      if (typeof rawPrompt === 'string' && rawPrompt.length > 8000) {
+        return jsonResponse({ error: 'Prompt is too long (8000 char cap)' }, 400);
       }
 
       const model = await findFalModel(modelId, falKey);
@@ -414,7 +393,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ request_id: submission.requestId, queue_position: submission.queuePosition });
     }
 
-    // ── fal-status ───────────────────────────────────────────────────────────
+    // -- fal-status -----
     if (action === 'fal-status') {
       const falKey = await getFalKey(supabaseAdmin);
       if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
@@ -441,7 +420,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // ── fal-test-generate (admin-only health check) ──────────────────────────
+    // -- fal-test-generate (admin-only health check) -----
     if (action === 'fal-test-generate') {
       const { data: isAdmin, error: adminErr } = await supabaseAdmin.rpc('is_admin', { _user_id: userId });
       if (adminErr || !isAdmin) {
@@ -479,8 +458,8 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: 'Test generation timed out after 60 seconds.' }, 504);
     }
 
-    // ── variant-submit (one fal job per variant; supports regenerate lineage) ─
-    // ── fal account credit balance (Recap cost card, admin-only) ──────────────
+    // -- variant-submit (one fal job per variant; supports regenerate lineage) -
+    // -- fal account credit balance (Recap cost card, admin-only) -----
     if (action === 'fal-credits') {
       // Org financial data: admin-gated. Non-admins get the estimate-only view
       // (the client degrades gracefully to "Unavailable").
@@ -495,7 +474,7 @@ Deno.serve(async (req: Request) => {
         });
         if (!res.ok) {
           // A 401/403 here almost always means the stored fal key lacks Admin
-          // (billing) scope — the inference key that works for generation is not
+          // (billing) scope - the inference key that works for generation is not
           // guaranteed to cover /account/billing. The reason is admin-only + carries
           // no secret, so the UI can surface a precise hint.
           console.warn(`Omni fal-credits: billing returned HTTP ${res.status}`);
@@ -582,7 +561,7 @@ Deno.serve(async (req: Request) => {
           .maybeSingle();
         const sourcePath = (sourceAsset as { storage_path: string | null } | null)?.storage_path;
         if (!sourcePath) return jsonResponse({ error: 'Source asset not found or not persisted yet' }, 400);
-        const sourceUrl = await signStoragePath(supabaseAdmin, sourcePath, 60 * 60);
+        const sourceUrl = await signStoragePath(supabaseAdmin, sourcePath, userId, 60 * 60);
         if (!sourceUrl) return jsonResponse({ error: 'Could not sign the source image' }, 500);
         imageUrls.push(sourceUrl);
       }
@@ -605,7 +584,7 @@ Deno.serve(async (req: Request) => {
           input.image_urls = imageUrls;
         }
       }
-      // The generation flow sends a per-variant spec → model-correct size/quality
+      // The generation flow sends a per-variant spec -> model-correct size/quality
       // params. The repurpose flow sends no spec and steers with a legacy
       // aspect_ratio (only meaningful when there is a source/reference image).
       if (spec) {
@@ -627,6 +606,34 @@ Deno.serve(async (req: Request) => {
         // overflowing the prompt. (security-auditor MEDIUM-1 / LOW-2)
         const subjects = referenceNames.map((n) => n.replace(/[\r\n\t]+/g, ' ').slice(0, 80)).join(', ');
         input.prompt = `Using the provided reference image(s) of the Fortun Wishnet canon subject(s): ${subjects}. Recreate ${referenceNames.length > 1 ? 'them' : 'it'} faithfully, preserving the exact appearance, colors, shapes, and proportions shown in the references. ${input.prompt}`;
+      }
+
+      // KB-GAP-1/2: ground EVERY paid image in the Heart rules - server-side,
+      // so no client detour can skip brand compliance. OPT-IN via
+      // prompt_provenance: the old prod client never sends the field, so its
+      // behavior is byte-identical; prompts already engineered by Promptor
+      // (provenance 'promptor') are Heart-grounded upstream and are not
+      // double-injected. A Heart fetch failure blocks the paid submit.
+      const promptProvenance = typeof body.prompt_provenance === 'string' ? body.prompt_provenance : null;
+      if (promptProvenance && promptProvenance !== 'promptor' && typeof input.prompt === 'string') {
+        let digestRules;
+        try {
+          digestRules = await fetchHeartRules(supabaseAdmin);
+        } catch (e) {
+          return jsonResponse({ error: e instanceof Error ? e.message : 'Heart rules unavailable' }, 503);
+        }
+        const digest = buildHeartDigest(digestRules);
+        if (digest) {
+          const combined = `${digest}\n${input.prompt}`;
+          // Respect the 8000-char prompt cap: the digest gives way, never the
+          // user's prompt. Skip injection when there is no meaningful room.
+          if (combined.length <= 8000) {
+            input.prompt = combined;
+          } else {
+            const room = 8000 - (input.prompt as string).length - 1;
+            if (room > 40) input.prompt = `${digest.slice(0, room)}\n${input.prompt}`;
+          }
+        }
       }
 
       const { data: asset, error: assetError } = await supabaseAdmin
@@ -667,7 +674,128 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // ── variants-poll (batched; persists completed images, idempotent) ────────
+    // -- repurpose-submit (tier-2 AI extend: pixel-preserving outpaint) -----
+    // Dedicated action (Plan 1 D-TIER): variant-submit's input inference must
+    // not learn a third family - outpainters take singular image_url + pixel
+    // expand geometry and no prompt. The expand math runs SERVER-side from the
+    // source asset's STORED dimensions (client pixel math is never trusted).
+    if (action === 'repurpose-submit') {
+      const falKey = await getFalKey(supabaseAdmin);
+      if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
+
+      const runId = body.run_id;
+      const sourceAssetId = body.source_asset_id;
+      const targetW = typeof body.target_w === 'number' ? Math.round(body.target_w) : NaN;
+      const targetH = typeof body.target_h === 'number' ? Math.round(body.target_h) : NaN;
+      if (typeof runId !== 'string' || typeof sourceAssetId !== 'string') {
+        return jsonResponse({ error: 'run_id and source_asset_id are required' }, 400);
+      }
+      if (!Number.isFinite(targetW) || !Number.isFinite(targetH)
+        || targetW < 64 || targetW > 8192 || targetH < 64 || targetH > 8192) {
+        return jsonResponse({ error: 'target_w and target_h must be between 64 and 8192' }, 400);
+      }
+      // Only the verified outpainter runs in v1; bria/expand and ideogram
+      // reframe stay documented alternatives pending the live A/B.
+      const modelId = EXTEND_MODEL_ID;
+
+      const { data: run } = await supabaseAdmin
+        .from('omni_runs')
+        .select('id')
+        .eq('id', runId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!run) return jsonResponse({ error: 'Run not found' }, 404);
+
+      const { data: sourceAsset } = await supabaseAdmin
+        .from('omni_assets')
+        .select('id, storage_path, width, height')
+        .eq('id', sourceAssetId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      const source = sourceAsset as { storage_path: string | null; width: number | null; height: number | null } | null;
+      if (!source?.storage_path) return jsonResponse({ error: 'Source asset not found or not persisted yet' }, 400);
+      const srcW = source.width ?? 0;
+      const srcH = source.height ?? 0;
+      if (srcW < 16 || srcH < 16) {
+        return jsonResponse({ error: 'Source dimensions are unknown - reopen or re-add the source image first' }, 400);
+      }
+
+      // Expand to the TARGET ASPECT at the source's own scale; the client
+      // downscales the result to exact pixels (interior pixels untouched).
+      const srcAR = srcW / srcH;
+      const tgtAR = targetW / targetH;
+      let expandLeft = 0, expandRight = 0, expandTop = 0, expandBottom = 0;
+      if (tgtAR > srcAR) {
+        const totalW = Math.round(srcH * tgtAR);
+        const dx = totalW - srcW;
+        expandLeft = Math.floor(dx / 2);
+        expandRight = dx - expandLeft;
+      } else {
+        const totalH = Math.round(srcW / tgtAR);
+        const dy = totalH - srcH;
+        expandTop = Math.floor(dy / 2);
+        expandBottom = dy - expandTop;
+      }
+      if (expandLeft + expandRight + expandTop + expandBottom < 8) {
+        return jsonResponse({ error: 'The aspect already matches - use the free Smart crop instead' }, 400);
+      }
+      // Bound the computed canvas (security-auditor L1): stored dims are
+      // client-writable, so an extreme aspect must not turn into a
+      // million-pixel outpaint bill. Mirrors the 8192 target clamp.
+      const outW = srcW + expandLeft + expandRight;
+      const outH = srcH + expandTop + expandBottom;
+      if (outW > 8192 || outH > 8192 || outW * outH > 48_000_000) {
+        return jsonResponse({ error: 'This source and target combination is too large to extend - use Smart crop or AI re-design instead' }, 400);
+      }
+
+      const sourceUrl = await signStoragePath(supabaseAdmin, source.storage_path, userId, 60 * 60);
+      if (!sourceUrl) return jsonResponse({ error: 'Could not sign the source image' }, 500);
+
+      const { data: asset, error: assetError } = await supabaseAdmin
+        .from('omni_assets')
+        .insert({
+          user_id: userId,
+          run_id: runId,
+          parent_asset_id: sourceAssetId,
+          kind: 'image',
+          model_id: modelId,
+          prompt: null,
+          status: 'generating',
+          metadata: { source_asset_id: sourceAssetId, repurpose_tier: 'extend', target_w: targetW, target_h: targetH },
+        })
+        .select('id')
+        .single();
+      if (assetError || !asset) {
+        console.error('Omni: repurpose asset insert error:', assetError?.message);
+        return jsonResponse({ error: 'Failed to create the output record' }, 500);
+      }
+      const assetId = (asset as { id: string }).id;
+
+      try {
+        const submission = await falSubmit(falKey, modelId, {
+          image_url: sourceUrl,
+          expand_left: expandLeft,
+          expand_right: expandRight,
+          expand_top: expandTop,
+          expand_bottom: expandBottom,
+        });
+        await supabaseAdmin
+          .from('omni_assets')
+          .update({ metadata: { source_asset_id: sourceAssetId, repurpose_tier: 'extend', target_w: targetW, target_h: targetH, fal_request_id: submission.requestId } })
+          .eq('id', assetId);
+        return jsonResponse({ asset_id: assetId, request_id: submission.requestId, queue_position: submission.queuePosition });
+      } catch (e) {
+        const message = e instanceof FalUserError ? e.message : 'The extend job could not be submitted';
+        await supabaseAdmin
+          .from('omni_assets')
+          .update({ status: 'failed', error: message })
+          .eq('id', assetId);
+        if (e instanceof FalUserError) return jsonResponse({ asset_id: assetId, error: message }, 400);
+        throw e;
+      }
+    }
+
+    // -- variants-poll (batched; persists completed images, idempotent) -----
     if (action === 'variants-poll') {
       const falKey = await getFalKey(supabaseAdmin);
       if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
@@ -687,7 +815,7 @@ Deno.serve(async (req: Request) => {
         const meta = (a.metadata ?? {}) as Record<string, unknown>;
 
         if (status === 'done' && a.storage_path) {
-          const url = await signStoragePath(supabaseAdmin, a.storage_path as string);
+          const url = await signStoragePath(supabaseAdmin, a.storage_path as string, userId);
           return { id, status: 'done', url, width: a.width, height: a.height };
         }
         if (status === 'failed') return { id, status: 'failed', error: a.error ?? 'Generation failed' };
@@ -718,7 +846,7 @@ Deno.serve(async (req: Request) => {
               metadata: { ...meta, byte_size: persisted.byteSize, seed: result.seed },
             })
             .eq('id', id);
-          const url = await signStoragePath(supabaseAdmin, persisted.storagePath);
+          const url = await signStoragePath(supabaseAdmin, persisted.storagePath, userId);
           return { id, status: 'done', url, width: image.width, height: image.height };
         } catch (e) {
           const message = e instanceof FalUserError ? e.message : 'Generation failed';
@@ -731,7 +859,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ results });
     }
 
-    // ── asset-url (fresh signed URL for an owned, persisted asset) ────────────
+    // -- asset-url (fresh signed URL for an owned, persisted asset) -----
     if (action === 'asset-url') {
       const assetId = body.asset_id;
       if (typeof assetId !== 'string') return jsonResponse({ error: 'asset_id is required' }, 400);
@@ -743,11 +871,11 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
       const path = (asset as { storage_path: string | null } | null)?.storage_path;
       if (!path) return jsonResponse({ error: 'Asset not found or not persisted' }, 404);
-      const url = await signStoragePath(supabaseAdmin, path);
+      const url = await signStoragePath(supabaseAdmin, path, userId);
       return jsonResponse({ url });
     }
 
-    // ── save-asset-to-files (register in Files Manager / Omni AI sector) ──────
+    // -- save-asset-to-files (register in Files Manager / Omni AI sector) -----
     if (action === 'save-asset-to-files') {
       const assetId = body.asset_id;
       if (typeof assetId !== 'string') return jsonResponse({ error: 'asset_id is required' }, 400);
@@ -771,7 +899,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: true });
     }
 
-    // ── analyze-image (vision + RAG + universe-relation conclusion) ───────────
+    // -- analyze-image (vision + RAG + universe-relation conclusion) -----
     if (action === 'analyze-image') {
       const assetId = body.asset_id;
       if (typeof assetId !== 'string') return jsonResponse({ error: 'asset_id is required' }, 400);
@@ -816,7 +944,7 @@ Deno.serve(async (req: Request) => {
         return jsonResponse({ error: e instanceof Error ? e.message : 'Heart rules unavailable' }, 503);
       }
 
-      const signedUrl = await signStoragePath(supabaseAdmin, record.storage_path, 60 * 60);
+      const signedUrl = await signStoragePath(supabaseAdmin, record.storage_path, userId, 60 * 60);
       if (!signedUrl) return jsonResponse({ error: 'Could not access the image' }, 500);
 
       let imageBase64: string | null = null;
@@ -847,7 +975,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(result);
     }
 
-    // ── surprise-ideas (mine the knowledge base for creation ideas) ───────────
+    // -- surprise-ideas (mine the knowledge base for creation ideas) -----
     if (action === 'surprise-ideas') {
       const { data: omniSettings } = await supabaseAdmin
         .from('omni_settings')
@@ -896,7 +1024,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // ── brainstorm-chat / brainstorm-lock (Mode 6: RAG-grounded creative chat) ─
+    // -- brainstorm-chat / brainstorm-lock (Mode 6: RAG-grounded creative chat) -
     if (action === 'brainstorm-chat' || action === 'brainstorm-lock') {
       const runId = body.run_id;
       if (typeof runId !== 'string') return jsonResponse({ error: 'run_id is required' }, 400);
@@ -925,7 +1053,7 @@ Deno.serve(async (req: Request) => {
 
       const { data: llm } = await supabaseAdmin
         .from('llm_settings')
-        .select('openai_api_key, gemini_api_key, openai_text_model, gemini_text_model')
+        .select('openai_api_key, gemini_api_key, openai_text_model, gemini_text_model, active_text_provider')
         .single();
       const openaiKey = ((llm?.openai_api_key as string | null) || Deno.env.get('OPENAI_API_KEY') || '').trim();
       const geminiKey = ((llm?.gemini_api_key as string | null) || Deno.env.get('GEMINI_API_KEY') || '').trim();
@@ -934,32 +1062,40 @@ Deno.serve(async (req: Request) => {
       }
 
       // Per-message picker: provider/model from the request, validated against
-      // available keys; falls back to the configured text model defaults.
+      // available keys. The FALLBACK honors llm_settings.active_text_provider
+      // (SIB-06) instead of silently preferring whichever key exists; a
+      // configured provider omni has no branch for (claude) falls through to
+      // key availability.
       const requestedProvider = body.provider === 'gemini' || body.provider === 'openai' ? body.provider : null;
+      const configuredRaw = (llm?.active_text_provider as string | null) ?? null;
+      const configuredProvider = configuredRaw === 'gemini' && geminiKey ? 'gemini'
+        : configuredRaw === 'openai' && openaiKey ? 'openai'
+        : null;
       const provider = requestedProvider === 'gemini' && geminiKey ? 'gemini'
         : requestedProvider === 'openai' && openaiKey ? 'openai'
-        : openaiKey ? 'openai' : 'gemini';
+        : configuredProvider ?? (openaiKey ? 'openai' : 'gemini');
       const requestedModel = typeof body.model === 'string' && body.model.length <= 200 ? body.model : null;
       const model = requestedModel || (provider === 'gemini'
         ? ((llm?.gemini_text_model as string | null) || 'gemini-2.5-flash')
         : ((llm?.openai_text_model as string | null) || 'gpt-4o'));
-
-      if (action === 'brainstorm-lock') {
-        try {
-          const result = await lockIdea({ provider, model, keys: { openaiKey, geminiKey }, messages });
-          return jsonResponse(result);
-        } catch (e) {
-          const message = e instanceof Error ? e.message : 'Lock failed';
-          console.error('Omni: brainstorm-lock error:', message);
-          return jsonResponse({ error: message }, 502);
-        }
-      }
 
       let heartRules;
       try {
         heartRules = await fetchHeartRules(supabaseAdmin);
       } catch (e) {
         return jsonResponse({ error: e instanceof Error ? e.message : 'Heart rules unavailable' }, 503);
+      }
+
+      if (action === 'brainstorm-lock') {
+        try {
+          // KB-GAP-4: the distilled brief seeds the whole run - Heart-grounded.
+          const result = await lockIdea({ provider, model, keys: { openaiKey, geminiKey }, messages, heartRules });
+          return jsonResponse(result);
+        } catch (e) {
+          const message = e instanceof Error ? e.message : 'Lock failed';
+          console.error('Omni: brainstorm-lock error:', message);
+          return jsonResponse({ error: message }, 502);
+        }
       }
 
       // Embeddings need OpenAI; without that key the chat degrades honestly
@@ -987,7 +1123,69 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // ── finalize-run (save the approved set into the Pulse Content Library) ───
+    // -- generate-captions (one image -> captions for all its networks) -----
+    if (action === 'generate-captions') {
+      const runId = body.run_id;
+      if (typeof runId !== 'string') return jsonResponse({ error: 'run_id is required' }, 400);
+      const { data: run } = await supabaseAdmin
+        .from('omni_runs')
+        .select('id')
+        .eq('id', runId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!run) return jsonResponse({ error: 'Run not found' }, 404);
+
+      const networks = Array.isArray(body.networks)
+        ? (body.networks as unknown[]).filter((n): n is string => typeof n === 'string' && NETWORKS.has(n)).slice(0, 6)
+        : [];
+      if (networks.length === 0) return jsonResponse({ error: 'At least one valid network is required' }, 400);
+      const objective = typeof body.objective === 'string' ? body.objective.slice(0, 2000) : '';
+      const imagePrompt = typeof body.image_prompt === 'string' ? body.image_prompt.slice(0, 4000) : '';
+      const optionsPerNetwork = typeof body.options_per_network === 'number'
+        && Number.isInteger(body.options_per_network)
+        && body.options_per_network >= 1 && body.options_per_network <= 3
+        ? body.options_per_network
+        : 1;
+
+      const { data: llm } = await supabaseAdmin
+        .from('llm_settings')
+        .select('openai_api_key, gemini_api_key, openai_text_model, gemini_text_model, active_text_provider')
+        .single();
+      const openaiKey = ((llm?.openai_api_key as string | null) || Deno.env.get('OPENAI_API_KEY') || '').trim();
+      const geminiKey = ((llm?.gemini_api_key as string | null) || Deno.env.get('GEMINI_API_KEY') || '').trim();
+      if (!openaiKey && !geminiKey) {
+        return jsonResponse({ error: 'An OpenAI or Gemini API key is required for caption generation. Configure one in Settings > LLM Providers.' }, 503);
+      }
+      const configuredText = (llm?.active_text_provider as string | null) ?? null;
+      const provider = configuredText === 'gemini' && geminiKey ? 'gemini'
+        : configuredText === 'openai' && openaiKey ? 'openai'
+        : openaiKey ? 'openai' : 'gemini';
+      const model = provider === 'gemini'
+        ? ((llm?.gemini_text_model as string | null) || 'gemini-2.5-flash')
+        : ((llm?.openai_text_model as string | null) || 'gpt-4o');
+
+      // Captions run under OMNI's Heart scope (KB-GAP-3), not Promptor's.
+      let heartRules;
+      try {
+        heartRules = await fetchHeartRules(supabaseAdmin);
+      } catch (e) {
+        return jsonResponse({ error: e instanceof Error ? e.message : 'Heart rules unavailable' }, 503);
+      }
+
+      try {
+        const captions = await generateCaptions({
+          provider, model, keys: { openaiKey, geminiKey },
+          heartRules, objective, imagePrompt, networks, optionsPerNetwork,
+        });
+        return jsonResponse({ captions });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Caption generation failed';
+        console.error('Omni: generate-captions error:', message);
+        return jsonResponse({ error: message }, 502);
+      }
+    }
+
+    // -- finalize-run (save the approved set into the Pulse Content Library) ---
     if (action === 'finalize-run') {
       const runId = body.run_id;
       const title = typeof body.title === 'string' ? body.title.trim().slice(0, 200) : '';
@@ -1007,11 +1205,17 @@ Deno.serve(async (req: Request) => {
 
       const { data: run } = await supabaseAdmin
         .from('omni_runs')
-        .select('id, status, step_state')
+        .select('id, status, step_state, mode')
         .eq('id', runId)
         .eq('user_id', userId)
         .maybeSingle();
       if (!run) return jsonResponse({ error: 'Run not found' }, 404);
+      // The item metadata records the run's REAL mode (GAP-6): repurposing and
+      // surprise runs were previously mislabeled 'omni_images'. Write-only field
+      // today (Pulse reads only asset_ids), so correcting it is safe.
+      const runMode = typeof (run as { mode?: string }).mode === 'string'
+        ? (run as { mode: string }).mode
+        : 'omni_images';
 
       // Idempotency: finalize is the only path to 'completed'. Re-finalizing
       // a completed run (resume at step 12, double click) returns the
@@ -1052,8 +1256,8 @@ Deno.serve(async (req: Request) => {
           networks,
           status: 'ready',
           metadata: itemOnly
-            ? { mode: 'transform_upscale', asset_ids: itemAssetIds }
-            : { mode: 'omni_images' },
+            ? { mode: runMode, asset_ids: itemAssetIds }
+            : { mode: runMode },
           created_by: userId,
         })
         .select('id')

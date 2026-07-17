@@ -8,17 +8,12 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { V1_TRANSFORM_SEQUENCE, V1_TRANSFORM_STEP_TITLES } from '../stepRegistry';
 
-export const TRANSFORM_STEP_TITLES: Record<number, string> = {
-  1: 'Pick the source image',
-  2: 'Analysis',
-  3: 'Describe the transformation',
-  4: 'Pick your models',
-  5: 'Live generation',
-  6: 'Save or continue',
-};
+// Step knowledge lives in the registry (D-REG); re-exported for back-compat.
+export const TRANSFORM_STEP_TITLES = V1_TRANSFORM_STEP_TITLES;
 
-const STEPS = [1, 2, 3, 4, 5, 6];
+const STEPS = V1_TRANSFORM_SEQUENCE;
 
 interface TransformChromeProps {
   step: number;
@@ -47,7 +42,7 @@ export function TransformChrome({ step, onBack, onExit, children }: TransformChr
           )}
           <div className="min-w-0">
             <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Transform and Upscale · Step {step} of 6
+              Transform and Upscale · Step {step} of {STEPS.length}
             </p>
             <h1 className="truncate text-sm font-semibold sm:text-base">{TRANSFORM_STEP_TITLES[step] ?? ''}</h1>
           </div>

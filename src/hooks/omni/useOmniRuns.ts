@@ -29,7 +29,7 @@ export function useOmniRun(runId: string | null) {
 export function useCreateOmniRun() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (params: { mode: OmniMode; title?: string; step_state?: OmniImagesState }) => {
+    mutationFn: async (params: { mode: OmniMode; title?: string; step_state?: OmniImagesState; current_step?: number }) => {
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || !userData.user) throw new Error('Not authenticated');
       const { data, error } = await supabase
@@ -38,7 +38,9 @@ export function useCreateOmniRun() {
           user_id: userData.user.id,
           mode: params.mode,
           title: params.title ?? null,
-          current_step: 1,
+          // SIB-03: handoff modes are born AT their floor (one atomic insert),
+          // so a mid-gather failure never strands a run on a foreign surface.
+          current_step: params.current_step ?? 1,
           step_state: (params.step_state ?? {}) as never,
         })
         .select('*')

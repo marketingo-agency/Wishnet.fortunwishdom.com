@@ -189,6 +189,7 @@ async function dispatchDue(supabaseAdmin: AdminClient): Promise<Record<string, n
 }
 
 const SETTABLE_PROVIDERS = new Set(['x', 'tiktok']);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 Deno.serve(async (req: Request) => {
   corsHeaders = getCorsHeaders(req.headers.get('Origin'));
@@ -237,13 +238,13 @@ Deno.serve(async (req: Request) => {
     const { data: isAdmin, error: adminErr } = await supabaseAdmin.rpc('is_admin', { _user_id: userId });
     if (adminErr || !isAdmin) return jsonResponse({ error: 'Admin access required' }, 403);
 
-    // ── dispatch-due (manual "Run dispatch now") ──────────────────────────────
+    // -- dispatch-due (manual "Run dispatch now") -----
     if (action === 'dispatch-due') {
       const summary = await dispatchDue(supabaseAdmin);
       return jsonResponse({ success: true, via: 'manual', ...summary });
     }
 
-    // ── post-now ─────────────────────────────────────────────────────────────
+    // -- post-now -----
     if (action === 'post-now') {
       const postId = body.post_id;
       if (typeof postId !== 'string') return jsonResponse({ error: 'post_id is required' }, 400);
@@ -259,7 +260,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: true, outcome });
     }
 
-    // ── schedule-post / unschedule-post ──────────────────────────────────────
+    // -- schedule-post / unschedule-post -----
     if (action === 'schedule-post') {
       const postId = body.post_id;
       const scheduledAt = body.scheduled_at;
@@ -286,7 +287,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: true });
     }
 
-    // ── connections-status ───────────────────────────────────────────────────
+    // -- connections-status -----
     if (action === 'connections-status') {
       const connections = await loadConnections(supabaseAdmin);
       const networks = Object.fromEntries(
@@ -298,7 +299,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ networks });
     }
 
-    // ── set-connection (x / tiktok credential rows) ──────────────────────────
+    // -- set-connection (x / tiktok credential rows) -----
     if (action === 'set-connection') {
       const provider = body.provider;
       if (typeof provider !== 'string' || !SETTABLE_PROVIDERS.has(provider)) {
@@ -321,7 +322,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: true });
     }
 
-    // ── library-asset-urls (cross-user signed URLs for the admin library) ────
+    // -- library-asset-urls (cross-user signed URLs for the admin library) ----
     if (action === 'library-asset-urls') {
       const assetIds = Array.isArray(body.asset_ids)
         ? body.asset_ids.filter((x: unknown) => typeof x === 'string').slice(0, 60)
@@ -340,10 +341,10 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ urls });
     }
 
-    // ── delete-item (remove a library entry; its posts cascade via FK) ───────
+    // -- delete-item (remove a library entry; its posts cascade via FK) -----
     if (action === 'delete-item') {
       const itemId = body.item_id;
-      if (typeof itemId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(itemId)) {
+      if (typeof itemId !== 'string' || !UUID_RE.test(itemId)) {
         return jsonResponse({ error: 'A valid item_id is required' }, 400);
       }
       // content_library_posts.item_id → items is ON DELETE CASCADE, so the posts
@@ -359,6 +360,29 @@ Deno.serve(async (req: Request) => {
         return jsonResponse({ error: 'Failed to delete the library entry' }, 500);
       }
       return jsonResponse({ success: true });
+    }
+
+    // -- delete-items-by-run (batch: every item linked to one Omni run) -----
+    // Omni History deletes call this ONCE per run instead of one delete-item
+    // per item (HIST-08): a bulk clear of 30 finalized runs uses 30 rate-limit
+    // slots, not 30×items. Same cascade semantics as delete-item (posts
+    // cascade; omni links SET NULL; posted records are not unpublished — the
+    // client warns first).
+    if (action === 'delete-items-by-run') {
+      const runId = body.run_id;
+      if (typeof runId !== 'string' || !UUID_RE.test(runId)) {
+        return jsonResponse({ error: 'A valid run_id is required' }, 400);
+      }
+      const { data: deleted, error } = await supabaseAdmin
+        .from('content_library_items')
+        .delete()
+        .eq('source_run_id', runId)
+        .select('id');
+      if (error) {
+        console.error('Content Library: delete-items-by-run error:', error.message);
+        return jsonResponse({ error: 'Failed to delete the library entries' }, 500);
+      }
+      return jsonResponse({ success: true, deleted: ((deleted ?? []) as { id: string }[]).length });
     }
 
     return jsonResponse({ error: 'Invalid action' }, 400);

@@ -8,8 +8,8 @@
  * handed to the Omni Images wizard at step 7 (descriptions onward).
  */
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { useCreateOmniRun, useUpdateOmniRun, uploadSourceAsset, referenceLibraryImage } from '@/hooks/omni';
+import { V2_HANDOFF_STAGE, stageOrdinal } from '../stepRegistry';
 import { RepurposeSourcePicker } from './RepurposeSourcePicker';
 import { referenceContentLibraryAsset, type PendingSource } from './useRepurposeSources';
 
@@ -28,6 +29,8 @@ interface RepurposeModeWizardProps {
 }
 
 export function RepurposeModeWizard({ onExit, onHandoff }: RepurposeModeWizardProps) {
+  // ui-rules: entrance/hover animations respect prefers-reduced-motion.
+  const reduceMotion = useReducedMotion();
   const createRun = useCreateOmniRun();
   const updateRun = useUpdateOmniRun();
 
@@ -52,45 +55,77 @@ export function RepurposeModeWizard({ onExit, onHandoff }: RepurposeModeWizardPr
     });
   };
 
+  // SIB-03: creation is ATOMIC (one insert already at the distribution stage,
+  // v2-stamped), so a failure while gathering sources leaves a valid, resumable
+  // run instead of an orphan on a foreign surface — and a retry REUSES the run
+  // (and any assets that already uploaded) instead of duplicating them.
+  const createdRunRef = useRef<string | null>(null);
+  const uploadedRef = useRef<Map<string, string>>(new Map());
+
   const handleContinue = async () => {
     if (sources.length === 0 || isBusy) return;
     setIsBusy(true);
     try {
       const trimmed = objective.trim() || DEFAULT_OBJECTIVE;
-      const run = await createRun.mutateAsync({
-        mode: 'repurposing',
-        title: trimmed.slice(0, 80),
-        step_state: {},
-      });
+      let runId = createdRunRef.current;
+      if (!runId) {
+        const run = await createRun.mutateAsync({
+          mode: 'repurposing',
+          title: trimmed.slice(0, 80),
+          current_step: stageOrdinal(V2_HANDOFF_STAGE),
+          step_state: { objective: trimmed, locked_prompt: trimmed, schema_version: 2 },
+        });
+        runId = run.id;
+        createdRunRef.current = run.id;
+      }
 
       const assetIds: string[] = [];
       for (const source of sources) {
-        if (source.kind === 'upload') {
-          assetIds.push(await uploadSourceAsset(run.id, source.file));
-        } else if (source.kind === 'files') {
-          assetIds.push(await referenceLibraryImage(run.id, source.row));
-        } else {
-          assetIds.push(await referenceContentLibraryAsset(run.id, source.asset, source.label));
+        const prior = uploadedRef.current.get(source.key);
+        if (prior) {
+          assetIds.push(prior);
+          continue;
         }
+        let assetId: string;
+        if (source.kind === 'upload') {
+          assetId = await uploadSourceAsset(runId, source.file);
+        } else if (source.kind === 'files') {
+          assetId = await referenceLibraryImage(runId, source.row);
+        } else {
+          assetId = await referenceContentLibraryAsset(runId, source.asset, source.label);
+        }
+        uploadedRef.current.set(source.key, assetId);
+        assetIds.push(assetId);
       }
 
       await updateRun.mutateAsync({
-        runId: run.id,
-        current_step: 7,
+        runId,
         step_state: {
           objective: trimmed,
           locked_prompt: trimmed,
           generated_asset_ids: assetIds,
           selected_asset_ids: assetIds,
+          schema_version: 2,
         },
       });
-      onHandoff(run.id);
+      onHandoff(runId);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not start the repurposing run');
+      toast.error(e instanceof Error ? e.message : 'Could not start the repurposing run. Retry continues from where it stopped.');
     } finally {
       setIsBusy(false);
     }
   };
+
+  // SIB-11: never leak upload preview object URLs when the surface unmounts.
+  const sourcesRef = useRef<PendingSource[]>(sources);
+  useEffect(() => {
+    sourcesRef.current = sources;
+  }, [sources]);
+  useEffect(() => () => {
+    for (const s of sourcesRef.current) {
+      if (s.kind === 'upload') URL.revokeObjectURL(s.previewUrl);
+    }
+  }, []);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -111,7 +146,7 @@ export function RepurposeModeWizard({ onExit, onHandoff }: RepurposeModeWizardPr
       </div>
 
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.22, ease: 'easeOut' }}
         className="flex-1 overflow-y-auto px-4 py-5 sm:px-6"

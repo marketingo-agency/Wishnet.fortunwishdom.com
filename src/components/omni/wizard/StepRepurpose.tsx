@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, CheckCircle2, Circle, Crop, Download, Loader2, Maximize2, Play, RefreshCw, Save, Sparkles, Trash2, XCircle } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Circle, Crop, Download, Expand, Loader2, Maximize2, Play, RefreshCw, Save, Sparkles, Trash2, Wand2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import * as Sentry from '@sentry/nextjs';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils';
 import { downloadFromUrl } from '@/lib/downloadFromUrl';
 import { getNetwork, getPreset, type OmniNetworkId } from '../omniNetworkPresets';
-import { useRepurposeRunner, type RepurposeJob, type RepurposeMode } from '@/hooks/omni/useRepurposeRunner';
+import { REDESIGN_MODEL, cropTrimFraction, suggestRepurposeMode, useRepurposeRunner, type RepurposeJob, type RepurposeMode } from '@/hooks/omni/useRepurposeRunner';
+import { formatUsd, getFalPrice } from '@/config/falPricing';
 import { discardAssetSilent, getAssetSignedUrl, useSaveAssetToFiles } from '@/hooks/omni';
 import type { OmniAsset, OmniRepurposedRef } from '@/hooks/omni';
 import { RepurposeCompareModal, type RepurposeCandidate } from './RepurposeCompareModal';
@@ -26,6 +27,24 @@ import { RepurposeCompareModal, type RepurposeCandidate } from './RepurposeCompa
 const revokeBlobUrl = (url?: string) => {
   if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
 };
+
+const MODE_LABELS: Record<RepurposeMode, string> = {
+  crop: 'Smart crop',
+  extend: 'AI extend',
+  redesign: 'AI re-design',
+};
+
+const EXTEND_MODEL = 'fal-ai/flux-2-pro/outpaint';
+
+/** Estimated fal cost of ONE output in the given mode (REP-C). */
+function modeCost(mode: RepurposeMode, presetW: number, presetH: number): number {
+  if (mode === 'crop') return 0;
+  if (mode === 'extend') {
+    const price = getFalPrice(EXTEND_MODEL);
+    return (price.unitPrice ?? 0.03) * ((presetW * presetH) / 1_000_000);
+  }
+  return getFalPrice(REDESIGN_MODEL).unitPrice ?? 0.15;
+}
 
 interface StepRepurposeProps {
   runId: string;
@@ -47,7 +66,7 @@ const TileAction = ({ label, onClick, disabled, children }: { label: string; onC
         onClick={onClick}
         disabled={disabled}
         aria-label={label}
-        className="h-7 w-7 cursor-pointer text-muted-foreground transition-colors duration-200 hover:text-foreground"
+        className="h-8 w-8 cursor-pointer text-muted-foreground transition-colors duration-200 hover:text-foreground"
       >
         {children}
       </Button>
@@ -57,16 +76,21 @@ const TileAction = ({ label, onClick, disabled, children }: { label: string; onC
 );
 
 function RepurposeTile({
-  job, approved, isSaving, onToggleApprove, onRegenerate, onDownload, onSave, onDelete,
+  job, approved, isSaving, suggested, trimFraction, onToggleApprove, onRegenerate, onDownload, onSave, onDelete, onSetMode,
 }: {
   job: RepurposeJob;
   approved: boolean;
   isSaving: boolean;
+  /** The auto-suggested tier for this pair (REP-04). */
+  suggested: RepurposeMode;
+  /** Source fraction a straight crop would trim (drives the tier hint). */
+  trimFraction: number;
   onToggleApprove: () => void;
   onRegenerate: () => void;
   onDownload: () => void;
   onSave: () => void;
   onDelete: () => void;
+  onSetMode: (mode: RepurposeMode) => void;
 }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const preset = getPreset(job.network, job.presetId)!;
@@ -83,8 +107,8 @@ function RepurposeTile({
       <div className="group/tile relative flex aspect-square items-center justify-center bg-muted/40">
         {job.status === 'working' ? (
           <div className="flex flex-col items-center gap-1.5">
-            <Loader2 className="h-5 w-5 animate-spin text-cyan-400" />
-            <p className="text-[11px] text-muted-foreground">{job.mode === 'redesign' ? 'Re-designing…' : 'Cropping…'}</p>
+            <Loader2 className="h-5 w-5 animate-spin text-cyan-600 [[data-omni-theme=dark]_&]:text-cyan-400" />
+            <p className="text-[11px] text-muted-foreground">{job.mode === 'redesign' ? 'Re-designing…' : job.mode === 'extend' ? 'Extending…' : 'Cropping…'}</p>
           </div>
         ) : job.status === 'failed' ? (
           <div className="flex flex-col items-center gap-1.5 p-3 text-center">
@@ -125,9 +149,43 @@ function RepurposeTile({
 
       <div className="border-t border-border p-2">
         <p className="truncate text-[11px] font-medium">{network.label} · {preset.label}</p>
+        {/* flex-wrap: the 3 chips overflow a 2-col tile at 375px otherwise
+            (the card is overflow-hidden, so a clipped chip stayed focusable
+            but invisible — QA UI-C1). aria-pressed buttons, not a radio
+            widget: no roving-tabindex contract to break (QA UI-W6). */}
+        {(job.status === 'pending' || job.status === 'failed') && (
+          <div className="mt-1 flex flex-wrap items-center gap-1" role="group" aria-label={`${preset.label} tier`}>
+            {(['crop', 'extend', 'redesign'] as const).map((m) => {
+              const Icon = m === 'crop' ? Crop : m === 'extend' ? Expand : Wand2;
+              return (
+                <button
+                  key={m}
+                  aria-pressed={job.mode === m}
+                  title={`${MODE_LABELS[m]}${m === suggested ? ' (suggested)' : ''}`}
+                  onClick={() => onSetMode(m)}
+                  className={cn(
+                    'flex cursor-pointer items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] transition-colors duration-200',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    job.mode === m
+                      ? 'border-cyan-500/60 bg-cyan-500/10 font-medium text-cyan-700 [[data-omni-theme=dark]_&]:text-cyan-300'
+                      : 'border-border text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <Icon className="h-2.5 w-2.5" />
+                  {MODE_LABELS[m]}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {(job.status === 'pending' || job.status === 'failed') && suggested !== 'crop' && trimFraction > 0.05 && (
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            Crop would trim ~{Math.round(trimFraction * 100)}% — {MODE_LABELS[suggested]} suggested.
+          </p>
+        )}
         <div className="flex items-center justify-between gap-1">
           <p className="text-[10px] text-muted-foreground">
-            {preset.width}×{preset.height} · {job.mode === 'redesign' ? 'AI re-design' : 'Smart crop'}
+            {preset.width}×{preset.height} · {MODE_LABELS[job.mode]}
           </p>
           {isDone && (
             <div className="flex shrink-0 items-center">
@@ -165,7 +223,7 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
   const runner = useRepurposeRunner(runId, assetsById);
   const saveToFiles = useSaveAssetToFiles();
 
-  const [mode, setMode] = useState<RepurposeMode>('redesign');
+  const [mode, setMode] = useState<RepurposeMode | 'suggested'>('suggested');
   const [approved, setApproved] = useState<Set<string>>(() => new Set(initialApproved));
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [compareKey, setCompareKey] = useState<string | null>(null);
@@ -194,11 +252,15 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
           const key = `${asset.id}:${networkId}:${presetId}`;
           const prior = restored.get(`${asset.id}:${networkId}:${presetId}`);
           if (prior) {
-            const priorMode: RepurposeMode = prior.ref.mode === 'crop' ? 'crop' : 'redesign';
+            const priorMode: RepurposeMode = prior.ref.mode === 'crop' ? 'crop'
+              : prior.ref.mode === 'extend' || prior.ref.mode === 'ai' ? 'extend'
+              : 'redesign';
             jobs.push({ key, sourceAssetId: asset.id, network: networkId as OmniNetworkId, presetId, mode: priorMode, status: 'done', resultAssetId: prior.ref.asset_id });
             toSign.push({ key, storagePath: prior.storagePath });
           } else {
-            jobs.push({ key, sourceAssetId: asset.id, network: networkId as OmniNetworkId, presetId, mode: 'redesign', status: 'pending' });
+            // REP-04: each pair defaults to its auto-suggested tier.
+            const suggested = suggestRepurposeMode(asset.width ?? 0, asset.height ?? 0, preset.width, preset.height);
+            jobs.push({ key, sourceAssetId: asset.id, network: networkId as OmniNetworkId, presetId, mode: suggested, status: 'pending' });
           }
         }
       }
@@ -245,11 +307,30 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
     // eslint-disable-next-line react-hooks/exhaustive-deps -- persist when the done-output set changes
   }, [doneSig]);
 
-  const setGlobalMode = (m: RepurposeMode) => {
+  const suggestionFor = (job: RepurposeJob): RepurposeMode => {
+    const src = assetsById.get(job.sourceAssetId);
+    const preset = getPreset(job.network, job.presetId);
+    if (!src || !preset) return 'redesign';
+    return suggestRepurposeMode(src.width ?? 0, src.height ?? 0, preset.width, preset.height);
+  };
+
+  const setGlobalMode = (m: RepurposeMode | 'suggested') => {
     setMode(m);
     // Atomic batch: only un-run jobs adopt the new mode; completed tiles keep theirs.
-    runner.setJobs((prev) => prev.map((j) => (j.status === 'pending' || j.status === 'failed' ? { ...j, mode: m } : j)));
+    runner.setJobs((prev) => prev.map((j) => (
+      j.status === 'pending' || j.status === 'failed'
+        ? { ...j, mode: m === 'suggested' ? suggestionFor(j) : m }
+        : j
+    )));
   };
+
+  // REP-C: the cost of what "Generate the set" is about to fire.
+  const pendingCost = runner.jobs
+    .filter((j) => j.status === 'pending' || j.status === 'failed')
+    .reduce((sum, j) => {
+      const preset = getPreset(j.network, j.presetId);
+      return sum + (preset ? modeCost(j.mode, preset.width, preset.height) : 0);
+    }, 0);
 
   const toggleApprove = (assetId: string) => {
     setApproved((prev) => {
@@ -275,7 +356,7 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
   const handleApproveCandidate = (job: RepurposeJob, candidate: RepurposeCandidate) => {
     const oldId = job.resultAssetId;
     revokeBlobUrl(job.previewUrl); // free the displaced output's object URL (no-op for signed URLs)
-    runner.patchJob(job.key, { status: 'done', resultAssetId: candidate.assetId, previewUrl: candidate.previewUrl });
+    runner.patchJob(job.key, { status: 'done', resultAssetId: candidate.assetId, previewUrl: candidate.previewUrl, mode: candidate.mode });
     if (oldId) void discardAssetSilent(oldId);
     setApproved((prev) => {
       const next = new Set(prev);
@@ -309,6 +390,8 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
     }
   };
 
+  // REP-02-ux2: deleting an output RESETS the slot to pending (regenerable)
+  // instead of vanishing the format from the plan.
   const handleDelete = (job: RepurposeJob) => {
     if (job.resultAssetId) {
       void discardAssetSilent(job.resultAssetId);
@@ -320,7 +403,7 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
       });
     }
     revokeBlobUrl(job.previewUrl);
-    runner.setJobs((prev) => prev.filter((j) => j.key !== job.key));
+    runner.patchJob(job.key, { status: 'pending', resultAssetId: undefined, previewUrl: undefined, error: undefined });
   };
 
   const handleContinue = () => {
@@ -332,12 +415,11 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
-        <div className="flex items-center gap-2" role="radiogroup" aria-label="Repurpose mode">
-          {([['redesign', 'AI re-design', Sparkles], ['crop', 'Smart crop (free)', Crop]] as const).map(([m, label, Icon]) => (
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Repurpose mode">
+          {([['suggested', 'Suggested', Sparkles], ['redesign', 'AI re-design', Wand2], ['extend', 'AI extend', Expand], ['crop', 'Smart crop (free)', Crop]] as const).map(([m, label, Icon]) => (
             <button
               key={m}
-              role="radio"
-              aria-checked={mode === m}
+              aria-pressed={mode === m}
               onClick={() => setGlobalMode(m)}
               className={cn(
                 'flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-200',
@@ -350,19 +432,26 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
             </button>
           ))}
         </div>
-        <Button
-          size="sm"
-          onClick={() => runner.runAll(runner.jobs)}
-          disabled={runner.isRunning || !hasPending}
-          className="cursor-pointer gap-1.5 bg-gradient-to-r from-cyan-500 to-violet-600 text-white transition-all duration-300 hover:opacity-90"
-        >
-          {runner.isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-          Generate the set
-        </Button>
+        <div className="flex items-center gap-2">
+          {hasPending && (
+            <span className="text-xs text-muted-foreground">
+              ≈{formatUsd(pendingCost)}
+            </span>
+          )}
+          <Button
+            size="sm"
+            onClick={() => runner.runAll(runner.jobs)}
+            disabled={runner.isRunning || !hasPending}
+            className="cursor-pointer gap-1.5 bg-gradient-to-r from-cyan-500 to-violet-600 text-white transition-all duration-300 hover:opacity-90"
+          >
+            {runner.isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+            Generate the set
+          </Button>
+        </div>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        AI re-design re-lays-out each post for the target dimension, keeping its subjects, text, and colors. Smart crop is a free centered crop. Approve the ones to save.
+        Suggested picks the right tier per format: free Smart crop for near-matching aspects, pixel-preserving AI extend for moderate jumps, full AI re-design for extreme ones. Approve the outputs to save.
         {doneCount > 0 && ' The mode applies to new generations; completed tiles keep their mode — use Regenerate to change one.'}
       </p>
 
@@ -376,11 +465,18 @@ export function StepRepurpose({ runId, selectedAssets, runAssets, initialRepurpo
               job={job}
               approved={!!job.resultAssetId && approved.has(job.resultAssetId)}
               isSaving={savingKey === job.key}
+              suggested={suggestionFor(job)}
+              trimFraction={(() => {
+                const src = assetsById.get(job.sourceAssetId);
+                const preset = getPreset(job.network, job.presetId);
+                return src && preset ? cropTrimFraction(src.width ?? 0, src.height ?? 0, preset.width, preset.height) : 0;
+              })()}
               onToggleApprove={() => job.resultAssetId && toggleApprove(job.resultAssetId)}
               onRegenerate={() => handleRegenerate(job)}
               onDownload={() => void handleDownload(job)}
               onSave={() => void handleSave(job)}
               onDelete={() => handleDelete(job)}
+              onSetMode={(m) => runner.patchJob(job.key, { mode: m })}
             />
           ))}
         </div>

@@ -7,6 +7,7 @@
  */
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { ArrowRight, CheckCircle2, Library, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -60,11 +61,16 @@ export function TStepFinalize({ runId, defaultTitle, description, selectedAssetI
         <h2 className="text-lg font-bold">Saved to the Content Library</h2>
         <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
           {selectedAssetIds.length} transformed image{selectedAssetIds.length === 1 ? '' : 's'} saved.
-          The Library browsing surface ships with the Pulse phase.
+          Browse and schedule the set from the Pulse Library.
         </p>
-        <Button onClick={onSaved} className="mt-6 cursor-pointer bg-gradient-to-r from-blue-500 to-violet-600 text-white">
-          Back to Omni Home
-        </Button>
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+          <Button asChild variant="outline" className="cursor-pointer">
+            <Link href="/ai-agents/pulse?tab=library">Open the Pulse Library</Link>
+          </Button>
+          <Button onClick={onSaved} className="cursor-pointer bg-gradient-to-r from-blue-500 to-violet-600 text-white">
+            Back to Omni Home
+          </Button>
+        </div>
       </motion.div>
     );
   }

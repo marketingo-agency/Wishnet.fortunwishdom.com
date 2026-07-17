@@ -17,7 +17,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useFalCatalog, useFalCredits, useFalTestGenerate, type FalTestResult } from '@/hooks/omni';
 import { formatUsd } from '@/config/falPricing';
 
-export function OmniFalHealthCard() {
+interface OmniFalHealthCardProps {
+  /** The entry screen mounts the card as a status bar only — no paid test CTA. */
+  showTestButton?: boolean;
+}
+
+export function OmniFalHealthCard({ showTestButton = true }: OmniFalHealthCardProps) {
   const { isAdmin } = useAuth();
   const catalog = useFalCatalog({ capability: 'text-to-image', limit: 100 });
   // Live fal credit balance is admin-only org data — only fetch it for admins.
@@ -135,7 +140,7 @@ export function OmniFalHealthCard() {
               Retry
             </Button>
           )}
-          {isAdmin && (
+          {isAdmin && showTestButton && (
             <Button
               size="sm"
               onClick={handleTest}
@@ -158,7 +163,7 @@ export function OmniFalHealthCard() {
         </div>
       </div>
 
-      {testGenerate.isPending && (
+      {showTestButton && testGenerate.isPending && (
         <div className="mt-4 flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3">
           <Skeleton className="h-20 w-20 shrink-0 rounded-lg" />
           <p className="text-xs text-muted-foreground">
@@ -187,7 +192,9 @@ export function OmniFalHealthCard() {
             </div>
           )}
           <div>
-            <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-400">
+            {/* Omni light mode needs the darker emerald for WCAG AA (F7);
+                page-local theming means [[data-omni-theme=dark]_&]:, never dark:. */}
+            <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-400">
               <CheckCircle2 className="h-4 w-4" />
               End-to-end generation verified
             </p>

@@ -243,7 +243,7 @@ function buildSystemPrompt(
     whisper: { name: 'Whisper', role: 'Podcast Generator AI', capabilities: 'Generates podcast scripts with AI and produces studio-quality audio narration using the ElevenLabs API. (Coming Soon — not yet active)' },
     pulse: { name: 'Pulse', role: 'Community Manager AI', capabilities: 'Manages social media interactions, replies to comments/messages, schedules posts across platforms. (Coming Soon — not yet active)' },
     atlas: { name: 'ATLAS', role: 'Kickstarter Ops Control Agent', capabilities: 'Structures, calculates, verifies and monitors Kickstarter operations across SKU data, factory quotes, QC, freight, 3PL, pledge manager, backer delivery and financial modeling. Identifies risks, missing data, cost impact, and recommended next actions for human review — never makes final decisions. (Coming Soon — not yet active)' },
-    omni: { name: 'Omni', role: 'Multimodal Creation AI', capabilities: 'Premium multimodal creation studio: brainstorming, multi-model image generation across the fal.ai catalog, transform and upscale, social repurposing into per-network formats, and saving finalized sets to the Pulse Content Library. Audio and video tracks coming soon.' },
+    omni: { name: 'Omni', role: 'Multimodal Creation AI', capabilities: 'Premium multimodal creation studio: brainstorming, Studio (the full images pipeline: brief, multi-model generation across the fal.ai catalog, distribution formats, captions), transform and upscale, social repurposing into per-network formats, and saving finalized sets to the Pulse Content Library. Audio and video tracks coming soon.' },
   };
 
   // Helper to format config fields

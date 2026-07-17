@@ -1,36 +1,36 @@
 "use client";
 
 /**
- * OmniImagesWizard: the 12-step Omni Images workflow orchestrator.
- * Every step transition persists current_step + step_state to omni_runs
- * (the workflow engine), which is what makes History retake and
- * resume-at-any-step possible.
+ * OmniImagesWizard: the Studio workflow orchestrator (v2 stage flow).
+ *
+ * THE FLIP (Plan 1 Phase 7): current_step now persists STAGE ordinals (1-7)
+ * with step_state stamped schema_version 2. Legacy v1 rows (11-step ints,
+ * schema absent) migrate on read through the registry's prerequisite-aware
+ * migrateStepState and convert to v2 on their first persist. State keys are
+ * never rewritten (D-REG contract), so legacy runs keep everything.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
 import {
   useCreateOmniRun, useOmniAssets, useOmniRun, useUpdateOmniRun,
   type OmniImagesState, type OmniRepurposedRef,
 } from '@/hooks/omni';
-import type { OmniNetworkId } from '../omniNetworkPresets';
+import {
+  V2_HANDOFF_STAGE, migrateStepState, stageForOrdinal, stageOrdinal, type StageId,
+} from '../stepRegistry';
 import { WizardChrome } from './WizardChrome';
-import { StepObjective } from './StepObjective';
-import { StepLockPrompt } from './StepLockPrompt';
-import { StepModels } from './StepModels';
-import { StepSpecs } from './StepSpecs';
-import { StepRecap } from './StepRecap';
-import { StepGeneration } from './StepGeneration';
-import { StepDescriptions } from './StepDescriptions';
-import { StepNetworks } from './StepNetworks';
-import { StepDimensions } from './StepDimensions';
+import { StageBrief } from './StageBrief';
+import { StageEngine } from './StageEngine';
+import { StageGenerate } from './StageGenerate';
+import { StageDistribution } from './StageDistribution';
+import { StageCaptions } from './StageCaptions';
 import { StepRepurpose } from './StepRepurpose';
 import { StepFinalize } from './StepFinalize';
-
-const BACK_TARGET: Record<number, number> = { 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 7, 9: 8, 10: 9, 11: 10 };
 
 interface OmniImagesWizardProps {
   runId: string | null;
@@ -49,52 +49,106 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
   // truth for resume, the mirrors keep the UI snappy between persists.
   const [localStep, setLocalStep] = useState<number | null>(null);
   const [localState, setLocalState] = useState<OmniImagesState | null>(null);
+  // UX-03: a failed persist reverts the optimistic advance and renders a
+  // blocking banner with Retry instead of letting the UI march ahead of the DB.
+  const [pendingPersist, setPendingPersist] = useState<{ step: number; state: OmniImagesState } | null>(null);
+  // UX-15: leaving mid-generation needs a second, informed click.
+  const [genRunning, setGenRunning] = useState(false);
+  const leaveArmedAt = useRef(0);
 
   const rawStep = localStep ?? run.data?.current_step ?? 1;
-  // Approval merged into step 10 and Finalize moved 12 → 11; map any lingering
-  // step-12 value (runs created before the merge) onto the new Finalize step.
-  const step = rawStep === 12 ? 11 : rawStep;
   const state: OmniImagesState = useMemo(
     () => localState ?? ((run.data?.step_state ?? {}) as OmniImagesState),
     [localState, run.data],
   );
 
-  const persist = async (nextStep: number, patch: Partial<OmniImagesState>) => {
+  // Schema-agnostic position: v2 rows pass through, v1 rows map through the
+  // prerequisite-aware table (floored at the mode's handoff stage — a legacy
+  // repurposing run must never mis-open on Engine/Brief). All rendering keys
+  // off the stage id.
+  const migrated = useMemo(() => migrateStepState(state, rawStep, run.data?.mode), [state, rawStep, run.data?.mode]);
+  const stage = migrated.stage;
+  const maxStageOrdinal = Math.max(migrated.maxStageOrdinal, migrated.ordinal);
+
+  const writeRun = async (nextOrdinal: number, nextState: OmniImagesState) => {
+    if (!runId) {
+      const created = await createRun.mutateAsync({
+        mode: 'omni_images',
+        title: nextState.objective?.slice(0, 80),
+        step_state: nextState,
+      });
+      await updateRun.mutateAsync({ runId: created.id, current_step: nextOrdinal, step_state: nextState });
+      onRunCreated(created.id);
+    } else {
+      await updateRun.mutateAsync({ runId, current_step: nextOrdinal, step_state: nextState });
+    }
+  };
+
+  /** Advance/jump persist: stamps v2 and writes the stage ordinal. */
+  const persist = async (nextStage: StageId, patch: Partial<OmniImagesState>) => {
+    const nextOrdinal = stageOrdinal(nextStage);
+    const prevStep = localStep;
+    const prevState = localState;
     const nextState: OmniImagesState = {
       ...state,
       ...patch,
-      max_step_reached: Math.max(state.max_step_reached ?? 0, nextStep, step),
+      schema_version: 2,
+      max_step_reached: Math.max(maxStageOrdinal, nextOrdinal),
     };
     setLocalState(nextState);
-    setLocalStep(nextStep);
-    // Steps after generation read asset records (dims, storage paths); the
+    setLocalStep(nextOrdinal);
+    // Stages after generation read asset records (dims, storage paths); the
     // cached snapshot predates generation, so refresh it on advance.
-    if (runId && nextStep >= 7) {
+    if (runId && nextOrdinal >= stageOrdinal(V2_HANDOFF_STAGE)) {
       void queryClient.invalidateQueries({ queryKey: ['omni-assets', runId] });
     }
     try {
-      if (!runId) {
-        const created = await createRun.mutateAsync({
-          mode: 'omni_images',
-          title: nextState.objective?.slice(0, 80),
-          step_state: nextState,
-        });
-        await updateRun.mutateAsync({ runId: created.id, current_step: nextStep, step_state: nextState });
-        onRunCreated(created.id);
-      } else {
-        await updateRun.mutateAsync({ runId, current_step: nextStep, step_state: nextState });
-      }
+      await writeRun(nextOrdinal, nextState);
+      setPendingPersist(null);
     } catch (e) {
+      // Roll the optimistic advance back (UX-03); the banner offers Retry.
+      setLocalStep(prevStep);
+      setLocalState(prevState);
+      setPendingPersist({ step: nextOrdinal, state: nextState });
       toast.error(`Could not save your progress: ${e instanceof Error ? e.message : 'unknown error'}`);
     }
   };
 
-  // Paid step-10 outputs reach step_state as soon as each job completes, not
-  // only on Continue: an exit or refresh mid-step then restores them instead
-  // of re-billing every job.
-  const persistRepurposedProgress = async (repurposed: OmniRepurposedRef[]) => {
+  const retryPersist = async () => {
+    if (!pendingPersist) return;
+    const { step: nextOrdinal, state: nextState } = pendingPersist;
+    setLocalState(nextState);
+    setLocalStep(nextOrdinal);
+    try {
+      await writeRun(nextOrdinal, nextState);
+      setPendingPersist(null);
+    } catch (e) {
+      setLocalStep(null);
+      setLocalState(null);
+      toast.error(`Still could not save: ${e instanceof Error ? e.message : 'unknown error'}`);
+    }
+  };
+
+  /** Position-only write (Back / rail jump): converts legacy rows to v2 too —
+   *  a stage ordinal is only coherent alongside the schema stamp. */
+  const writePosition = (ordinal: number) => {
+    const nextState: OmniImagesState = {
+      ...state,
+      schema_version: 2,
+      max_step_reached: maxStageOrdinal,
+    };
+    setLocalState(nextState);
+    setLocalStep(ordinal);
+    if (runId) void updateRun.mutateAsync({ runId, current_step: ordinal, step_state: nextState });
+  };
+
+  // Paid adapt-stage outputs reach step_state as soon as each job completes,
+  // not only on Continue: an exit or refresh mid-stage then restores them
+  // instead of re-billing every job. Schema is preserved as-is (a state-only
+  // write must never flip a v1 row whose current_step is still a v1 int).
+  const persistSilently = async (patch: Partial<OmniImagesState>) => {
     if (!runId) return;
-    const nextState: OmniImagesState = { ...state, repurposed };
+    const nextState: OmniImagesState = { ...state, ...patch };
     setLocalState(nextState);
     try {
       await updateRun.mutateAsync({ runId, step_state: nextState });
@@ -103,20 +157,32 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
     }
   };
 
-  // Step 7 is the handoff boundary: transform and repurposing runs do not own
-  // steps 1-5 of THIS wizard (their early steps live elsewhere or nowhere), so
-  // backing below 7 would drop them into foreign text-to-image semantics.
-  // surprise_me and locked brainstorming runs DO own them: they start at
-  // step 1 with a prefilled objective and walk the full sequence.
+  // The handoff boundary: transform and repurposing runs do not own the early
+  // stages (their early steps live elsewhere or nowhere), so their floor is
+  // the distribution stage. surprise_me and locked brainstorming runs own the
+  // full flow.
   const runMode = run.data?.mode;
   const ownsEarlySteps = runMode == null || runMode === 'omni_images' || runMode === 'surprise_me' || runMode === 'brainstorming';
-  const backTarget = step === 7 && !ownsEarlySteps ? undefined : BACK_TARGET[step];
+  const minStageOrdinal = ownsEarlySteps ? 1 : stageOrdinal(V2_HANDOFF_STAGE);
+  const backOrdinal = migrated.ordinal > minStageOrdinal ? migrated.ordinal - 1 : undefined;
+
+  /** UX-15 guard: leaving the generate stage mid-run is a two-click decision. */
+  const guardedLeave = (go: () => void) => {
+    if (genRunning && Date.now() - leaveArmedAt.current > 5000) {
+      leaveArmedAt.current = Date.now();
+      toast.warning('Generation in progress: submitted jobs keep running and bill regardless. Click again to leave.');
+      return;
+    }
+    go();
+  };
 
   const goBack = () => {
-    if (backTarget) {
-      setLocalStep(backTarget);
-      if (runId) void updateRun.mutateAsync({ runId, current_step: backTarget });
-    }
+    if (backOrdinal) guardedLeave(() => writePosition(backOrdinal));
+  };
+
+  const jumpTo = (ordinal: number) => {
+    if (ordinal < minStageOrdinal || ordinal > maxStageOrdinal) return;
+    guardedLeave(() => writePosition(ordinal));
   };
 
   if (runId && run.isLoading) {
@@ -129,97 +195,94 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
 
   const selectedAssets = (assets.data ?? []).filter((a) => (state.selected_asset_ids ?? []).includes(a.id));
 
+  const loader = (
+    <div className="flex justify-center py-12" aria-label="Loading run state">
+      <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
+    </div>
+  );
+
   return (
     <AnimatePresence mode="wait">
-      <WizardChrome key="chrome" step={step} onBack={backTarget ? goBack : undefined} onExit={onExit}>
-        {step === 1 && (
-          <StepObjective
-            initialValue={state.objective ?? ''}
-            initialReferences={state.reference_image_refs ?? []}
-            onNext={(objective, references) => void persist(2, { objective, reference_image_refs: references })}
-          />
+      <WizardChrome
+        key="chrome"
+        stageOrdinal={migrated.ordinal}
+        maxStageOrdinal={maxStageOrdinal}
+        minStageOrdinal={minStageOrdinal}
+        title={stageForOrdinal(migrated.ordinal).title}
+        onJumpStage={jumpTo}
+        onBack={backOrdinal ? goBack : undefined}
+        onExit={onExit}
+      >
+        {pendingPersist && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-500/40 bg-red-500/5 px-3 py-2">
+            <p className="flex items-center gap-1.5 text-xs text-red-600 [[data-omni-theme=dark]_&]:text-red-400">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              Your progress was not saved — retry before continuing.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void retryPersist()} className="h-7 cursor-pointer gap-1.5 text-xs">
+              <RefreshCw className="h-3 w-3" />
+              Retry save
+            </Button>
+          </div>
         )}
-        {step === 2 && (
-          <StepLockPrompt
-            objective={state.objective ?? ''}
+
+        {stage === 'brief' && (
+          <StageBrief
+            runId={runId}
+            initialObjective={state.objective ?? ''}
             initialOptimized={state.optimized_prompt ?? ''}
-            onLock={(optimized, locked) => void persist(3, { optimized_prompt: optimized, locked_prompt: locked })}
+            initialReferences={state.reference_image_refs ?? []}
+            onNext={(patch) => void persist('engine', patch)}
           />
         )}
-        {step === 3 && (
-          <StepModels
+
+        {stage === 'engine' && (
+          <StageEngine
             initialSelections={state.model_selections ?? []}
+            initialSpecs={state.model_specs ?? {}}
             hasReferences={(state.reference_image_refs?.length ?? 0) > 0}
             referenceCount={state.reference_image_refs?.length ?? 0}
-            onNext={(selections) => void persist(4, { model_selections: selections })}
-          />
-        )}
-        {step === 4 && (
-          <StepSpecs
-            selections={state.model_selections ?? []}
-            initialSpecs={state.model_specs ?? {}}
-            onNext={(specs) => void persist(5, { model_specs: specs })}
-          />
-        )}
-        {step === 5 && (
-          <StepRecap
-            lockedPrompt={state.locked_prompt ?? ''}
-            selections={state.model_selections ?? []}
-            modelSpecs={state.model_specs ?? {}}
-            onGenerate={() => void persist(6, {})}
-          />
-        )}
-        {step === 6 && (
-          // Generation is a real step for runs that own the early steps
-          // (omni_images / surprise_me / brainstorming). A transform or
-          // repurposing run can only sit here transiently during the handoff
-          // to step 7, so render a loader for those instead of the generator.
-          runId && ownsEarlySteps ? (
-            <StepGeneration
-              runId={runId}
-              lockedPrompt={state.locked_prompt ?? ''}
-              selections={state.model_selections ?? []}
-              modelSpecs={state.model_specs ?? {}}
-              initialSelected={state.selected_asset_ids ?? []}
-              referenceImageIds={(state.reference_image_refs ?? []).map((r) => r.wishpediaImageId)}
-              onNext={(generatedIds, selectedIds) =>
-                void persist(7, { generated_asset_ids: generatedIds, selected_asset_ids: selectedIds })
-              }
-            />
-          ) : (
-            <div className="flex justify-center py-12" aria-label="Loading run state">
-              <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
-            </div>
-          )
-        )}
-        {step === 7 && (
-          <StepNetworks
-            initialNetworks={state.networks ?? []}
-            onNext={(networks) => void persist(8, { networks })}
-          />
-        )}
-        {step === 8 && runId && (
-          <StepDescriptions
-            runId={runId}
-            objective={state.objective ?? ''}
-            lockedPrompt={state.locked_prompt ?? ''}
-            networks={state.networks ?? []}
-            selectedAssetIds={state.selected_asset_ids ?? []}
-            initialOptions={state.caption_options ?? {}}
-            initialChosen={state.chosen_captions ?? {}}
-            onLock={(options, chosen) =>
-              void persist(9, { caption_options: options, chosen_captions: chosen, description_locked: true })
+            onNext={(selections, specs) =>
+              void persist('generate', { model_selections: selections, model_specs: specs })
             }
           />
         )}
-        {step === 9 && (
-          <StepDimensions
-            networks={(state.networks ?? []) as OmniNetworkId[]}
+
+        {stage === 'generate' && (
+          // Generation is a real stage for runs that own the early flow. A
+          // transform or repurposing run can only sit here transiently, so
+          // render a loader for those instead of the generator.
+          runId && ownsEarlySteps ? (
+            <StageGenerate
+              runId={runId}
+              lockedPrompt={state.locked_prompt ?? ''}
+              promptProvenance={state.prompt_provenance}
+              selections={state.model_selections ?? []}
+              initialSelected={state.selected_asset_ids ?? []}
+              modelSpecs={state.model_specs}
+              referenceImageIds={(state.reference_image_refs ?? []).map((r) => r.wishpediaImageId)}
+              onEditBrief={() => jumpTo(stageOrdinal('brief'))}
+              onEditModels={() => jumpTo(stageOrdinal('engine'))}
+              onRunningChange={setGenRunning}
+              onNext={(generatedIds, selectedIds) =>
+                void persist('distribution', { generated_asset_ids: generatedIds, selected_asset_ids: selectedIds })
+              }
+            />
+          ) : loader
+        )}
+
+        {stage === 'distribution' && (
+          <StageDistribution
+            initialNetworks={state.networks ?? []}
             initialSelections={state.preset_selections ?? {}}
-            onNext={(selections) => void persist(10, { preset_selections: selections })}
+            imageCount={(state.selected_asset_ids ?? []).length}
+            onNext={(networks, selections) =>
+              void persist('adapt', { networks, preset_selections: selections })
+            }
           />
         )}
-        {step === 10 && runId && (
+
+        {stage === 'adapt' && runId && (
           // isFetching too: after an invalidation a STALE cached snapshot has
           // isLoading false while the refetch is in flight; building the job
           // matrix from it would miss restored outputs and re-bill them.
@@ -235,14 +298,30 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
               initialRepurposed={state.repurposed ?? []}
               initialApproved={state.approved_asset_ids ?? []}
               presetSelections={state.preset_selections ?? {}}
-              onProgress={(repurposed: OmniRepurposedRef[]) => void persistRepurposedProgress(repurposed)}
+              onProgress={(repurposed: OmniRepurposedRef[]) => void persistSilently({ repurposed })}
               onNext={(repurposed: OmniRepurposedRef[], approved: string[]) =>
-                void persist(11, { repurposed, approved_asset_ids: approved })
+                void persist('captions', { repurposed, approved_asset_ids: approved })
               }
             />
           )
         )}
-        {step === 11 && runId && (
+
+        {stage === 'captions' && runId && (
+          <StageCaptions
+            runId={runId}
+            objective={state.objective ?? ''}
+            lockedPrompt={state.locked_prompt ?? ''}
+            repurposed={state.repurposed ?? []}
+            approvedAssetIds={state.approved_asset_ids ?? []}
+            initialOptions={state.caption_options ?? {}}
+            initialChosen={state.chosen_captions ?? {}}
+            onNext={(options, chosen) =>
+              void persist('finalize', { caption_options: options, chosen_captions: chosen, description_locked: true })
+            }
+          />
+        )}
+
+        {stage === 'finalize' && runId && (
           <StepFinalize
             runId={runId}
             defaultTitle={state.title ?? state.objective?.slice(0, 60) ?? 'Omni content set'}
@@ -251,6 +330,7 @@ export function OmniImagesWizard({ runId, onRunCreated, onExit }: OmniImagesWiza
             networks={state.networks ?? []}
             repurposed={state.repurposed ?? []}
             approvedAssetIds={state.approved_asset_ids ?? []}
+            onCaptionsEdited={(chosen) => void persistSilently({ chosen_captions: chosen })}
             onDone={onExit}
           />
         )}

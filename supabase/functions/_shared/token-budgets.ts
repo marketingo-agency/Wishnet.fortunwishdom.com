@@ -46,6 +46,9 @@ export const TOKEN_BUDGETS = {
   /** Omni Brainstorming: distill the conversation into the final brief */
   OMNI_BRAINSTORM_LOCK: 1024,
 
+  /** Omni captions: one image's captions across all its networks (structured JSON) */
+  OMNI_CAPTIONS: 2048,
+
   /** General-purpose default when no specific budget applies */
   DEFAULT: 2048,
 } as const;

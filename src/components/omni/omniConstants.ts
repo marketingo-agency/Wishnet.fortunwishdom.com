@@ -11,7 +11,7 @@ import {
   Headphones,
   Film,
   Sparkles,
-  Dices,
+  Drama,
   ZoomIn,
   Crop,
   History,
@@ -72,7 +72,9 @@ export const OMNI_TRACKS: OmniTrackDef[] = [
 ];
 
 export interface OmniModeDef {
-  id: OmniMode | 'history';
+  /** character_studio is a curated Studio entry (pre-seeded omni_images run),
+   *  not a persisted omni_runs.mode value. */
+  id: OmniMode | 'history' | 'character_studio';
   label: string;
   description: string;
   icon: LucideIcon;
@@ -82,31 +84,35 @@ export interface OmniModeDef {
   availabilityNote: string;
 }
 
+/** Six-card 2×3 hub (Sam-approved order). Surprise Me folded into the
+ *  wizard's step 1 as "Inspire me" — its legacy runs still open from History. */
 export const OMNI_IMAGE_MODES: OmniModeDef[] = [
   {
-    id: 'brainstorming',
-    label: 'Brainstorming',
-    description: 'Discuss and develop an image idea, then lock it and continue in the right mode.',
-    icon: Lightbulb,
-    accent: 'text-amber-400',
-    available: true,
-    availabilityNote: '',
-  },
-  {
+    // Label-only rename (D2): the persisted mode value stays 'omni_images'
+    // (omni_runs.mode has a DB CHECK) — only the display name is "Studio".
     id: 'omni_images',
-    label: 'Omni Images',
-    description: 'The full creation wizard: prompt, models, variants, live generation, descriptions, networks, repurposing.',
+    label: 'Studio',
+    description: 'The full creation pipeline: brief, models, live generation, distribution formats, captions, finalize.',
     icon: Sparkles,
     accent: 'text-cyan-400',
     available: true,
     availabilityNote: '',
   },
   {
-    id: 'surprise_me',
-    label: 'Surprise Me',
-    description: 'Omni mines the knowledge base and proposes concrete creation ideas to run with.',
-    icon: Dices,
+    id: 'character_studio',
+    label: 'Character Studio',
+    description: 'Create new scenes featuring your Wishpedia characters, anchored to their canon art.',
+    icon: Drama,
     accent: 'text-fuchsia-400',
+    available: true,
+    availabilityNote: '',
+  },
+  {
+    id: 'brainstorming',
+    label: 'Brainstorming',
+    description: 'Discuss and develop an image idea, then lock it and continue in the right mode.',
+    icon: Lightbulb,
+    accent: 'text-amber-400',
     available: true,
     availabilityNote: '',
   },

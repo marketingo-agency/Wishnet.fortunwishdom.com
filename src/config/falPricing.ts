@@ -37,6 +37,10 @@ export const FAL_PRICING: Record<string, FalPrice> = {
   'fal-ai/flux-2-pro/edit': { unitPrice: 0.03, unit: 'megapixel' },
   'fal-ai/gpt-image-1.5/edit': { unitPrice: null, unit: 'unknown' },
   'fal-ai/gemini-25-flash-image/edit': { unitPrice: 0.0398, unit: 'image' },
+  // repurposing tier 2 (AI extend — schemas verified live 2026-07-16, Plan 1 D-TIER)
+  'fal-ai/flux-2-pro/outpaint': { unitPrice: 0.03, unit: 'megapixel' },
+  'fal-ai/bria/expand': { unitPrice: 0.04, unit: 'image' },
+  'fal-ai/ideogram/v3/reframe': { unitPrice: 0.03, unit: 'image' },
 };
 
 export function getFalPrice(modelId: string): FalPrice {
@@ -95,6 +99,45 @@ export function estimatePlanCost(
   const total = lines.reduce((sum, l) => sum + (l.estimated ?? 0), 0);
   const hasUnknown = lines.some((l) => l.estimated == null);
   return { lines, total, hasUnknown };
+}
+
+export interface AssetCostInput {
+  model_id: string | null;
+  width: number | null;
+  height: number | null;
+  status: string;
+}
+
+/**
+ * Estimated fal spend for a run's PRODUCED assets (History cost chip).
+ * Only fal-generated rows count: model_id null = uploaded/referenced bytes
+ * (free). 'done' and 'discarded' were both paid outputs; 'failed' submissions
+ * are excluded (fal does not bill a failed job). Megapixel models use the
+ * stored intrinsic dimensions; a priced model with unknown dims (or an
+ * opaque-priced model) flags hasUnknown instead of guessing.
+ */
+export function estimateAssetsCost(assets: AssetCostInput[]): { total: number; hasUnknown: boolean } {
+  let total = 0;
+  let hasUnknown = false;
+  for (const a of assets) {
+    if (!a.model_id) continue;
+    if (a.status !== 'done' && a.status !== 'discarded') continue;
+    const price = getFalPrice(a.model_id);
+    if (price.unitPrice == null) {
+      hasUnknown = true;
+      continue;
+    }
+    if (price.unit === 'image') {
+      total += price.unitPrice;
+      continue;
+    }
+    if (a.width && a.height) {
+      total += price.unitPrice * ((a.width * a.height) / 1_000_000);
+    } else {
+      hasUnknown = true;
+    }
+  }
+  return { total, hasUnknown };
 }
 
 export function formatUsd(n: number): string {

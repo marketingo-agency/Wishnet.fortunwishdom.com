@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BrainCircuit, Dices, Lightbulb, Lock, X } from 'lucide-react';
+import { AlertTriangle, BrainCircuit, Lightbulb, Lock, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,11 +31,10 @@ interface BrainstormViewProps {
   runId: string | null;
   onRunCreated: (runId: string) => void;
   onLocked: (run: OmniRun) => void;
-  onSwitchToSurprise: () => void;
   onExit: () => void;
 }
 
-export function BrainstormView({ runId, onRunCreated, onLocked, onSwitchToSurprise, onExit }: BrainstormViewProps) {
+export function BrainstormView({ runId, onRunCreated, onLocked, onExit }: BrainstormViewProps) {
   const run = useOmniRun(runId);
   const createRun = useCreateBrainstormRun();
   const updateRun = useUpdateOmniRun();
@@ -59,11 +58,15 @@ export function BrainstormView({ runId, onRunCreated, onLocked, onSwitchToSurpri
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages.length, chat.isPending]);
 
+  // SIB-15: a failed persist is non-fatal (the next one retries with the full
+  // local list) but no longer silent — the composer shows a not-saved note.
+  const [persistFailed, setPersistFailed] = useState(false);
   const persistMessages = async (targetRunId: string, next: OmniChatMessage[], state: OmniImagesState) => {
     try {
       await updateRun.mutateAsync({ runId: targetRunId, step_state: { ...state, messages: trimMessages(next) } });
+      setPersistFailed(false);
     } catch {
-      // Non-fatal: the next persist retries with the full local list.
+      setPersistFailed(true);
     }
   };
 
@@ -135,14 +138,14 @@ export function BrainstormView({ runId, onRunCreated, onLocked, onSwitchToSurpri
         </div>
         <div className="flex items-center gap-1.5">
           <Select value={provider} onValueChange={(v) => { setProvider(v as 'openai' | 'gemini'); setModel('default'); }}>
-            <SelectTrigger className="h-8 w-[100px] text-xs" aria-label="Provider"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="cursor-pointer h-8 w-[100px] text-xs" aria-label="Provider"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="openai" className="text-xs">OpenAI</SelectItem>
               <SelectItem value="gemini" className="text-xs">Gemini</SelectItem>
             </SelectContent>
           </Select>
           <Select value={model} onValueChange={setModel}>
-            <SelectTrigger className="h-8 w-[150px] text-xs" aria-label="Model"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="cursor-pointer h-8 w-[150px] text-xs" aria-label="Model"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="default" className="text-xs">Workspace default</SelectItem>
               {modelOptions.map((m) => (
@@ -150,9 +153,6 @@ export function BrainstormView({ runId, onRunCreated, onLocked, onSwitchToSurpri
               ))}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={onSwitchToSurprise} className="h-8 cursor-pointer gap-1.5 text-xs">
-            <Dices className="h-3.5 w-3.5" /> Surprise Me
-          </Button>
           <Button
             size="sm"
             onClick={() => void handleLock()}
@@ -169,7 +169,20 @@ export function BrainstormView({ runId, onRunCreated, onLocked, onSwitchToSurpri
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
         <div className="mx-auto w-full max-w-2xl space-y-4">
-          {messages.length === 0 && !busy ? (
+          {/* QA UI-W3: a resumed session must not flash the first-run hero
+              while its history is still loading (or vanish on a fetch error). */}
+          {runId && run.isLoading ? (
+            <div className="flex flex-col items-center gap-3 py-16 text-center" aria-live="polite">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white">
+                <Lightbulb className="h-5 w-5 animate-pulse" />
+              </span>
+              <p className="text-sm text-muted-foreground">Loading the conversation…</p>
+            </div>
+          ) : runId && run.isError ? (
+            <p className="py-16 text-center text-sm text-destructive">
+              Could not load this brainstorming session. Reopen it from History to retry.
+            </p>
+          ) : messages.length === 0 && !busy ? (
             <div className="flex flex-col items-center gap-4 py-16 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/20">
                 <Lightbulb className="h-8 w-8" />
@@ -201,6 +214,16 @@ export function BrainstormView({ runId, onRunCreated, onLocked, onSwitchToSurpri
         <p className="flex shrink-0 items-center gap-1.5 px-4 pb-1 text-[10px] text-muted-foreground sm:px-6">
           <BrainCircuit className="h-3 w-3" />
           Last reply grounded in {lastRetrieval.brain_chunks} knowledge chunks under {lastRetrieval.heart_rules} Heart rules
+        </p>
+      )}
+
+      {persistFailed && (
+        <p
+          role="status"
+          className="flex shrink-0 items-center gap-1.5 px-4 pb-1 text-xs text-amber-700 [[data-omni-theme=dark]_&]:text-amber-300 sm:px-6"
+        >
+          <AlertTriangle className="h-3 w-3 shrink-0" />
+          The latest messages are not saved yet — they stay in this session and saving retries with your next message.
         </p>
       )}
 

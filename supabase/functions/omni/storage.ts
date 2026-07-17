@@ -81,12 +81,26 @@ export async function persistUploadedImage(
   return { storagePath, mimeType, byteSize: bytes.byteLength };
 }
 
-/** Mint a signed URL for a private files-bucket path. Never getPublicUrl. */
+/**
+ * Mint a signed URL for a private files-bucket path. Never getPublicUrl.
+ *
+ * ownerId is REQUIRED (security-auditor M1): the service-role client bypasses
+ * the bucket's owner-scoped RLS, and omni_assets RLS validates only user_id -
+ * a caller could bind a self-owned asset row to ANOTHER user's private path.
+ * Signing is therefore confined to the caller's own `${ownerId}/` namespace;
+ * cross-user admin signing lives exclusively in content-library's admin-gated
+ * library-asset-urls action.
+ */
 export async function signStoragePath(
   supabaseAdmin: AdminClient,
   storagePath: string,
+  ownerId: string,
   ttlSeconds: number = SIGNED_URL_TTL_SECONDS,
 ): Promise<string | null> {
+  if (!storagePath.startsWith(`${ownerId}/`)) {
+    console.error('Omni: refused to sign a storage path outside the caller namespace');
+    return null;
+  }
   const { data, error } = await supabaseAdmin.storage
     .from('files')
     .createSignedUrl(storagePath, ttlSeconds);

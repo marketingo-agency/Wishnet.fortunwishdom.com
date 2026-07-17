@@ -54,7 +54,9 @@ export function StepGeneration({ runId, lockedPrompt, selections, initialSelecte
 
     const countByModel = new Map<string, number>();
     for (const a of priorVariants) {
-      if (a.model_id && !a.parent_asset_id) {
+      // Failed/discarded rows never count as fulfilled (GEN-01): resuming a
+      // run with failures re-submits them instead of silently skipping.
+      if (a.model_id && !a.parent_asset_id && a.status !== 'failed' && a.status !== 'discarded') {
         countByModel.set(a.model_id, (countByModel.get(a.model_id) ?? 0) + 1);
       }
     }

@@ -6,7 +6,7 @@
  * the wizard's tray owns removal.
  */
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FolderOpen, Library, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -74,15 +74,23 @@ export function RepurposeSourcePicker({ selectedKeys, onAdd, onToggleOff }: Repu
     else onAdd([{ key, kind: 'files', label: row.name, row, previewUrl: filePreviews[row.id] ?? null }]);
   };
 
-  const loadFilePreview = async (row: LibraryImage) => {
-    if (filePreviews[row.id]) return;
-    const url = await getAssetSignedUrl(row.storage_path);
-    if (url) setFilePreviews((prev) => ({ ...prev, [row.id]: url }));
-  };
+  // SIB-10: previews sign in an effect as rows arrive — signing during render
+  // re-fired on every re-render while loads were in flight (setState → render
+  // → resign), issuing duplicate signed-URL round-trips per tile.
+  const signingRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const row of files.data ?? []) {
+      if (signingRef.current.has(row.id)) continue;
+      signingRef.current.add(row.id);
+      void getAssetSignedUrl(row.storage_path).then((url) => {
+        if (url) setFilePreviews((prev) => ({ ...prev, [row.id]: url }));
+      });
+    }
+  }, [files.data]);
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2" role="tablist" aria-label="Image sources">
+      <div className="flex gap-2" role="group" aria-label="Image sources">
         {([
           ['upload', 'Upload', Upload],
           ['files', 'Media library', FolderOpen],
@@ -90,13 +98,14 @@ export function RepurposeSourcePicker({ selectedKeys, onAdd, onToggleOff }: Repu
         ] as const).map(([id, label, Icon]) => (
           <button
             key={id}
-            role="tab"
-            aria-selected={tab === id}
+            aria-pressed={tab === id}
             onClick={() => setTab(id)}
             className={cn(
               'flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors duration-200',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              tab === id ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300' : 'border-border text-muted-foreground hover:text-foreground',
+              tab === id
+                ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-300'
+                : 'border-border text-muted-foreground hover:text-foreground',
             )}
           >
             <Icon className="h-3.5 w-3.5" />
@@ -138,7 +147,9 @@ export function RepurposeSourcePicker({ selectedKeys, onAdd, onToggleOff }: Repu
       )}
 
       {tab === 'files' && (
-        files.isLoading ? (
+        files.isError ? (
+          <p className="py-8 text-center text-sm text-destructive">Could not load the Files library. Reopen this tab to retry.</p>
+        ) : files.isLoading ? (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="aspect-square rounded-lg" />)}
           </div>
@@ -147,7 +158,6 @@ export function RepurposeSourcePicker({ selectedKeys, onAdd, onToggleOff }: Repu
         ) : (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {files.data!.map((row) => {
-              void loadFilePreview(row);
               const selected = selectedKeys.has(`files:${row.id}`);
               return (
                 <SourceTile
@@ -164,7 +174,9 @@ export function RepurposeSourcePicker({ selectedKeys, onAdd, onToggleOff }: Repu
       )}
 
       {tab === 'content_library' && (
-        libraryItems.isLoading ? (
+        libraryItems.isError ? (
+          <p className="py-8 text-center text-sm text-destructive">Could not load the Content Library. Reopen this tab to retry.</p>
+        ) : libraryItems.isLoading ? (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="aspect-square rounded-lg" />)}
           </div>
