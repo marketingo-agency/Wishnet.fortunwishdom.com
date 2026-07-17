@@ -28,6 +28,9 @@ const DEFAULT_MUSIC_PROMPT =
 interface VSAudioProps {
   runId: string;
   scenario: OmniVideoScenario;
+  /** The picked engine renders audio WITH the video (2026-07-17 rehab):
+   *  this stage then becomes an optional enhancement, not a requirement. */
+  engineNativeAudio: boolean;
   voiceoverAssetId?: string;
   voiceId?: string;
   musicAssetId?: string;
@@ -39,7 +42,7 @@ interface VSAudioProps {
 }
 
 export function VSAudio({
-  runId: _runId, scenario, voiceoverAssetId, voiceId, musicAssetId, musicPrompt,
+  runId: _runId, scenario, engineNativeAudio, voiceoverAssetId, voiceId, musicAssetId, musicPrompt,
   onNarrationChange, onVoiceoverStarted, onMusicStarted, onNext,
 }: VSAudioProps) {
   const [selectedVoice, setSelectedVoice] = useState(voiceId ?? '');
@@ -89,6 +92,12 @@ export function VSAudio({
 
   return (
     <div className="space-y-6">
+      {engineNativeAudio && (
+        <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-300" role="status">
+          Your engine renders native audio WITH each scene — you can skip this stage entirely.
+          Adding a voiceover or music replaces the scenes&apos; own soundtrack in the assembled film.
+        </p>
+      )}
       {/* Narration script */}
       <section className="space-y-3">
         <div className="flex items-center gap-2">
@@ -224,8 +233,10 @@ export function VSAudio({
           {voBusy || musicBusy
             ? 'Audio is still rendering — you can continue; assembly will wait for it.'
             : vo.status === 'done' || music.status === 'done'
-              ? 'Audio ready.'
-              : 'No audio yet — continuing makes a silent film.'}
+              ? 'Audio ready — it replaces the scenes’ native soundtrack at assembly.'
+              : engineNativeAudio
+                ? 'No added audio — the film keeps its native scene audio.'
+                : 'No audio yet — this engine renders silent scenes, so continuing makes a silent film.'}
         </p>
         <Button
           size="sm"

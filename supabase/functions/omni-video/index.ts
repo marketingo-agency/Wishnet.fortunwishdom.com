@@ -594,7 +594,9 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ asset_id: assetId, status: 'generating' });
     }
 
-    // -- music-generate (lyria2 bed; polled like any fal-backed asset) --------
+    // -- music-generate (lyria3 bed - Google's newer, cheaper music model at
+    // $0.04/track vs lyria2's $0.10/30s, MP3 output vs WAV; same prompt-only
+    // contract, schema-verified 2026-07-17. Polled like any fal-backed asset) --
     if (action === 'music-generate') {
       const falKey = await getFalKey(supabaseAdmin);
       if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
@@ -610,7 +612,7 @@ Deno.serve(async (req: Request) => {
           user_id: userId,
           run_id: runId,
           kind: 'audio',
-          model_id: 'fal-ai/lyria2',
+          model_id: 'fal-ai/lyria3',
           prompt,
           status: 'generating',
           metadata: { kind: 'music' },
@@ -623,7 +625,7 @@ Deno.serve(async (req: Request) => {
       }
       const assetId = (asset as { id: string }).id;
       try {
-        const submission = await falSubmit(falKey, 'fal-ai/lyria2', { prompt });
+        const submission = await falSubmit(falKey, 'fal-ai/lyria3', { prompt });
         await supabaseAdmin
           .from('omni_assets')
           .update({ metadata: { kind: 'music', fal_request_id: submission.requestId } })

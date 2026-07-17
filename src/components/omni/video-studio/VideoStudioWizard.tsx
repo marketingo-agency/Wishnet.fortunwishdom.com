@@ -229,6 +229,7 @@ export function VideoStudioWizard({ runId, onRunCreated, onExit }: VideoStudioWi
             <VSAudio
               runId={runId}
               scenario={scenario}
+              engineNativeAudio={engine?.nativeAudio ?? false}
               voiceoverAssetId={state.voiceover_asset_id}
               voiceId={state.voiceover_voice_id}
               musicAssetId={state.music_asset_id}
