@@ -6,8 +6,7 @@
  * v3 Pro per Q6 — i2v when the scene has a keyframe); the superseded draft is
  * tagged metadata.superseded_by and assembly prefers the hero. Assembly runs
  * as one server-side job (merge → mix → loudnorm → persist) against a polled
- * asset row — closing the tab is safe. Ends at the Phase-6 interim terminal:
- * captions & distribution land in Phase 7.
+ * asset row — closing the tab is safe. Continues to stage 6 (Captions).
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -37,6 +36,7 @@ interface VSAssemblyProps {
   assemblyAssetId?: string;
   onHeroStarted: (sceneIdx: number, assetId: string) => void;
   onAssemblyStarted: (assetId: string) => void;
+  onContinue: () => void;
 }
 
 /** One scene row: cut status + hero re-render lifecycle (sub-component so
@@ -129,7 +129,7 @@ function SceneCutRow({
 
 export function VSAssembly({
   runId, scenario, approvedIds, voiceoverAssetId, musicAssetId, assemblyAssetId,
-  onHeroStarted, onAssemblyStarted,
+  onHeroStarted, onAssemblyStarted, onContinue,
 }: VSAssemblyProps) {
   const approved = new Set(approvedIds);
   const actions = useVideoAudioActions(runId);
@@ -263,14 +263,18 @@ export function VSAssembly({
         )}
       </section>
 
-      {/* Interim terminal (Plan 2 §4): the pipeline continues in Phase 7. */}
       {assembly.status === 'done' && (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 p-5 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-muted/20 p-5 text-center">
           <Clapperboard className="h-5 w-5 text-violet-400" />
           <p className="text-sm font-medium">Your film is assembled and saved.</p>
-          <p className="max-w-md text-xs text-muted-foreground">
-            Captions, distribution, and finalize land in Phase 7 of this build — the run resumes right here from History.
-          </p>
+          <p className="max-w-md text-xs text-muted-foreground">Next: captions, per-network variants, and the Content Library.</p>
+          <Button
+            size="sm"
+            onClick={onContinue}
+            className="h-8 cursor-pointer bg-gradient-to-r from-violet-500 to-purple-600 text-xs text-white transition-all duration-300 hover:opacity-90"
+          >
+            Continue to Captions
+          </Button>
         </div>
       )}
     </div>

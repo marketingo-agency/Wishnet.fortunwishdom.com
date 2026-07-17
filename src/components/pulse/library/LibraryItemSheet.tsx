@@ -48,7 +48,9 @@ export function LibraryItemSheet({ item, onOpenChange }: LibraryItemSheetProps) 
     return [...ids];
   }, [item]);
 
-  const { data: urls } = useLibraryAssetUrls(assetIds);
+  const { data: assetUrls } = useLibraryAssetUrls(assetIds);
+  const urls = assetUrls?.urls;
+  const thumbs = assetUrls?.thumbs;
 
   const itemOnlyAssetIds = useMemo(() => {
     if (!item) return [];
@@ -81,12 +83,18 @@ export function LibraryItemSheet({ item, onOpenChange }: LibraryItemSheetProps) 
 
               {itemOnlyAssetIds.length > 0 && (
                 <section className="space-y-2">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Saved images</h3>
-                  <div className={cn('grid gap-2', itemOnlyAssetIds.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {item.media_type === 'video' ? 'Saved videos' : 'Saved images'}
+                  </h3>
+                  <div className={cn('grid gap-2', itemOnlyAssetIds.length > 1 && item.media_type !== 'video' ? 'grid-cols-2' : 'grid-cols-1')}>
                     {itemOnlyAssetIds.map((id) => (
                       <div key={id} className="overflow-hidden rounded-lg border bg-muted">
                         {urls?.[id] ? (
-                          <img src={urls[id]} alt="Saved library asset" className="h-full w-full object-cover" loading="lazy" />
+                          item.media_type === 'video' ? (
+                            <video src={urls[id]} poster={thumbs?.[id]} controls preload="metadata" className="max-h-64 w-full object-contain" aria-label="Saved library video" />
+                          ) : (
+                            <img src={urls[id]} alt="Saved library asset" className="h-full w-full object-cover" loading="lazy" />
+                          )
                         ) : (
                           <div className="aspect-video w-full animate-pulse bg-muted" />
                         )}
@@ -107,6 +115,7 @@ export function LibraryItemSheet({ item, onOpenChange }: LibraryItemSheetProps) 
                         key={post.id}
                         post={post}
                         imageUrl={post.asset_id ? urls?.[post.asset_id] : undefined}
+                        thumbUrl={post.asset_id ? thumbs?.[post.asset_id] : undefined}
                       />
                     ))}
                   </div>
@@ -133,7 +142,7 @@ export function LibraryItemSheet({ item, onOpenChange }: LibraryItemSheetProps) 
                       <AlertDialogTitle>Delete this library entry?</AlertDialogTitle>
                       <AlertDialogDescription>
                         <span className="font-medium text-foreground">{item.title}</span>
-                        {posts.length > 0 ? ` and its ${posts.length} post${posts.length === 1 ? '' : 's'}` : ''} will be removed from the Content Library. The source Omni run and its images are not affected.
+                        {posts.length > 0 ? ` and its ${posts.length} post${posts.length === 1 ? '' : 's'}` : ''} will be removed from the Content Library. The source Omni run and its media are not affected.
                         {publishedCount > 0 && ` ${publishedCount} already-published post${publishedCount === 1 ? '' : 's'} will stay live on the network — only the local record is removed.`}
                         {scheduledCount > 0 && ` ${scheduledCount} scheduled post${scheduledCount === 1 ? '' : 's'} will no longer be published.`}
                       </AlertDialogDescription>

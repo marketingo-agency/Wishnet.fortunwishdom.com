@@ -1,11 +1,10 @@
 "use client";
 
 /**
- * VideoStudioWizard: the omni_videos orchestrator (Plan 2 Phases 5-6 —
- * stages 1-5 of 8). Video-ordinal persistence with a high-water mark;
- * resumes clamp to the registry's builtThrough; stages 6-8 land in Phase 7
- * (interim-terminal rule — the Assembly stage ends with an honest
- * "continues in Phase 7" panel, never a dead end).
+ * VideoStudioWizard: the omni_videos orchestrator (Plan 2 Phases 5-7 —
+ * all 8 stages: scenario → storyboard & cast → scenes → audio → assembly →
+ * captions → distribution → finalize). Video-ordinal persistence with a
+ * high-water mark; resumes clamp to the registry's builtThrough.
  */
 
 import { useMemo, useState } from 'react';
@@ -23,6 +22,9 @@ import { VSStoryboardCast } from './VSStoryboardCast';
 import { VSScenes } from './VSScenes';
 import { VSAudio } from './VSAudio';
 import { VSAssembly } from './VSAssembly';
+import { VSCaptions } from './VSCaptions';
+import { VSDistribution } from './VSDistribution';
+import { VSFinalizeVideo } from './VSFinalizeVideo';
 
 const MODE = 'omni_videos' as const;
 
@@ -241,6 +243,42 @@ export function VideoStudioWizard({ runId, onRunCreated, onExit }: VideoStudioWi
                 });
               }}
               onAssemblyStarted={(assetId) => void persist(5, { assembly_asset_id: assetId })}
+              onContinue={() => void persist(6, {})}
+            />
+          )}
+          {ordinal === 6 && scenario && runId && (
+            <VSCaptions
+              runId={runId}
+              assemblyAssetId={state.assembly_asset_id}
+              srtPath={state.srt_path}
+              onSrtSaved={(path) => void persist(6, { srt_path: path })}
+              onNext={() => void persist(7, {})}
+            />
+          )}
+          {ordinal === 7 && scenario && runId && (
+            <VSDistribution
+              runId={runId}
+              assemblyAssetId={state.assembly_asset_id}
+              timelineSeconds={scenario.scenes
+                .filter((s) => s.hero_asset_id || (s.clip_asset_id && (state.approved_asset_ids ?? []).includes(s.clip_asset_id)))
+                .reduce((sum, s) => sum + (s.duration_s || 0), 0) || scenario.scenes.reduce((sum, s) => sum + (s.duration_s || 0), 0)}
+              variants={state.video_variants ?? {}}
+              onVariantSaved={(presetId, ref) =>
+                void persist(7, { video_variants: { ...(state.video_variants ?? {}), [presetId]: ref } })}
+              onNext={() => void persist(8, {})}
+            />
+          )}
+          {ordinal === 8 && scenario && runId && (
+            <VSFinalizeVideo
+              runId={runId}
+              runTitle={run.data?.title ?? state.title ?? scenario.title}
+              runStatus={run.data?.status ?? 'active'}
+              assemblyAssetId={state.assembly_asset_id}
+              srtPath={state.srt_path}
+              variants={state.video_variants ?? {}}
+              captions={state.video_captions ?? {}}
+              onCaptionChange={(presetId, caption) =>
+                void persist(8, { video_captions: { ...(state.video_captions ?? {}), [presetId]: caption } })}
             />
           )}
           {ordinal > 1 && !scenario && (

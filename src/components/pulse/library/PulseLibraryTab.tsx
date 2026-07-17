@@ -53,7 +53,7 @@ export function PulseLibraryTab() {
     () => filtered.map(itemCoverAssetId).filter((id): id is string => id !== null),
     [filtered],
   );
-  const { data: coverUrls } = useLibraryAssetUrls(coverAssetIds);
+  const { data: coverAssets } = useLibraryAssetUrls(coverAssetIds);
 
   // The Sheet reads from the live items query so post status changes reflect immediately.
   const openItem: ContentLibraryItem | null = useMemo(
@@ -110,7 +110,7 @@ export function PulseLibraryTab() {
               <LibraryItemCard
                 key={item.id}
                 item={item}
-                coverUrl={coverId ? coverUrls?.[coverId] : undefined}
+                coverUrl={coverId ? (coverAssets?.thumbs[coverId] ?? (item.media_type === 'video' ? undefined : coverAssets?.urls[coverId])) : undefined}
                 onOpen={() => setOpenItemId(item.id)}
               />
             );

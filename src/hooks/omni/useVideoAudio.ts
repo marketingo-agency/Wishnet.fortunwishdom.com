@@ -156,17 +156,28 @@ export function useVideoAudioActions(runId: string | null) {
   return { renderVoiceover, generateMusic, assemble, isSubmitting };
 }
 
-/** Mark a draft clip superseded by its hero re-render (Plan 2 Phase 6b).
- *  Best-effort owner-RLS metadata write — the draft stays retrievable in
- *  History; assembly simply prefers the hero. */
-export async function markSuperseded(draftAssetId: string, heroAssetId: string): Promise<void> {
+/** Owner-RLS read-modify-write on an asset's metadata (best-effort). */
+export async function patchAssetMetadata(assetId: string, patch: Record<string, unknown>): Promise<boolean> {
   const { data, error: readError } = await supabase
     .from('omni_assets')
     .select('metadata')
-    .eq('id', draftAssetId)
+    .eq('id', assetId)
     .maybeSingle();
-  if (readError || !data) return;
-  const metadata = { ...((data.metadata as Record<string, unknown> | null) ?? {}), superseded_by: heroAssetId };
-  const { error } = await supabase.from('omni_assets').update({ metadata }).eq('id', draftAssetId);
-  if (error) Sentry.captureException(new Error(error.message), { tags: { feature: 'omni-video-supersede' } });
+  if (readError || !data) return false;
+  const metadata = { ...((data.metadata as Record<string, unknown> | null) ?? {}), ...patch };
+  const { error } = await supabase
+    .from('omni_assets')
+    .update({ metadata: metadata as never })
+    .eq('id', assetId);
+  if (error) {
+    Sentry.captureException(new Error(error.message), { tags: { feature: 'omni-video-asset-meta' } });
+    return false;
+  }
+  return true;
+}
+
+/** Mark a draft clip superseded by its hero re-render (Plan 2 Phase 6b).
+ *  The draft stays retrievable in History; assembly simply prefers the hero. */
+export async function markSuperseded(draftAssetId: string, heroAssetId: string): Promise<void> {
+  await patchAssetMetadata(draftAssetId, { superseded_by: heroAssetId });
 }

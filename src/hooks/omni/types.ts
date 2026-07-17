@@ -206,6 +206,20 @@ export interface OmniImagesState {
   music_prompt?: string;
   /** Stage 5 output (Phase 6b): the assembled film's omni_assets row. */
   assembly_asset_id?: string;
+  /** Stage 6 (Phase 7): SRT sidecar path in the omni-video bucket (D-V8). */
+  srt_path?: string;
+  /** Stage 7 (Phase 7): per-preset distribution variants. */
+  video_variants?: Record<string, OmniVideoVariantRef>;
+  /** Stage 8 (Phase 7): per-preset caption overrides. */
+  video_captions?: Record<string, string>;
+}
+
+export interface OmniVideoVariantRef {
+  asset_id: string;
+  network: string;
+  preset_id: string;
+  /** Honest processing note (e.g. "2:3 snapped to 9:16"). */
+  note?: string;
 }
 
 // ── Videos track (Plan 2 D-V2) ────────────────────────────────────────────────

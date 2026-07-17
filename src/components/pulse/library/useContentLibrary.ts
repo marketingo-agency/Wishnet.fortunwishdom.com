@@ -24,6 +24,7 @@ export interface ContentLibraryPost {
   error: string | null;
   posted_at: string | null;
   external_post_id: string | null;
+  media_type: 'image' | 'video';
   created_at: string;
   updated_at: string;
 }
@@ -35,7 +36,8 @@ export interface ContentLibraryItem {
   source_run_id: string | null;
   networks: string[];
   status: 'ready' | 'archived';
-  metadata: { asset_ids?: string[] } & Record<string, unknown>;
+  media_type: 'image' | 'video';
+  metadata: { asset_ids?: string[]; srt_path?: string; thumb_path?: string; duration_s?: number } & Record<string, unknown>;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -63,19 +65,25 @@ export function useLibraryItems() {
   });
 }
 
+export interface LibraryAssetUrls {
+  urls: Record<string, string>;
+  /** extract-frame thumbnails for VIDEO assets (Plan 2 sidecars). */
+  thumbs: Record<string, string>;
+}
+
 /** Signed URLs for library assets (service-role signed, cross-user, 24h). */
 export function useLibraryAssetUrls(assetIds: string[]) {
   const key = [...assetIds].sort().join(',');
-  return useQuery<Record<string, string>>({
+  return useQuery<LibraryAssetUrls>({
     queryKey: ['library-asset-urls', key],
     enabled: assetIds.length > 0,
     staleTime: 20 * 60 * 1000,
     queryFn: async () => {
-      const { urls } = await callContentLibrary<{ urls: Record<string, string> }>(
+      const { urls, thumbs } = await callContentLibrary<{ urls: Record<string, string>; thumbs?: Record<string, string> }>(
         'library-asset-urls',
         { asset_ids: assetIds.slice(0, 60) },
       );
-      return urls;
+      return { urls, thumbs: thumbs ?? {} };
     },
   });
 }
@@ -103,6 +111,17 @@ function useInvalidateLibrary() {
     queryClient.invalidateQueries({ queryKey: ['content-library-items'] });
     queryClient.invalidateQueries({ queryKey: ['library-connections'] });
   };
+}
+
+/** Record a MANUAL Pulse (upload-post) publish so the row reflects reality. */
+export function useMarkPosted() {
+  const invalidate = useInvalidateLibrary();
+  return useMutation({
+    mutationFn: (postId: string) =>
+      callContentLibrary<{ success: boolean }>('mark-posted', { post_id: postId }),
+    onSuccess: () => invalidate(),
+    onError: (e: Error) => toast.error(`Published, but recording it failed: ${e.message}`),
+  });
 }
 
 export function usePostNow() {
