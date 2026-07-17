@@ -4,6 +4,11 @@
  * Repurpose & Enhance stage 1: pick a finished Omni video (Plan 2 Phase 10).
  * Own done video assets, newest first, signed + thumbed via video-poll.
  * Files-upload and Content-Library sources land in the polish pass.
+ *
+ * 2026-07-17 rehab: TOP-1 — when a run already exists the picker highlights
+ * the current working source and a re-pick REPLACES it on the same run
+ * (the wizard decides; this component never fabricates a duration — unknown
+ * lengths surface as null so the wizard can probe the real value, TOP-6).
  */
 
 import { useEffect, useState } from 'react';
@@ -24,13 +29,17 @@ interface SourceVideo {
 
 interface VRSourceProps {
   creating: boolean;
-  onPicked: (assetId: string, durationS: number, label: string) => void;
+  /** The run's current working source (null before the run exists). */
+  currentSourceId: string | null;
+  /** durationS is null when the asset carries no measured duration — the
+   *  wizard probes the real value instead of trusting a guess. */
+  onPicked: (assetId: string, durationS: number | null, label: string) => void;
 }
 
-export function VRSource({ creating, onPicked }: VRSourceProps) {
+export function VRSource({ creating, currentSourceId, onPicked }: VRSourceProps) {
   const [videos, setVideos] = useState<SourceVideo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(currentSourceId);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,11 +84,13 @@ export function VRSource({ creating, onPicked }: VRSourceProps) {
   }, []);
 
   const chosen = (videos ?? []).find((v) => v.id === selectedId);
+  const isCurrent = chosen != null && chosen.id === currentSourceId;
 
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
         Pick a finished video to fan out and enhance. 16:9 masters repurpose best; Files-upload and Library sources land in the polish pass.
+        {currentSourceId && ' Re-picking stays on this run — choosing a different video replaces the working source.'}
       </p>
       {error && <p className="text-xs text-destructive" role="alert">Could not load your videos: {error}</p>}
       {videos === null ? (
@@ -112,6 +123,7 @@ export function VRSource({ creating, onPicked }: VRSourceProps) {
                 )}
               </div>
               <p className="line-clamp-2 p-2 text-[11px] text-muted-foreground">
+                {v.id === currentSourceId && <span className="font-semibold text-violet-500">Current source · </span>}
                 {v.durationS ? `${v.durationS}s · ` : ''}{v.prompt ?? 'Processed output'}
               </p>
             </button>
@@ -121,12 +133,12 @@ export function VRSource({ creating, onPicked }: VRSourceProps) {
       <div className="flex justify-end">
         <Button
           size="sm"
-          onClick={() => chosen && onPicked(chosen.id, chosen.durationS ?? 30, (chosen.prompt ?? 'video').slice(0, 60))}
+          onClick={() => chosen && onPicked(chosen.id, chosen.durationS ?? null, (chosen.prompt ?? 'video').slice(0, 60))}
           disabled={creating || !chosen}
           className="h-8 cursor-pointer gap-1.5 bg-gradient-to-r from-violet-500 to-purple-600 text-xs text-white transition-all duration-300 hover:opacity-90"
         >
           {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Recycle className="h-3.5 w-3.5" />}
-          Repurpose this video
+          {isCurrent ? 'Continue with this video' : currentSourceId ? 'Replace the source with this video' : 'Repurpose this video'}
         </Button>
       </div>
     </div>

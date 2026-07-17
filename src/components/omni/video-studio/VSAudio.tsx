@@ -106,6 +106,8 @@ export function VSAudio({
         </div>
         <p className="text-xs text-muted-foreground">
           One block per scene, spoken in order. Leave a scene empty to keep it narration-free.
+          The narration renders as ONE continuous track laid over the film from the start — it is
+          not aligned to scene boundaries, so keep each block roughly as long as its scene.
         </p>
         <div className="space-y-2">
           {scenario.scenes.map((scene) => (

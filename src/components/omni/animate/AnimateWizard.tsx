@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { VIDEO_MODES, VIDEO_SCHEMA_VERSION, resolveVideoPosition } from '../stepRegistry';
 import { useCreateOmniRun, useOmniRun, useUpdateOmniRun } from '@/hooks/omni';
 import type { OmniImagesState, OmniVideoVariantRef } from '@/hooks/omni';
+import { StageRail } from '../wizard/StageRail';
 import { OMNI_VIDEO_NETWORKS } from '../omniVideoNetworkPresets';
 import { VSCaptions } from '../video-studio/VSCaptions';
 import { VSFinalizeVideo } from '../video-studio/VSFinalizeVideo';
@@ -146,27 +147,13 @@ export function AnimateWizard({ runId, onRunCreated, onExit }: AnimateWizardProp
         </div>
       </div>
 
-      <div className="flex shrink-0 gap-1.5 border-b border-border px-4 py-2 sm:px-6" role="group" aria-label="Stages">
-        {stages.map((s) => {
-          const reachable = s.ordinal <= Math.min(position.maxStageOrdinal, built);
-          return (
-            <button
-              key={s.id}
-              onClick={() => reachable && s.ordinal !== ordinal && void persist(s.ordinal, {})}
-              disabled={!reachable}
-              aria-label={`${s.title}${reachable ? '' : ' (not reached yet)'}`}
-              aria-current={s.ordinal === ordinal ? 'step' : undefined}
-              className={cn(
-                'h-1.5 flex-1 rounded-full transition-colors duration-200',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                s.ordinal === ordinal ? 'bg-purple-500'
-                  : reachable ? 'cursor-pointer bg-purple-500/35 hover:bg-purple-500/60'
-                  : 'bg-muted',
-              )}
-            />
-          );
-        })}
-      </div>
+      <StageRail
+        stages={stages.map((s) => ({ ordinal: s.ordinal, title: s.title }))}
+        current={ordinal}
+        isReachable={(o) => o <= Math.min(position.maxStageOrdinal, built)}
+        onJump={(o) => void persist(o, {})}
+        accent="purple"
+      />
 
       <motion.div
         key={ordinal}
@@ -178,8 +165,14 @@ export function AnimateWizard({ runId, onRunCreated, onExit }: AnimateWizardProp
         <div className="mx-auto w-full max-w-3xl">
           {ordinal === 1 && (
             <ANSource
-              creating={createRun.isPending}
-              onPicked={(picked, entryName) => void startRun({ animate_refs: picked, objective: entryName, title: entryName }, `Animate ${entryName}`)}
+              creating={createRun.isPending || updateRun.isPending}
+              initialRefs={runId ? refs : undefined}
+              onPicked={(picked, entryName) => {
+                // TOP-1 fix: an existing wizard NEVER forks a second run - re-picking
+                // persists the updated refs into the SAME run and returns to Direction.
+                if (runId) void persist(2, { animate_refs: picked });
+                else void startRun({ animate_refs: picked, objective: entryName, title: entryName }, `Animate ${entryName}`);
+              }}
             />
           )}
 
@@ -204,7 +197,13 @@ export function AnimateWizard({ runId, onRunCreated, onExit }: AnimateWizardProp
               state={state}
               chosenClipId={chosenClipId}
               onVoStarted={(assetId) => void persist(3, { animate_vo_asset_id: assetId })}
-              onClipStarted={(assetId) => void persist(3, { approved_asset_ids: [assetId] })}
+              onClipStarted={(assetId) => void persist(3, (prev) => ({
+                approved_asset_ids: [assetId],
+                // Invariant (TOP-2): every stage-4 network variant always points at the CURRENT chosen clip.
+                video_variants: Object.fromEntries(
+                  Object.entries(prev.video_variants ?? {}).map(([presetId, v]) => [presetId, { ...v, asset_id: assetId }]),
+                ),
+              }))}
               onNext={() => void persist(4, {})}
             />
           )}

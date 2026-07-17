@@ -12,11 +12,11 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { VIDEO_MODES, VIDEO_SCHEMA_VERSION, resolveVideoPosition } from '../stepRegistry';
 import { useCreateOmniRun, useOmniRun, useUpdateOmniRun } from '@/hooks/omni';
 import type { OmniImagesState, OmniVideoScenario } from '@/hooks/omni';
 import { DRAFT_ENGINES, engineById, engineFromCustomRef } from './vsEngines';
+import { StageRail } from '../wizard/StageRail';
 import { VSScenario } from './VSScenario';
 import { VSStoryboardCast } from './VSStoryboardCast';
 import { VSScenes } from './VSScenes';
@@ -161,27 +161,14 @@ export function VideoStudioWizard({ runId, onRunCreated, onExit }: VideoStudioWi
         </div>
       </div>
 
-      <div className="flex shrink-0 gap-1.5 border-b border-border px-4 py-2 sm:px-6" role="group" aria-label="Stages">
-        {stages.map((s) => {
-          const reachable = s.ordinal <= Math.min(position.maxStageOrdinal, built);
-          return (
-            <button
-              key={s.id}
-              onClick={() => reachable && s.ordinal !== ordinal && void persist(s.ordinal, {})}
-              disabled={!reachable}
-              aria-label={`${s.title}${reachable ? '' : s.ordinal > built ? ' (lands in a later phase)' : ' (not reached yet)'}`}
-              aria-current={s.ordinal === ordinal ? 'step' : undefined}
-              className={cn(
-                'h-1.5 flex-1 rounded-full transition-colors duration-200',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                s.ordinal === ordinal ? 'bg-purple-500'
-                  : reachable ? 'cursor-pointer bg-purple-500/35 hover:bg-purple-500/60'
-                  : 'bg-muted',
-              )}
-            />
-          );
-        })}
-      </div>
+      <StageRail
+        stages={stages.map((s) => ({ ordinal: s.ordinal, title: s.title }))}
+        current={ordinal}
+        isReachable={(o) => o <= Math.min(position.maxStageOrdinal, built)}
+        unreachableHint={(o) => (o > built ? ' (lands in a later phase)' : ' (not reached yet)')}
+        onJump={(o) => void persist(o, {})}
+        accent="purple"
+      />
 
       <motion.div
         key={ordinal}

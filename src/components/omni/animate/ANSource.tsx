@@ -22,13 +22,17 @@ const MAX_REFS = 9;
 
 interface ANSourceProps {
   creating: boolean;
+  /** Existing run's refs (TOP-1 fix): seed the picker so Back never shows it empty. */
+  initialRefs?: OmniAnimateRef[];
   onPicked: (refs: OmniAnimateRef[], entryName: string) => void;
 }
 
-export function ANSource({ creating, onPicked }: ANSourceProps) {
+export function ANSource({ creating, initialRefs, onPicked }: ANSourceProps) {
   const [search, setSearch] = useState('');
   const [entryId, setEntryId] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Map<string, OmniAnimateRef>>(new Map());
+  const [selected, setSelected] = useState<Map<string, OmniAnimateRef>>(
+    () => new Map((initialRefs ?? []).map((r) => [r.wishpedia_image_id, r])),
+  );
 
   const entries = useWishpediaEntries({ search });
   const images = useWishpediaImages(entryId ?? undefined);
@@ -128,6 +132,29 @@ export function ANSource({ creating, onPicked }: ANSourceProps) {
             )}
           </div>
         )
+      )}
+
+      {selected.size > 0 && (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Attached references">
+          {[...selected.values()].map((r) => (
+            <button
+              key={r.wishpedia_image_id}
+              onClick={() => setSelected((prev) => {
+                const next = new Map(prev);
+                next.delete(r.wishpedia_image_id);
+                return next;
+              })}
+              aria-label={`Remove ${r.label}`}
+              title={`Remove ${r.label}`}
+              className={cn(
+                'relative h-14 w-14 cursor-pointer overflow-hidden rounded-lg border border-violet-500/50 transition-all duration-200',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:border-destructive/60',
+              )}
+            >
+              <img src={r.url} alt={r.label} loading="lazy" className="h-full w-full object-cover" />
+            </button>
+          ))}
+        </div>
       )}
 
       <div className="flex items-center justify-between gap-3">

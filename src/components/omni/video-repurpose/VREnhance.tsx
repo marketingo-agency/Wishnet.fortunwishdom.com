@@ -22,19 +22,30 @@ interface VREnhanceProps {
   runId: string;
   sourceAssetId: string;
   durationS: number;
+  /** TOP-6: false means durationS is an unverified estimate — cost lines label it. */
+  durationVerified: boolean;
+  /** TOP-8: the persisted SFX asset id (step_state), so a resumed run restores
+   *  the paid mmaudio output instead of showing an empty pass that invites re-pay. */
+  sfxAssetId: string | null;
+  /** Persist the SFX asset id the moment submit returns (TOP-8). */
+  onSfxSubmitted: (assetId: string) => void;
   upscaleVariant?: OmniVideoVariantRef;
   onUpscaleSaved: (ref: OmniVideoVariantRef) => void;
   onSourceReplaced: (assetId: string) => void;
   onNext: () => void;
 }
 
-export function VREnhance({ runId, sourceAssetId, durationS, upscaleVariant, onUpscaleSaved, onSourceReplaced, onNext }: VREnhanceProps) {
+export function VREnhance({ runId, sourceAssetId, durationS, durationVerified, sfxAssetId: persistedSfxId, onSfxSubmitted, upscaleVariant, onUpscaleSaved, onSourceReplaced, onNext }: VREnhanceProps) {
   const [busyOp, setBusyOp] = useState<string | null>(null);
   const [sfxPrompt, setSfxPrompt] = useState('natural ambient sound effects matching the scene');
-  const [sfxAssetId, setSfxAssetId] = useState<string | null>(null);
+  // A just-submitted id takes precedence; otherwise the persisted id restores
+  // the SFX result on resume (TOP-8).
+  const [localSfxId, setLocalSfxId] = useState<string | null>(null);
+  const activeSfxId = localSfxId ?? persistedSfxId;
   const [thumbs, setThumbs] = useState<string[]>([]);
   const upscale = usePolledAsset(upscaleVariant?.asset_id);
-  const sfx = usePolledAsset(sfxAssetId);
+  const sfx = usePolledAsset(activeSfxId ?? undefined);
+  const est = durationVerified ? '' : ' (est.)';
 
   const sourceUrl = async (): Promise<string> => {
     const [r] = await pollVideoAssets([sourceAssetId]);
@@ -68,7 +79,8 @@ export function VREnhance({ runId, sourceAssetId, durationS, upscaleVariant, onU
         op: 'fal-ai/mmaudio-v2',
         input: { video_url: url, prompt: sfxPrompt.trim() || 'natural ambient sound effects', duration: Math.min(durationS, 30) },
       });
-      setSfxAssetId(res.asset_id);
+      setLocalSfxId(res.asset_id);
+      onSfxSubmitted(res.asset_id); // TOP-8: persist immediately so a closed tab never orphans it
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'The SFX pass could not be started');
     } finally {
@@ -109,7 +121,7 @@ export function VREnhance({ runId, sourceAssetId, durationS, upscaleVariant, onU
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-xs font-semibold"><Sparkles className="mr-1.5 inline h-3.5 w-3.5 text-violet-400" aria-hidden />YouTube hero upscale</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">Topaz 2x + 60fps interpolation · ~${(0.01 * durationS).toFixed(2)} · becomes the YouTube long-form variant</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">Topaz 2x + 60fps interpolation · ~${(0.01 * durationS).toFixed(2)}{est} · becomes the YouTube long-form variant</p>
           </div>
           <Button size="sm" onClick={() => void runUpscale()} disabled={upscaleBusy} className="h-8 cursor-pointer gap-1.5 bg-gradient-to-r from-violet-500 to-purple-600 text-xs text-white transition-all duration-300 hover:opacity-90">
             {upscaleBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
@@ -128,7 +140,7 @@ export function VREnhance({ runId, sourceAssetId, durationS, upscaleVariant, onU
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-xs font-semibold"><AudioLines className="mr-1.5 inline h-3.5 w-3.5 text-violet-400" aria-hidden />SFX pass (silent drafts)</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">mmaudio synced sound · ~${(0.001 * Math.min(durationS, 30)).toFixed(3)} · caps at 30s</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">mmaudio synced sound · ~${(0.001 * Math.min(durationS, 30)).toFixed(3)}{est} · caps at 30s</p>
           </div>
           <Button size="sm" onClick={() => void runSfx()} disabled={sfxBusy} className="h-8 cursor-pointer gap-1.5 bg-gradient-to-r from-violet-500 to-purple-600 text-xs text-white transition-all duration-300 hover:opacity-90">
             {sfxBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AudioLines className="h-3.5 w-3.5" />}
@@ -139,10 +151,10 @@ export function VREnhance({ runId, sourceAssetId, durationS, upscaleVariant, onU
         {sfx.status === 'failed' && (
           <p className="flex items-start gap-1.5 text-[11px] text-destructive" role="alert"><XCircle className="mt-px h-3.5 w-3.5 shrink-0" /> {sfx.error}</p>
         )}
-        {sfx.status === 'done' && sfx.url && sfxAssetId && (
+        {sfx.status === 'done' && sfx.url && activeSfxId && (
           <div className="space-y-2">
             <video src={sfx.url} controls preload="metadata" className="max-h-56 w-full rounded-md border border-border object-contain" aria-label="Video with SFX" />
-            <Button variant="outline" size="sm" onClick={() => onSourceReplaced(sfxAssetId)} className="h-7 cursor-pointer text-xs">
+            <Button variant="outline" size="sm" onClick={() => onSourceReplaced(activeSfxId)} className="h-7 cursor-pointer text-xs">
               Use as the working source (targets re-fan from this)
             </Button>
           </div>

@@ -45,9 +45,15 @@ export async function pollVideoAssets(assetIds: string[]): Promise<VideoPollEntr
   return res.results;
 }
 
+/** Overall poll ceiling — beyond this the runner hands off to resume/finisher. */
+const RUN_DEADLINE_MS = 20 * 60_000;
+
 export function useVideoScenes(runId: string | null) {
   const [clips, setClips] = useState<Record<number, SceneClipState>>({});
   const [isRunning, setIsRunning] = useState(false);
+  /** True when polling gave up (network loss or deadline) while clips were
+   *  still pending — the UI shows a lost-contact banner (rehab TOP fix). */
+  const [lostContact, setLostContact] = useState(false);
   const stopRef = useRef(false);
   useEffect(() => {
     stopRef.current = false;
@@ -101,6 +107,7 @@ export function useVideoScenes(runId: string | null) {
     if (!runId || isRunning || scenes.length === 0) return;
     stopRef.current = false;
     setIsRunning(true);
+    setLostContact(false);
     try {
       const pending = new Map<string, number>();
       for (const scene of scenes) {
@@ -136,7 +143,12 @@ export function useVideoScenes(runId: string | null) {
       }
 
       let consecutiveErrors = 0;
+      const deadline = Date.now() + RUN_DEADLINE_MS;
       while (pending.size > 0 && !stopRef.current) {
+        if (Date.now() > deadline) {
+          setLostContact(true); // clips keep completing server-side
+          break;
+        }
         await new Promise((r) => setTimeout(r, 3500));
         let results: VideoPollEntry[];
         try {
@@ -144,7 +156,10 @@ export function useVideoScenes(runId: string | null) {
           consecutiveErrors = 0;
         } catch {
           consecutiveErrors += 1;
-          if (consecutiveErrors >= 3) break; // resume/finisher will recover
+          if (consecutiveErrors >= 3) {
+            setLostContact(true); // resume/finisher will recover
+            break;
+          }
           continue;
         }
         for (const r of results) {
@@ -170,5 +185,5 @@ export function useVideoScenes(runId: string | null) {
     stopRef.current = true;
   }, []);
 
-  return { clips, isRunning, runScenes, restore, stop, patch };
+  return { clips, isRunning, lostContact, runScenes, restore, stop, patch };
 }

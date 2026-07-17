@@ -9,7 +9,7 @@
  * ≤15s (Kling/Seedance enums) — longer stories belong in Video Studio.
  */
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, Check, Loader2, X, Zap } from 'lucide-react';
 import { toast } from 'sonner';
@@ -18,7 +18,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { VIDEO_MODES, VIDEO_SCHEMA_VERSION, resolveVideoPosition } from '../stepRegistry';
 import { useCreateOmniRun, useOmniRun, useUpdateOmniRun } from '@/hooks/omni';
-import type { OmniImagesState, OmniVideoVariantRef } from '@/hooks/omni';
+import type { OmniImagesState, OmniScenarioScene, OmniVideoVariantRef } from '@/hooks/omni';
+import { StageRail } from '../wizard/StageRail';
 import { OMNI_VIDEO_NETWORKS } from '../omniVideoNetworkPresets';
 import { VSCaptions } from '../video-studio/VSCaptions';
 import { VSFinalizeVideo } from '../video-studio/VSFinalizeVideo';
@@ -90,6 +91,35 @@ export function ClipsWizard({ runId, onRunCreated, onExit }: ClipsWizardProps) {
 
   const engine: ClipEngineOption = CLIP_ENGINES.find((e) => e.id === (state.video_engine_id ?? engineId)) ?? CLIP_ENGINES[0];
 
+  // TOP-1 fix (a): arriving on screen 1 of an EXISTING run (Back from 2+, or a
+  // resume parked at step 1) rehydrates the idea fields from the persisted
+  // step_state - the useState defaults above are for brand-new runs only.
+  const seededIdeaRef = useRef(false);
+  useEffect(() => {
+    if (position.ordinal !== 1) {
+      seededIdeaRef.current = false;
+      return;
+    }
+    if (!runId || !run.data || seededIdeaRef.current) return;
+    seededIdeaRef.current = true;
+    const saved = stateRef.current;
+    const savedIdea = saved.objective;
+    const savedScenes = saved.scenario?.scenes ?? [];
+    if (savedIdea) setIdea(savedIdea);
+    if (saved.video_engine_id && CLIP_ENGINES.some((e) => e.id === saved.video_engine_id)) {
+      setEngineId(saved.video_engine_id);
+    }
+    if (savedScenes.length > 0) {
+      setTakes(savedScenes.length >= 2 ? 2 : 1);
+      setSeconds(savedScenes[0].duration_s);
+      // The template id is not persisted - recover it by matching the composed prompt.
+      const matched = savedIdea
+        ? CLIP_TEMPLATES.find((t) => t.compose(savedIdea) === savedScenes[0].visual_prompt)
+        : undefined;
+      if (matched) setTemplateId(matched.id);
+    }
+  }, [position.ordinal, runId, run.data]);
+
   const startClip = async () => {
     const trimmed = idea.trim();
     if (!trimmed) {
@@ -106,6 +136,36 @@ export function ClipsWizard({ runId, onRunCreated, onExit }: ClipsWizardProps) {
       narration: '',
       duration_s: clampedSeconds,
     }));
+    // TOP-1 fix (b): an existing wizard NEVER forks a second run - Generate on
+    // a run that already exists persists the (possibly edited) inputs into the
+    // SAME run and advances to screen 2. Unchanged takes keep their paid clip
+    // ids (the runner's "retry missing" semantics extend/replace from there).
+    if (runId) {
+      await persist(2, (prev) => {
+        const sameEngine = prev.video_engine_id === chosen.id;
+        const nextScenes: OmniScenarioScene[] = scenes.map((scene) => {
+          const old = prev.scenario?.scenes.find((o) => o.idx === scene.idx);
+          const unchanged = sameEngine && old?.visual_prompt === scene.visual_prompt && old?.duration_s === scene.duration_s;
+          return unchanged && old?.clip_asset_id ? { ...scene, clip_asset_id: old.clip_asset_id } : scene;
+        });
+        const keptIds = new Set(nextScenes.flatMap((s) => (s.clip_asset_id ? [s.clip_asset_id] : [])));
+        const approved = (prev.approved_asset_ids ?? []).filter((id) => keptIds.has(id));
+        const keptChosenId = approved[0];
+        return {
+          objective: trimmed,
+          scenario: { title: trimmed.slice(0, 120), scenes: nextScenes },
+          video_engine_id: chosen.id,
+          approved_asset_ids: approved,
+          // Invariant (TOP-2): variants always point at the currently chosen take.
+          video_variants: keptChosenId
+            ? Object.fromEntries(
+                Object.entries(prev.video_variants ?? {}).map(([presetId, v]) => [presetId, { ...v, asset_id: keptChosenId }]),
+              )
+            : {},
+        };
+      });
+      return;
+    }
     try {
       const created = await createRun.mutateAsync({
         mode: MODE,
@@ -179,27 +239,13 @@ export function ClipsWizard({ runId, onRunCreated, onExit }: ClipsWizardProps) {
         </div>
       </div>
 
-      <div className="flex shrink-0 gap-1.5 border-b border-border px-4 py-2 sm:px-6" role="group" aria-label="Screens">
-        {stages.map((s) => {
-          const reachable = s.ordinal <= Math.min(position.maxStageOrdinal, built);
-          return (
-            <button
-              key={s.id}
-              onClick={() => reachable && s.ordinal !== ordinal && void persist(s.ordinal, {})}
-              disabled={!reachable}
-              aria-label={`${s.title}${reachable ? '' : ' (not reached yet)'}`}
-              aria-current={s.ordinal === ordinal ? 'step' : undefined}
-              className={cn(
-                'h-1.5 flex-1 rounded-full transition-colors duration-200',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                s.ordinal === ordinal ? 'bg-purple-500'
-                  : reachable ? 'cursor-pointer bg-purple-500/35 hover:bg-purple-500/60'
-                  : 'bg-muted',
-              )}
-            />
-          );
-        })}
-      </div>
+      <StageRail
+        stages={stages.map((s) => ({ ordinal: s.ordinal, title: s.title }))}
+        current={ordinal}
+        isReachable={(o) => o <= Math.min(position.maxStageOrdinal, built)}
+        onJump={(o) => void persist(o, {})}
+        accent="purple"
+      />
 
       <motion.div
         key={ordinal}
@@ -298,10 +344,10 @@ export function ClipsWizard({ runId, onRunCreated, onExit }: ClipsWizardProps) {
                 <Button
                   size="sm"
                   onClick={() => void startClip()}
-                  disabled={createRun.isPending || !idea.trim()}
+                  disabled={createRun.isPending || updateRun.isPending || !idea.trim()}
                   className="h-8 cursor-pointer gap-1.5 bg-gradient-to-r from-violet-500 to-purple-600 text-xs text-white transition-all duration-300 hover:opacity-90"
                 >
-                  {createRun.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                  {createRun.isPending || updateRun.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
                   Generate the clip
                 </Button>
               </div>
@@ -322,7 +368,13 @@ export function ClipsWizard({ runId, onRunCreated, onExit }: ClipsWizardProps) {
                   },
                 }));
               }}
-              onChosen={(assetId) => void persist(2, { approved_asset_ids: [assetId] })}
+              onChosen={(assetId) => void persist(2, (prev) => ({
+                approved_asset_ids: [assetId],
+                // Invariant (TOP-2): variants always point at the currently chosen take.
+                video_variants: Object.fromEntries(
+                  Object.entries(prev.video_variants ?? {}).map(([presetId, v]) => [presetId, { ...v, asset_id: assetId }]),
+                ),
+              }))}
               onNext={() => void persist(3, {})}
             />
           )}

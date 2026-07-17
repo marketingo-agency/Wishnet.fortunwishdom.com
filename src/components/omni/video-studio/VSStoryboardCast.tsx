@@ -189,7 +189,13 @@ export function VSStoryboardCast({ scenario, initialEngineId, initialCustomEngin
               <p className="py-2 text-xs text-destructive" role="alert">The catalog could not be loaded. Try again.</p>
             ) : (
               <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
-                {(catalog.data?.models ?? []).filter((m) => !curatedIds.has(m.id)).map((m) => {
+                {(catalog.data?.models ?? [])
+                  .filter((m) => !curatedIds.has(m.id))
+                  // Defense-in-depth: the live omni edge ignores unknown
+                  // capabilities until its fal-catalog rider deploys, so the
+                  // category is re-filtered client-side either way.
+                  .filter((m) => m.category === (wantI2v ? 'image-to-video' : 'text-to-video'))
+                  .map((m) => {
                   const active = engine.modelId === m.id;
                   return (
                     <button

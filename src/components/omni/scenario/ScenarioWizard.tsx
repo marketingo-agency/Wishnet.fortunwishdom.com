@@ -13,12 +13,12 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import {
   VIDEO_MODES, VIDEO_SCHEMA_VERSION, resolveVideoPosition,
 } from '../stepRegistry';
 import { useCreateOmniRun, useOmniRun, useUpdateOmniRun } from '@/hooks/omni';
 import type { OmniImagesState, OmniVideoScenario } from '@/hooks/omni';
+import { StageRail } from '../wizard/StageRail';
 import { ScenarioBrief } from './ScenarioBrief';
 import { ScenarioStructure } from './ScenarioStructure';
 import { ScenarioStoryboard } from './ScenarioStoryboard';
@@ -195,27 +195,13 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
       </div>
 
       {/* Stage rail: reached stages are clickable (high-water). */}
-      <div className="flex shrink-0 gap-1.5 border-b border-border px-4 py-2 sm:px-6" role="group" aria-label="Stages">
-        {stages.map((s) => {
-          const reachable = s.ordinal <= position.maxStageOrdinal;
-          return (
-            <button
-              key={s.id}
-              onClick={() => reachable && s.ordinal !== ordinal && void persist(s.ordinal, {})}
-              disabled={!reachable}
-              aria-label={`${s.title}${reachable ? '' : ' (not reached yet)'}`}
-              aria-current={s.ordinal === ordinal ? 'step' : undefined}
-              className={cn(
-                'h-1.5 flex-1 rounded-full transition-colors duration-200',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                s.ordinal === ordinal ? 'bg-violet-500'
-                  : reachable ? 'cursor-pointer bg-violet-500/35 hover:bg-violet-500/60'
-                  : 'bg-muted',
-              )}
-            />
-          );
-        })}
-      </div>
+      <StageRail
+        stages={stages.map((s) => ({ ordinal: s.ordinal, title: s.title }))}
+        current={ordinal}
+        isReachable={(o) => o <= position.maxStageOrdinal}
+        onJump={(o) => void persist(o, {})}
+        accent="violet"
+      />
 
       <motion.div
         key={ordinal}

@@ -69,6 +69,12 @@ export function VSScenes({ runId, scenario, engine: engineProp, approvedIds, onC
 
   return (
     <div className="space-y-4">
+      {runner.lostContact && (
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400" role="status">
+          Lost contact while watching the renders — they keep completing server-side.
+          Leave and reopen this run (or re-run the remaining scenes) to pick the results up.
+        </p>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground" aria-live="polite">
           {doneScenes.length}/{scenario.scenes.length} scenes done
