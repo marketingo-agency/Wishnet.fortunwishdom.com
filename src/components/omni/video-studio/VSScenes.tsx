@@ -4,8 +4,7 @@
  * Video Studio stage 3: per-scene draft generation, review, approval.
  * Sequential submits + batched polling (useVideoScenes); failed scenes get
  * Retry and never count as fulfilled (GEN-01); the finisher completes rows
- * for closed tabs and resume restores them. Ends at the Phase-5 interim
- * terminal: scenes are saved, audio & assembly land in Phase 6.
+ * for closed tabs and resume restores them. Continues to stage 4 (Audio).
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -23,9 +22,10 @@ interface VSScenesProps {
   approvedIds: string[];
   onClipCreated: (sceneIdx: number, assetId: string) => void;
   onApprovedChange: (assetIds: string[]) => void;
+  onContinue: () => void;
 }
 
-export function VSScenes({ runId, scenario, engine: engineProp, approvedIds, onClipCreated, onApprovedChange }: VSScenesProps) {
+export function VSScenes({ runId, scenario, engine: engineProp, approvedIds, onClipCreated, onApprovedChange, onContinue }: VSScenesProps) {
   const engine = DRAFT_ENGINES.find((e) => e.id === engineProp.id) ?? engineProp;
   const runner = useVideoScenes(runId);
   const approved = new Set(approvedIds);
@@ -157,14 +157,23 @@ export function VSScenes({ runId, scenario, engine: engineProp, approvedIds, onC
         })}
       </div>
 
-      {/* Interim terminal (Plan 2 §4): the pipeline continues in Phase 6. */}
       {doneScenes.length > 0 && !runner.isRunning && (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 p-5 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-muted/20 p-5 text-center">
           <Clapperboard className="h-5 w-5 text-violet-400" />
           <p className="text-sm font-medium">Your scenes are saved{approved.size > 0 ? ` (${approved.size} approved)` : ''}.</p>
           <p className="max-w-md text-xs text-muted-foreground">
-            Voiceover, music, and timeline assembly land in Phase 6 of this build — the run resumes right here from History.
+            {approved.size === 0
+              ? 'Approve the scenes you want in the cut, then continue to voiceover and music.'
+              : 'Next: voiceover, music, and timeline assembly.'}
           </p>
+          <Button
+            size="sm"
+            onClick={onContinue}
+            disabled={approved.size === 0}
+            className="h-8 cursor-pointer bg-gradient-to-r from-violet-500 to-purple-600 text-xs text-white transition-all duration-300 hover:opacity-90"
+          >
+            Continue to Audio
+          </Button>
         </div>
       )}
     </div>

@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * VideoStudioWizard: the omni_videos orchestrator (Plan 2 Phase 5 — stages
- * 1-3 of 8). Video-ordinal persistence with a high-water mark; resumes clamp
- * to the registry's builtThrough; stages 4-8 land in Phases 6-7 (interim-
- * terminal rule — the Scenes stage ends with an honest "continues in Phase 6"
- * panel, never a dead end).
+ * VideoStudioWizard: the omni_videos orchestrator (Plan 2 Phases 5-6 —
+ * stages 1-5 of 8). Video-ordinal persistence with a high-water mark;
+ * resumes clamp to the registry's builtThrough; stages 6-8 land in Phase 7
+ * (interim-terminal rule — the Assembly stage ends with an honest
+ * "continues in Phase 7" panel, never a dead end).
  */
 
 import { useMemo, useState } from 'react';
@@ -21,6 +21,8 @@ import { DRAFT_ENGINES } from './vsEngines';
 import { VSScenario } from './VSScenario';
 import { VSStoryboardCast } from './VSStoryboardCast';
 import { VSScenes } from './VSScenes';
+import { VSAudio } from './VSAudio';
+import { VSAssembly } from './VSAssembly';
 
 const MODE = 'omni_videos' as const;
 
@@ -196,6 +198,49 @@ export function VideoStudioWizard({ runId, onRunCreated, onExit }: VideoStudioWi
                 });
               }}
               onApprovedChange={(ids) => void persist(3, { approved_asset_ids: ids })}
+              onContinue={() => void persist(4, {})}
+            />
+          )}
+          {ordinal === 4 && scenario && runId && (
+            <VSAudio
+              runId={runId}
+              scenario={scenario}
+              voiceoverAssetId={state.voiceover_asset_id}
+              voiceId={state.voiceover_voice_id}
+              musicAssetId={state.music_asset_id}
+              musicPrompt={state.music_prompt}
+              onNarrationChange={(sceneIdx, narration) => {
+                void persist(4, {
+                  scenario: {
+                    ...scenario,
+                    scenes: scenario.scenes.map((s) => (s.idx === sceneIdx ? { ...s, narration } : s)),
+                  },
+                });
+              }}
+              onVoiceoverStarted={(assetId, pickedVoiceId) =>
+                void persist(4, { voiceover_asset_id: assetId, voiceover_voice_id: pickedVoiceId })}
+              onMusicStarted={(assetId, prompt) =>
+                void persist(4, { music_asset_id: assetId, music_prompt: prompt })}
+              onNext={() => void persist(5, {})}
+            />
+          )}
+          {ordinal === 5 && scenario && runId && (
+            <VSAssembly
+              runId={runId}
+              scenario={scenario}
+              approvedIds={state.approved_asset_ids ?? []}
+              voiceoverAssetId={state.voiceover_asset_id}
+              musicAssetId={state.music_asset_id}
+              assemblyAssetId={state.assembly_asset_id}
+              onHeroStarted={(sceneIdx, assetId) => {
+                void persist(5, {
+                  scenario: {
+                    ...scenario,
+                    scenes: scenario.scenes.map((s) => (s.idx === sceneIdx ? { ...s, hero_asset_id: assetId } : s)),
+                  },
+                });
+              }}
+              onAssemblyStarted={(assetId) => void persist(5, { assembly_asset_id: assetId })}
             />
           )}
           {ordinal > 1 && !scenario && (

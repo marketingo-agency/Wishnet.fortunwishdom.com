@@ -199,6 +199,13 @@ export interface OmniImagesState {
   video_engine_id?: string;
   /** Provenance: the Scenario Studio run this Studio run was seeded from. */
   scenario_source_run_id?: string;
+  /** Stage 4 audio artifacts (Plan 2 Phase 6a): polled omni_assets rows. */
+  voiceover_asset_id?: string;
+  voiceover_voice_id?: string;
+  music_asset_id?: string;
+  music_prompt?: string;
+  /** Stage 5 output (Phase 6b): the assembled film's omni_assets row. */
+  assembly_asset_id?: string;
 }
 
 // ── Videos track (Plan 2 D-V2) ────────────────────────────────────────────────
