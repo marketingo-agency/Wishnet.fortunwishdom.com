@@ -603,6 +603,62 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // -- podcast-library-item (Phase 7 D-A10: item-only audio entry; full
+    // episodes publish via RSS, so no per-network posts here - audiograms and
+    // clips flow through the video track's normal Content Library path) -----
+    if (action === 'podcast-library-item') {
+      const runId = body.run_id;
+      if (!(await ownRun(runId))) return jsonResponse({ error: 'Run not found' }, 404);
+      // Idempotent per run (the finalize-run pattern).
+      const { data: existingItem } = await supabaseAdmin
+        .from('content_library_items')
+        .select('id')
+        .eq('source_run_id', runId)
+        .limit(1)
+        .maybeSingle();
+      if (existingItem) {
+        return jsonResponse({ item_id: (existingItem as { id: string }).id, already_exists: true });
+      }
+      const episodeAssetId = typeof body.episode_asset_id === 'string' ? body.episode_asset_id : '';
+      const { data: episodeRow } = await supabaseAdmin
+        .from('omni_assets')
+        .select('id, status, storage_path, metadata')
+        .eq('id', episodeAssetId)
+        .eq('user_id', userId)
+        .eq('run_id', runId)
+        .maybeSingle();
+      const episode = episodeRow as { id: string; status: string; storage_path: string | null; metadata: Record<string, unknown> | null } | null;
+      if (!episode || episode.status !== 'done' || !episode.storage_path) {
+        return jsonResponse({ error: 'The episode is not assembled yet' }, 400);
+      }
+      const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim().slice(0, 200) : 'Untitled episode';
+      const description = typeof body.description === 'string' ? body.description.slice(0, 4000) : '';
+      const durationS = Number(body.duration_s);
+      const { data: item, error: itemError } = await supabaseAdmin
+        .from('content_library_items')
+        .insert({
+          title,
+          description: description || null,
+          source_run_id: runId,
+          networks: [],
+          status: 'ready',
+          media_type: 'audio',
+          metadata: {
+            mode: 'omni_podcast',
+            asset_ids: [episode.id],
+            ...(Number.isFinite(durationS) && durationS > 0 ? { duration_s: Math.round(durationS) } : {}),
+          },
+          created_by: userId,
+        })
+        .select('id')
+        .single();
+      if (itemError || !item) {
+        console.error('omni-podcast: library item insert error:', itemError?.message);
+        return jsonResponse({ error: 'Failed to create the Content Library item' }, 500);
+      }
+      return jsonResponse({ item_id: (item as { id: string }).id });
+    }
+
     // -- podcast-poll (batched; persists fal-backed rows into omni-audio) -----
     if (action === 'podcast-poll') {
       const assetIds = Array.isArray(body.asset_ids)

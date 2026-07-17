@@ -84,7 +84,7 @@ export function LibraryItemSheet({ item, onOpenChange }: LibraryItemSheetProps) 
               {itemOnlyAssetIds.length > 0 && (
                 <section className="space-y-2">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {item.media_type === 'video' ? 'Saved videos' : 'Saved images'}
+                    {item.media_type === 'video' ? 'Saved videos' : item.media_type === 'audio' ? 'Saved audio' : 'Saved images'}
                   </h3>
                   <div className={cn('grid gap-2', itemOnlyAssetIds.length > 1 && item.media_type !== 'video' ? 'grid-cols-2' : 'grid-cols-1')}>
                     {itemOnlyAssetIds.map((id) => (
@@ -92,6 +92,8 @@ export function LibraryItemSheet({ item, onOpenChange }: LibraryItemSheetProps) 
                         {urls?.[id] ? (
                           item.media_type === 'video' ? (
                             <video src={urls[id]} poster={thumbs?.[id]} controls preload="metadata" className="max-h-64 w-full object-contain" aria-label="Saved library video" />
+                          ) : item.media_type === 'audio' ? (
+                            <audio src={urls[id]} controls preload="metadata" className="w-full p-2" aria-label="Saved library audio" />
                           ) : (
                             <img src={urls[id]} alt="Saved library asset" className="h-full w-full object-cover" loading="lazy" />
                           )
@@ -122,7 +124,9 @@ export function LibraryItemSheet({ item, onOpenChange }: LibraryItemSheetProps) 
                 </section>
               ) : (
                 <p className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
-                  This item was saved without network posts. Run it through Images Repurposing to create per-network variants.
+                  {item.media_type === 'audio'
+                    ? 'Episodes publish through the show feed, not network posts. Promo clips come from Podcast to Video.'
+                    : 'This item was saved without network posts. Run it through Images Repurposing to create per-network variants.'}
                 </p>
               )}
 

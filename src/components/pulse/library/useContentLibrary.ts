@@ -24,7 +24,7 @@ export interface ContentLibraryPost {
   error: string | null;
   posted_at: string | null;
   external_post_id: string | null;
-  media_type: 'image' | 'video';
+  media_type: 'image' | 'video' | 'audio';
   created_at: string;
   updated_at: string;
 }
@@ -36,7 +36,7 @@ export interface ContentLibraryItem {
   source_run_id: string | null;
   networks: string[];
   status: 'ready' | 'archived';
-  media_type: 'image' | 'video';
+  media_type: 'image' | 'video' | 'audio';
   metadata: { asset_ids?: string[]; srt_path?: string; thumb_path?: string; duration_s?: number } & Record<string, unknown>;
   created_by: string | null;
   created_at: string;

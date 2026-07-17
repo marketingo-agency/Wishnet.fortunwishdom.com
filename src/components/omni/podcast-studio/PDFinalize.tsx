@@ -8,9 +8,10 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Download, Loader2 } from 'lucide-react';
+import { Check, Download, LibraryBig, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { callOmniPodcast } from '@/lib/omniApi';
 import { supabase } from '@/integrations/supabase/client';
 import { downloadFromUrl } from '@/lib/downloadFromUrl';
 import { pollAudioAsset } from '@/hooks/omni/usePodcastRender';
@@ -31,6 +32,8 @@ export function PDFinalize({ state, runId, persist, onFinish }: PDFinalizeProps)
   const [episodeUrl, setEpisodeUrl] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [savingToLibrary, setSavingToLibrary] = useState(false);
+  const [libraryItemId, setLibraryItemId] = useState<string | null>(null);
 
   const durationEstimateS = useMemo(
     () => chunks.reduce((n, c) => n + (c.metadata?.duration_s ?? 0), 0),
@@ -52,6 +55,26 @@ export function PDFinalize({ state, runId, persist, onFinish }: PDFinalizeProps)
       await downloadFromUrl(episodeUrl, `${(notes.title || 'episode').replace(/[^a-zA-Z0-9 _-]/g, '').trim() || 'episode'}.mp3`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Download failed');
+    }
+  };
+
+  const addToLibrary = async () => {
+    if (!state.episode_asset_id) return;
+    setSavingToLibrary(true);
+    try {
+      const res = await callOmniPodcast<{ item_id: string; already_exists?: boolean }>('podcast-library-item', {
+        run_id: runId,
+        episode_asset_id: state.episode_asset_id,
+        title: notes.title || outline.title,
+        description: notes.description,
+        duration_s: durationEstimateS,
+      });
+      setLibraryItemId(res.item_id);
+      toast.success(res.already_exists ? 'Already in the Content Library.' : 'Added to the Content Library.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not add to the Content Library');
+    } finally {
+      setSavingToLibrary(false);
     }
   };
 
@@ -120,6 +143,23 @@ export function PDFinalize({ state, runId, persist, onFinish }: PDFinalizeProps)
             <Download className="h-3.5 w-3.5" />
             Download MP3
           </Button>
+          {libraryItemId ? (
+            <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 [[data-omni-theme=dark]_&]:text-emerald-400">
+              <Check className="h-3.5 w-3.5" />
+              In the Content Library
+            </span>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void addToLibrary()}
+              disabled={savingToLibrary || !state.episode_asset_id}
+              className="cursor-pointer gap-1.5 text-xs"
+            >
+              {savingToLibrary ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LibraryBig className="h-3.5 w-3.5" />}
+              Add to Content Library
+            </Button>
+          )}
         </div>
       </div>
 
