@@ -765,6 +765,26 @@ Deno.serve(async (req: Request) => {
         ? (run as { mode: string }).mode
         : 'omni_videos';
 
+      // Plan-2 finalize extension: the assembly's SRT/thumbnail sidecars ride
+      // the item metadata (paths only, D-V8) - resolved server-side from the
+      // caller's OWN assembly asset, never from client-supplied paths.
+      let srtPath: string | null = null;
+      let thumbPath: string | null = null;
+      let assemblyDurationS: number | null = null;
+      if (typeof body.assembly_asset_id === 'string') {
+        const { data: assembly } = await supabaseAdmin
+          .from('omni_assets')
+          .select('metadata')
+          .eq('id', body.assembly_asset_id)
+          .eq('user_id', userId)
+          .eq('run_id', runId)
+          .maybeSingle();
+        const assemblyMeta = ((assembly as { metadata?: Record<string, unknown> } | null)?.metadata ?? {}) as Record<string, unknown>;
+        if (typeof assemblyMeta.srt_path === 'string' && assemblyMeta.srt_path.startsWith(`${userId}/`)) srtPath = assemblyMeta.srt_path;
+        if (typeof assemblyMeta.thumb_path === 'string' && assemblyMeta.thumb_path.startsWith(`${userId}/`)) thumbPath = assemblyMeta.thumb_path;
+        if (typeof assemblyMeta.duration_s === 'number') assemblyDurationS = assemblyMeta.duration_s;
+      }
+
       // Idempotency: finalize is the only path to 'completed' (omni pattern).
       if ((run as { status?: string }).status === 'completed') {
         const { data: existingItem } = await supabaseAdmin
@@ -802,9 +822,13 @@ Deno.serve(async (req: Request) => {
           networks,
           status: 'ready',
           media_type: 'video',
-          metadata: itemOnly
-            ? { mode: runMode, asset_ids: itemAssetIds }
-            : { mode: runMode },
+          metadata: {
+            mode: runMode,
+            ...(itemOnly ? { asset_ids: itemAssetIds } : {}),
+            ...(srtPath ? { srt_path: srtPath } : {}),
+            ...(thumbPath ? { thumb_path: thumbPath } : {}),
+            ...(assemblyDurationS != null ? { duration_s: assemblyDurationS } : {}),
+          },
           created_by: userId,
         })
         .select('id')
