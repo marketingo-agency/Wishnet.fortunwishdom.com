@@ -21,7 +21,6 @@ import type { OmniRun, OmniTrack } from '@/hooks/omni';
 import { OmniTopBar } from '@/components/omni/OmniTopBar';
 import { OmniEntryTiles } from '@/components/omni/OmniEntryTiles';
 import { OmniImagesHub } from '@/components/omni/OmniImagesHub';
-import { OmniComingSoon } from '@/components/omni/OmniComingSoon';
 import { OmniImagesWizard } from '@/components/omni/wizard/OmniImagesWizard';
 import { TransformWizard } from '@/components/omni/transform/TransformWizard';
 import { RepurposeModeWizard } from '@/components/omni/repurpose-mode/RepurposeModeWizard';
@@ -29,13 +28,19 @@ import { CharacterStudioPicker } from '@/components/omni/character-studio/Charac
 import { HistoryView } from '@/components/omni/history/HistoryView';
 import { BrainstormView } from '@/components/omni/brainstorm/BrainstormView';
 import { VideosHub } from '@/components/omni/VideosHub';
+import { AudiosHub } from '@/components/omni/AudiosHub';
+import { CastPersonasView } from '@/components/omni/cast/CastPersonasView';
+import { PodcastScenarioWizard } from '@/components/omni/podcast-scenario/PodcastScenarioWizard';
+import { PodcastStudioWizard } from '@/components/omni/podcast-studio/PodcastStudioWizard';
+import { PodcastVideoWizard } from '@/components/omni/podcast-video/PodcastVideoWizard';
+import { PublishFeedView } from '@/components/omni/publish-feed/PublishFeedView';
 import { ScenarioWizard } from '@/components/omni/scenario/ScenarioWizard';
 import { VideoStudioWizard } from '@/components/omni/video-studio/VideoStudioWizard';
 import { ClipsWizard } from '@/components/omni/clips/ClipsWizard';
 import { AnimateWizard } from '@/components/omni/animate/AnimateWizard';
 import { RepurposeVideoWizard } from '@/components/omni/video-repurpose/RepurposeVideoWizard';
 import { resolveSurfaceForRun } from '@/components/omni/history/historyRouting';
-import { isVideoMode } from '@/components/omni/stepRegistry';
+import { isAudioMode, isVideoMode } from '@/components/omni/stepRegistry';
 import { OMNI_TRACKS } from '@/components/omni/omniConstants';
 
 type OmniTheme = 'light' | 'dark';
@@ -50,6 +55,11 @@ const IMAGES_MODE_IDS: ImagesMode[] = ['omni_images', 'character_studio', 'trans
 const TRACK_IDS = OMNI_TRACKS.map((t) => t.id) as string[];
 
 type VideosMode = 'hub' | 'history' | 'video_scenario' | 'omni_videos' | 'video_clips' | 'video_animate' | 'video_repurpose';
+
+type AudiosMode = 'hub' | 'history' | 'podcast_scenario' | 'omni_podcast' | 'cast_personas' | 'podcast_video' | 'publish_feed';
+/** Audio surfaces accepted from the URL — widened as each phase ships its
+ *  wizard (a deep link to an unbuilt surface must land on the hub, not blank). */
+const BUILT_AUDIO_SURFACES: AudiosMode[] = ['history', 'cast_personas', 'podcast_scenario', 'omni_podcast', 'podcast_video', 'publish_feed'];
 
 export default function OmniAgent() {
   const router = useRouter();
@@ -79,6 +89,7 @@ export default function OmniAgent() {
   const [view, setView] = useState<OmniView>('home');
   const [imagesMode, setImagesMode] = useState<ImagesMode>('hub');
   const [videosMode, setVideosMode] = useState<VideosMode>('hub');
+  const [audiosMode, setAudiosMode] = useState<AudiosMode>('hub');
   const [wizardRunId, setWizardRunId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -103,6 +114,12 @@ export default function OmniAgent() {
     if (track === 'videos') {
       const mode = params.get('mode');
       if (mode === 'history' || mode === 'video_scenario' || mode === 'omni_videos' || mode === 'video_clips' || mode === 'video_animate' || mode === 'video_repurpose') setVideosMode(mode);
+      const run = params.get('run');
+      if (run) setWizardRunId(run);
+    }
+    if (track === 'audios') {
+      const mode = params.get('mode');
+      if (mode && (BUILT_AUDIO_SURFACES as string[]).includes(mode)) setAudiosMode(mode as AudiosMode);
       const run = params.get('run');
       if (run) setWizardRunId(run);
     }
@@ -137,6 +154,7 @@ export default function OmniAgent() {
     setView(next);
     setImagesMode('hub');
     setVideosMode('hub');
+    setAudiosMode('hub');
     setWizardRunId(null);
     syncUrl(next, 'hub', null);
   }, [openImagesMode, syncUrl]);
@@ -146,6 +164,18 @@ export default function OmniAgent() {
     setWizardRunId(runId);
     const url = new URL(window.location.href);
     url.searchParams.set('track', 'videos');
+    if (mode === 'hub') url.searchParams.delete('mode');
+    else url.searchParams.set('mode', mode);
+    if (runId && mode !== 'hub') url.searchParams.set('run', runId);
+    else url.searchParams.delete('run');
+    window.history.replaceState({}, '', url);
+  }, []);
+
+  const openAudiosMode = useCallback((mode: AudiosMode, runId: string | null = null) => {
+    setAudiosMode(mode);
+    setWizardRunId(runId);
+    const url = new URL(window.location.href);
+    url.searchParams.set('track', 'audios');
     if (mode === 'hub') url.searchParams.delete('mode');
     else url.searchParams.set('mode', mode);
     if (runId && mode !== 'hub') url.searchParams.set('run', runId);
@@ -186,19 +216,26 @@ export default function OmniAgent() {
       openVideosMode(run.mode as VideosMode, run.id);
       return;
     }
+    if (isAudioMode(run.mode)) {
+      // Audio wizards land phase by phase; until a mode's surface is built,
+      // History resumes settle on the Audios hub (interim-terminal rule).
+      setView('audios');
+      const surface = run.mode as AudiosMode;
+      openAudiosMode(BUILT_AUDIO_SURFACES.includes(surface) ? surface : 'hub', run.id);
+      return;
+    }
     const surface = resolveSurfaceForRun(run) as ImagesMode;
     setWizardRunId(run.id);
     setView('images');
     setImagesMode(surface);
     syncUrl('images', surface, run.id);
-  }, [queryClient, syncUrl, openVideosMode]);
+  }, [queryClient, syncUrl, openVideosMode, openAudiosMode]);
 
   const { data: agentSettings, isLoading: loadingAgentSettings } = useAgentSettings('omni');
   const isInactive = !loadingAgentSettings && agentSettings && !agentSettings.is_active;
 
   const goHome = useCallback(() => selectView('home'), [selectView]);
 
-  const trackDef = (id: OmniTrack) => OMNI_TRACKS.find((t) => t.id === id)!;
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -288,14 +325,58 @@ export default function OmniAgent() {
                 />
               )}
 
-              {view === 'audios' && (
-                <OmniComingSoon
-                  icon={trackDef('audios').icon}
-                  gradient={trackDef('audios').gradient}
-                  title="Audios is coming soon"
-                  description="Voice, music, and sound creation will live here. The track has a reserved slot and will plug straight into this workspace."
-                  badgeLabel="Coming Soon"
+              {view === 'audios' && audiosMode === 'hub' && (
+                <AudiosHub
                   onBack={goHome}
+                  onSelectMode={(mode) => {
+                    openAudiosMode(mode as AudiosMode);
+                    // Other mode surfaces ship phase by phase (cards are inert until then).
+                  }}
+                />
+              )}
+
+              {view === 'audios' && audiosMode === 'podcast_scenario' && (
+                <PodcastScenarioWizard
+                  runId={wizardRunId}
+                  onRunCreated={(id) => openAudiosMode('podcast_scenario', id)}
+                  onExit={() => openAudiosMode('hub')}
+                  onHandoffToStudio={(id) => openAudiosMode('omni_podcast', id)}
+                />
+              )}
+
+              {view === 'audios' && audiosMode === 'omni_podcast' && (
+                <PodcastStudioWizard
+                  runId={wizardRunId}
+                  onRunCreated={(id) => openAudiosMode('omni_podcast', id)}
+                  onExit={() => openAudiosMode('hub')}
+                />
+              )}
+
+              {view === 'audios' && audiosMode === 'podcast_video' && (
+                <PodcastVideoWizard
+                  runId={wizardRunId}
+                  onRunCreated={(id) => openAudiosMode('podcast_video', id)}
+                  onExit={() => openAudiosMode('hub')}
+                  onOpenAnimate={() => {
+                    setView('videos');
+                    openVideosMode('video_animate');
+                  }}
+                />
+              )}
+
+              {view === 'audios' && audiosMode === 'publish_feed' && (
+                <PublishFeedView onExit={() => openAudiosMode('hub')} />
+              )}
+
+              {view === 'audios' && audiosMode === 'cast_personas' && (
+                <CastPersonasView onExit={() => openAudiosMode('hub')} />
+              )}
+
+              {view === 'audios' && audiosMode === 'history' && (
+                <HistoryView
+                  family="audios"
+                  onOpenRun={handleHistoryOpenRun}
+                  onExit={() => openAudiosMode('hub')}
                 />
               )}
 

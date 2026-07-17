@@ -162,6 +162,9 @@ export const RUN_MODE_META: Record<OmniMode, { label: string; badge: string }> =
   omni_videos: { label: 'Video Studio', badge: 'bg-purple-500/15 text-purple-600 [[data-omni-theme=dark]_&]:text-purple-300' },
   video_clips: { label: 'Clips', badge: 'bg-rose-500/15 text-rose-600 [[data-omni-theme=dark]_&]:text-rose-300' },
   video_animate: { label: 'Animate', badge: 'bg-indigo-500/15 text-indigo-600 [[data-omni-theme=dark]_&]:text-indigo-300' },
+  podcast_scenario: { label: 'Podcast Scenario', badge: 'bg-orange-500/15 text-orange-600 [[data-omni-theme=dark]_&]:text-orange-300' },
+  omni_podcast: { label: 'Podcast Studio', badge: 'bg-orange-500/15 text-orange-600 [[data-omni-theme=dark]_&]:text-orange-300' },
+  podcast_video: { label: 'Podcast to Video', badge: 'bg-rose-500/15 text-rose-600 [[data-omni-theme=dark]_&]:text-rose-300' },
   video_repurpose: { label: 'Repurpose & Enhance', badge: 'bg-teal-500/15 text-teal-600 [[data-omni-theme=dark]_&]:text-teal-300' },
 };
 

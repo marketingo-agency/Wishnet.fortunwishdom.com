@@ -5,7 +5,7 @@
  * and a compact per-status post count summary.
  */
 
-import { ImageOff } from 'lucide-react';
+import { AudioLines, ImageOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/components/settings/pulsePlatforms';
@@ -42,7 +42,14 @@ export function LibraryItemCard({ item, coverUrl, onOpen }: LibraryItemCardProps
         {item.media_type === 'video' && (
           <span className="absolute left-2 top-2 z-10 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">Video</span>
         )}
-        {coverUrl ? (
+        {item.media_type === 'audio' && (
+          <span className="absolute left-2 top-2 z-10 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">Audio</span>
+        )}
+        {item.media_type === 'audio' ? (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-orange-500/15 to-rose-500/15">
+            <AudioLines className="h-8 w-8 text-orange-400" />
+          </div>
+        ) : coverUrl ? (
           // Signed Supabase storage URL: plain img matches the rest of the app's storage rendering.
           <img src={coverUrl} alt={item.title} className="h-full w-full object-cover" loading="lazy" />
         ) : (

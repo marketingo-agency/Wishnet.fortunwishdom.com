@@ -969,6 +969,51 @@ export type Database = {
           },
         ]
       }
+      omni_personas: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          personality: string | null
+          portrait_url: string | null
+          role: string | null
+          speaking_style: string | null
+          updated_at: string
+          user_id: string
+          voice_id: string | null
+          voice_settings: Json
+          wishpedia_entry_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          personality?: string | null
+          portrait_url?: string | null
+          role?: string | null
+          speaking_style?: string | null
+          updated_at?: string
+          user_id: string
+          voice_id?: string | null
+          voice_settings?: Json
+          wishpedia_entry_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          personality?: string | null
+          portrait_url?: string | null
+          role?: string | null
+          speaking_style?: string | null
+          updated_at?: string
+          user_id?: string
+          voice_id?: string | null
+          voice_settings?: Json
+          wishpedia_entry_id?: string | null
+        }
+        Relationships: []
+      }
       omni_runs: {
         Row: {
           created_at: string
@@ -1313,6 +1358,125 @@ export type Database = {
           style_rules?: string | null
           typography_vibe?: string | null
           updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      podcast_episodes: {
+        Row: {
+          audio_path: string | null
+          bytes: number | null
+          chapters: Json
+          cover_path: string | null
+          created_at: string
+          description: string | null
+          duration_s: number | null
+          guid: string | null
+          id: string
+          public_audio_path: string | null
+          public_cover_path: string | null
+          published_at: string | null
+          run_id: string | null
+          show_id: string
+          sort: number
+          status: string
+          title: string
+          transcript_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          audio_path?: string | null
+          bytes?: number | null
+          chapters?: Json
+          cover_path?: string | null
+          created_at?: string
+          description?: string | null
+          duration_s?: number | null
+          guid?: string | null
+          id?: string
+          public_audio_path?: string | null
+          public_cover_path?: string | null
+          published_at?: string | null
+          run_id?: string | null
+          show_id: string
+          sort?: number
+          status?: string
+          title: string
+          transcript_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          audio_path?: string | null
+          bytes?: number | null
+          chapters?: Json
+          cover_path?: string | null
+          created_at?: string
+          description?: string | null
+          duration_s?: number | null
+          guid?: string | null
+          id?: string
+          public_audio_path?: string | null
+          public_cover_path?: string | null
+          published_at?: string | null
+          run_id?: string | null
+          show_id?: string
+          sort?: number
+          status?: string
+          title?: string
+          transcript_path?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "podcast_episodes_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "podcast_shows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      podcast_shows: {
+        Row: {
+          artwork_path: string | null
+          category: string | null
+          created_at: string
+          default_cast: Json
+          description: string | null
+          feed_config: Json
+          id: string
+          language: string
+          name: string
+          slug: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          artwork_path?: string | null
+          category?: string | null
+          created_at?: string
+          default_cast?: Json
+          description?: string | null
+          feed_config?: Json
+          id?: string
+          language?: string
+          name: string
+          slug: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          artwork_path?: string | null
+          category?: string | null
+          created_at?: string
+          default_cast?: Json
+          description?: string | null
+          feed_config?: Json
+          id?: string
+          language?: string
+          name?: string
+          slug?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []

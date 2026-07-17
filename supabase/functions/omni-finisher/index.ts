@@ -1,21 +1,30 @@
 /**
- * omni-finisher: the tab-closed completion sweep for video assets (Plan 2
- * D-V7). pg_cron fires this every 2 minutes via pg_net.
+ * omni-finisher: the tab-closed completion sweep for video AND podcast
+ * assets (Plan 2 D-V7 + Plan 3 D-A3.3). pg_cron fires this every 2 minutes
+ * via pg_net.
  *
  * DEPLOYED verify_jwt=false BY DESIGN (landmine #12: pg_net cannot carry a
  * user JWT, so a verify_jwt=true function 401s at the gateway before code
  * runs). Auth = a DB-seeded cron_secret validated in-function with a
  * constant-time compare - the exact content-library cron pattern.
  *
- * Sweep: video/audio assets stuck in pending/generating (>90s untouched)
- * with a fal_request_id, plus stale 'persisting' claims (>10 min) - poll
- * fal, take the CAS claim, persist, flip the row. Exactly one of client-poll/finisher
- * ever persists an asset (the claim is the guard).
+ * Three branches per sweep:
+ *  1. fal poller: video/audio rows with a fal_request_id stuck in
+ *     pending/generating (>90s) or stale 'persisting' (>10 min) - poll fal,
+ *     CAS-claim, persist (bucket-aware: podcast rows land in omni-audio).
+ *  2. TTS worker (Plan 3): ONE stale unclaimed podcast_chunk per sweep -
+ *     CAS-claim, execute the ElevenLabs render, persist. Chunks have no
+ *     fal_request_id and are invisible to branch 1 (landmine #11).
+ *  3. Assembly tail (Plan 3): a run whose chunks are ALL done and whose
+ *     step_state.render_stage is 'chunks' gets its merge-audios submitted
+ *     (jingle ids from step_state) - branch 1 then persists the result.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
-import { FalUserError, assertValidModelId, assertValidRequestId, falStatus } from '../omni/fal-runner.ts';
+import { FalUserError, assertValidModelId, assertValidRequestId, falStatus, falSubmit } from '../omni/fal-runner.ts';
 import { claimForPersist, persistFalVideo } from '../omni-video/persist.ts';
+import { persistFalMedia } from '../_shared/fal.ts';
+import { getElevenKey, renderLines, type SpeakerLine } from '../_shared/elevenlabs.ts';
 
 type AdminClient = ReturnType<typeof createClient>;
 
@@ -123,7 +132,16 @@ async function sweep(supabaseAdmin: AdminClient, falKey: string): Promise<Record
         summary.waiting += 1;
         continue;
       }
-      const persisted = await persistFalVideo(supabaseAdmin, row.user_id, row.run_id, row.id, video.url, video.contentType);
+      const isPodcast = typeof row.metadata?.kind === 'string' && String(row.metadata.kind).startsWith('podcast_');
+      const persisted = isPodcast
+        ? await persistFalMedia(supabaseAdmin, {
+          bucket: 'omni-audio',
+          basePath: `${row.user_id}/omni-podcast/${row.run_id}/${row.id}`,
+          falUrl: video.url,
+          contentType: video.contentType ?? 'audio/mpeg',
+          maxBytes: 200 * 1024 * 1024,
+        })
+        : await persistFalVideo(supabaseAdmin, row.user_id, row.run_id, row.id, video.url, video.contentType);
       await supabaseAdmin
         .from('omni_assets')
         .update({
@@ -148,6 +166,158 @@ async function sweep(supabaseAdmin: AdminClient, falKey: string): Promise<Record
   return summary;
 }
 
+/**
+ * Plan 3 branch 2: render ONE stale unclaimed podcast chunk per sweep.
+ * Pending chunks older than 90s (the interactive path gets first shot) or
+ * 'generating' rows stale >10 min (a killed worker) are eligible.
+ */
+async function ttsSweep(supabaseAdmin: AdminClient): Promise<number> {
+  const key = await getElevenKey(supabaseAdmin);
+  if (!key) return 0;
+  const genCutoff = new Date(Date.now() - 90_000).toISOString();
+  const staleCutoff = new Date(Date.now() - 10 * 60_000).toISOString();
+  const { data } = await supabaseAdmin
+    .from('omni_assets')
+    .select('id, user_id, run_id, status, metadata')
+    .eq('kind', 'audio')
+    .or(`and(status.eq.pending,created_at.lt.${genCutoff}),and(status.eq.generating,updated_at.lt.${staleCutoff})`)
+    .order('created_at', { ascending: true })
+    .limit(20);
+  const chunk = (((data ?? []) as SweepRow[]))
+    .find((r) => r.metadata?.kind === 'podcast_chunk' && typeof r.metadata?.fal_request_id !== 'string');
+  if (!chunk) return 0;
+
+  // CAS-claim (pending -> generating; or refresh a stale generating row).
+  const { data: claimed } = await supabaseAdmin
+    .from('omni_assets')
+    .update({ status: 'generating' })
+    .eq('id', chunk.id)
+    .in('status', ['pending', 'generating'])
+    .select('id');
+  if (((claimed ?? []) as { id: string }[]).length === 0) return 0;
+
+  try {
+    const lines = (chunk.metadata?.lines ?? []) as SpeakerLine[];
+    if (!Array.isArray(lines) || lines.length === 0) throw new Error('The chapter has no renderable lines');
+    const ttsModel = typeof chunk.metadata?.tts_model === 'string' ? chunk.metadata.tts_model as string : 'eleven_multilingual_v2';
+    const { bytes, words } = await renderLines(key, lines, ttsModel);
+    if (bytes.length > 20 * 1024 * 1024) throw new Error('This chapter renders above the 20MB chunk cap; split it.');
+    const storagePath = `${chunk.user_id}/omni-podcast/${chunk.run_id}/chunk-${chunk.id}.mp3`;
+    const { error: upErr } = await supabaseAdmin.storage
+      .from('omni-audio')
+      .upload(storagePath, bytes, { contentType: 'audio/mpeg', upsert: true });
+    if (upErr) throw new Error(upErr.message);
+    await supabaseAdmin
+      .from('omni_assets')
+      .update({
+        status: 'done',
+        storage_path: storagePath,
+        mime_type: 'audio/mpeg',
+        metadata: { ...chunk.metadata, byte_size: bytes.length, duration_s: Math.max(1, Math.round(words / 2.5)), finished_by: 'finisher' },
+      })
+      .eq('id', chunk.id);
+    return 1;
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Chapter render failed';
+    console.error('omni-finisher: TTS chunk error:', chunk.id, message);
+    await supabaseAdmin.from('omni_assets').update({ status: 'failed', error: message }).eq('id', chunk.id);
+    return 0;
+  }
+}
+
+/**
+ * Plan 3 branch 3: submit the merge for runs whose chunks are all done and
+ * whose step_state.render_stage is 'chunks' (set by the client at render
+ * start; jingle ids ride step_state too). Branch 1 persists the result.
+ */
+async function assemblySweep(supabaseAdmin: AdminClient, falKey: string): Promise<number> {
+  const { data: runs } = await supabaseAdmin
+    .from('omni_runs')
+    .select('id, user_id, step_state')
+    .eq('mode', 'omni_podcast')
+    .eq('status', 'active')
+    .limit(20);
+  let submitted = 0;
+  for (const run of ((runs ?? []) as { id: string; user_id: string; step_state: Record<string, unknown> | null }[])) {
+    const state = run.step_state ?? {};
+    if (state.render_stage !== 'chunks') continue;
+    const { data: rows } = await supabaseAdmin
+      .from('omni_assets')
+      .select('id, status, storage_path, metadata')
+      .eq('run_id', run.id)
+      .eq('kind', 'audio');
+    const assets = (rows ?? []) as { id: string; status: string; storage_path: string | null; metadata: Record<string, unknown> | null }[];
+    const chunks = assets
+      .filter((a) => a.metadata?.kind === 'podcast_chunk')
+      .sort((a, b) => Number(a.metadata?.chapter_idx ?? 0) - Number(b.metadata?.chapter_idx ?? 0));
+    if (chunks.length === 0 || chunks.some((c) => c.status !== 'done' || !c.storage_path)) continue;
+    if (assets.some((a) => a.metadata?.kind === 'podcast_episode')) continue; // already assembling
+
+    const sign = async (path: string): Promise<string | null> => {
+      if (!path.startsWith(`${run.user_id}/`)) return null;
+      const { data } = await supabaseAdmin.storage.from('omni-audio').createSignedUrl(path, 60 * 60);
+      return data?.signedUrl ?? null;
+    };
+    const urls: string[] = [];
+    const jingle = async (idField: string) => {
+      const id = state[idField];
+      if (typeof id !== 'string') return null;
+      const a = assets.find((x) => x.id === id && x.status === 'done' && x.storage_path);
+      return a ? sign(a.storage_path!) : null;
+    };
+    const intro = await jingle('intro_jingle_asset_id');
+    if (intro) urls.push(intro);
+    let ok = true;
+    for (const c of chunks) {
+      const u = await sign(c.storage_path!);
+      if (!u) { ok = false; break; }
+      urls.push(u);
+    }
+    if (!ok) continue;
+    const outro = await jingle('outro_jingle_asset_id');
+    if (outro) urls.push(outro);
+
+    // The insert IS the atomic claim (partial unique index, QA Critical):
+    // a concurrent client Assemble losing the race gets 23505 and adopts
+    // this row; if the CLIENT won, this insert 23505s and the sweep skips.
+    // step_state is deliberately NOT touched here - a wholesale step_state
+    // write from the sweep could clobber a live client's concurrent persist
+    // (the CR-C1 hazard); the client discovers the episode row on resume.
+    const { data: episodeAsset, error: episodeInsertError } = await supabaseAdmin
+      .from('omni_assets')
+      .insert({
+        user_id: run.user_id,
+        run_id: run.id,
+        kind: 'audio',
+        model_id: 'fal-ai/ffmpeg-api/merge-audios',
+        prompt: null,
+        status: 'generating',
+        metadata: { kind: 'podcast_episode', chapters: chunks.length },
+      })
+      .select('id')
+      .single();
+    if (episodeInsertError || !episodeAsset) {
+      if (episodeInsertError && episodeInsertError.code !== '23505') {
+        console.error('omni-finisher: episode insert error:', episodeInsertError.message);
+      }
+      continue;
+    }
+    const episodeId = (episodeAsset as { id: string }).id;
+    try {
+      const submission = await falSubmit(falKey, 'fal-ai/ffmpeg-api/merge-audios', { audio_urls: urls });
+      await supabaseAdmin.from('omni_assets')
+        .update({ metadata: { kind: 'podcast_episode', chapters: chunks.length, fal_request_id: submission.requestId, finished_by: 'finisher' } })
+        .eq('id', episodeId);
+      submitted += 1;
+    } catch (e) {
+      const message = e instanceof FalUserError ? e.message : 'Episode assembly could not be submitted';
+      console.error('omni-finisher: assembly error:', run.id, message);
+      await supabaseAdmin.from('omni_assets').update({ status: 'failed', error: message }).eq('id', episodeId);
+    }
+  }
+  return submitted;
+}
+
 Deno.serve(async (req: Request) => {
   try {
     const body = await req.json().catch(() => ({} as Record<string, unknown>));
@@ -167,12 +337,16 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Unauthorized' }, 401);
     }
 
+    // TTS recovery needs only the ElevenLabs key - never gate it on fal.
+    const tts = await ttsSweep(supabaseAdmin);
+
     const { data: llm } = await supabaseAdmin.from('llm_settings').select('fal_api_key').single();
     const falKey = ((llm?.fal_api_key as string | null) || Deno.env.get('FAL_KEY') || '').trim();
-    if (!falKey) return json({ swept: 0, note: 'fal not configured' });
+    if (!falKey) return json({ swept: 0, tts_rendered: tts, note: 'fal not configured' });
 
     const summary = await sweep(supabaseAdmin, falKey);
-    return json({ success: true, ...summary });
+    const assembled = await assemblySweep(supabaseAdmin, falKey);
+    return json({ success: true, ...summary, tts_rendered: tts, assemblies_submitted: assembled });
   } catch (e) {
     console.error('omni-finisher: unhandled error:', e instanceof Error ? e.message : String(e));
     return json({ error: 'Internal error' }, 500);

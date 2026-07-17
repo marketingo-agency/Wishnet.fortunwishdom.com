@@ -308,7 +308,7 @@ export function migrateStepState(state: OmniImagesState, rawStep: number, mode?:
 
 // ── Videos track (Plan 2 D-V1): mode-keyed stage sequences ────────────────────
 
-export type ModeFamily = 'images' | 'videos';
+export type ModeFamily = 'images' | 'videos' | 'audios';
 
 export type VideoModeId =
   | 'video_scenario'
@@ -328,6 +328,9 @@ export const MODE_FAMILY: Record<OmniMode, ModeFamily> = {
   video_clips: 'videos',
   video_animate: 'videos',
   video_repurpose: 'videos',
+  podcast_scenario: 'audios',
+  omni_podcast: 'audios',
+  podcast_video: 'audios',
 };
 
 export function modeFamily(mode: OmniMode): ModeFamily {
@@ -337,6 +340,15 @@ export function modeFamily(mode: OmniMode): ModeFamily {
 export function isVideoMode(mode: OmniMode): mode is VideoModeId {
   return modeFamily(mode) === 'videos';
 }
+
+export type AudioModeId = 'podcast_scenario' | 'omni_podcast' | 'podcast_video';
+
+export function isAudioMode(mode: OmniMode): mode is AudioModeId {
+  return modeFamily(mode) === 'audios';
+}
+
+/** Every mode driven by the stage-ordinal wizard machinery (videos + audios). */
+export type WizardModeId = VideoModeId | AudioModeId;
 
 /** step_state.video_schema_version stamped by every video-mode persist.
  *  Independent of the images schema_version: video runs are born on their own
@@ -351,7 +363,7 @@ export interface VideoStageDef {
 }
 
 export interface VideoModeDef {
-  mode: VideoModeId;
+  mode: WizardModeId;
   stages: VideoStageDef[];
   /**
    * Interim-terminal marker (Plan 2 §4): the last stage ordinal actually BUILT.
@@ -366,7 +378,7 @@ export interface VideoModeDef {
 const videoStages = (titles: [string, string][]): VideoStageDef[] =>
   titles.map(([id, title], i) => ({ id, ordinal: i + 1, title }));
 
-export const VIDEO_MODES: Record<VideoModeId, VideoModeDef> = {
+export const VIDEO_MODES: Record<WizardModeId, VideoModeDef> = {
   video_scenario: {
     mode: 'video_scenario',
     // Phase 4 shipped all four Scenario Studio stages.
@@ -426,20 +438,56 @@ export const VIDEO_MODES: Record<VideoModeId, VideoModeDef> = {
       ['finalize', 'Finalize'],
     ]),
   },
+
+  // -- Audios track (Plan 3 D-A1; builtThrough rises phase by phase) --------
+  podcast_scenario: {
+    mode: 'podcast_scenario',
+    // Phase 5: all four stages live.
+    builtThrough: 4,
+    stages: videoStages([
+      ['show_brief', 'Show & brief'],
+      ['outline', 'Outline'],
+      ['script', 'Script'],
+      ['cast_handoff', 'Cast & handoff'],
+    ]),
+  },
+  omni_podcast: {
+    mode: 'omni_podcast',
+    // Phase 6: all five stages live.
+    builtThrough: 5,
+    stages: videoStages([
+      ['script_in', 'Script in'],
+      ['cast', 'Cast'],
+      ['render', 'Render'],
+      ['package', 'Package'],
+      ['finalize', 'Finalize'],
+    ]),
+  },
+  podcast_video: {
+    mode: 'podcast_video',
+    // Phase 8: all four stages live.
+    builtThrough: 4,
+    stages: videoStages([
+      ['source', 'Source'],
+      ['treatment', 'Treatment'],
+      ['generate', 'Generate & review'],
+      ['finalize', 'Formats & finalize'],
+    ]),
+  },
 };
 
-export function videoModeDef(mode: VideoModeId): VideoModeDef {
+export function videoModeDef(mode: WizardModeId): VideoModeDef {
   return VIDEO_MODES[mode];
 }
 
-export function videoStageForOrdinal(mode: VideoModeId, ordinal: number): VideoStageDef {
+export function videoStageForOrdinal(mode: WizardModeId, ordinal: number): VideoStageDef {
   const stages = VIDEO_MODES[mode].stages;
   const clamped = Math.min(Math.max(Math.trunc(ordinal), 1), stages.length);
   return stages[clamped - 1];
 }
 
 /** Clamp a resume/jump ordinal to the mode's built range (interim-terminal). */
-export function clampToBuilt(mode: VideoModeId, ordinal: number): number {
+export function clampToBuilt(mode: WizardModeId, ordinal: number): number {
   const built = Math.max(VIDEO_MODES[mode].builtThrough, 1);
   return Math.min(Math.max(Math.trunc(ordinal), 1), built);
 }
@@ -453,7 +501,7 @@ export interface VideoRunPosition {
 /** Resolve a video run's rendered position: current_step clamped to the built
  *  range, high-water from max_step_reached (also clamped — a row persisted by
  *  a newer build never resumes into a stage this build can't render). */
-export function resolveVideoPosition(mode: VideoModeId, state: OmniImagesState, rawStep: number): VideoRunPosition {
+export function resolveVideoPosition(mode: WizardModeId, state: OmniImagesState, rawStep: number): VideoRunPosition {
   const ordinal = clampToBuilt(mode, rawStep);
   const maxStageOrdinal = clampToBuilt(mode, Math.max(state.max_step_reached ?? ordinal, ordinal));
   return { stage: videoStageForOrdinal(mode, ordinal), ordinal, maxStageOrdinal };
@@ -462,10 +510,10 @@ export function resolveVideoPosition(mode: VideoModeId, state: OmniImagesState, 
 /** Family-aware surface resolution: every video mode renders on its own
  *  surface (no mid-flow handoffs like transform); images modes keep the
  *  existing resolver. */
-export type AnyWizardSurface = WizardSurface | VideoModeId;
+export type AnyWizardSurface = WizardSurface | WizardModeId;
 
 export function surfaceForRunMode(mode: OmniMode, step: number): AnyWizardSurface {
-  return isVideoMode(mode) ? mode : surfaceForStep(mode, step);
+  return isVideoMode(mode) || isAudioMode(mode) ? mode : surfaceForStep(mode, step);
 }
 
 // ── History jump validation ───────────────────────────────────────────────────
@@ -484,9 +532,9 @@ export function surfaceForRunMode(mode: OmniMode, step: number): AnyWizardSurfac
 export function validateJumpTarget(run: OmniRun, targetStep: number): number | null {
   const state = (run.step_state ?? {}) as OmniImagesState;
 
-  // Video-family runs jump within their own mode sequence, clamped to the
-  // built range (interim-terminal rule) and the run's high-water mark.
-  if (isVideoMode(run.mode)) {
+  // Video- and audio-family runs jump within their own mode sequence, clamped
+  // to the built range (interim-terminal rule) and the run's high-water mark.
+  if (isVideoMode(run.mode) || isAudioMode(run.mode)) {
     const def = VIDEO_MODES[run.mode];
     const step = Math.trunc(targetStep);
     if (step < 1 || step > def.stages.length) return null;

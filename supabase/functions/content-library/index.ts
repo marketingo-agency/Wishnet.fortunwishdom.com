@@ -96,7 +96,10 @@ interface PostRow {
 /** Omni assets live in two buckets: images in 'files', videos (and their
  *  sidecars) in 'omni-video' - the storage path layout tells them apart. */
 function bucketForPath(storagePath: string): string {
-  return storagePath.includes('/omni-videos/') ? 'omni-video' : 'files';
+  if (storagePath.includes('/omni-videos/')) return 'omni-video';
+  // Audios track (Plan 3 Phase 7): podcast episodes live in omni-audio.
+  if (storagePath.includes('/omni-podcast/')) return 'omni-audio';
+  return 'files';
 }
 
 /** Publish one post through its connector; mutates the row to a terminal/parked state. */

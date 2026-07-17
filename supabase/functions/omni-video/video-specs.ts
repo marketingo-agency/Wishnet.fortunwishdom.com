@@ -220,7 +220,9 @@ export const UTILITY_ALLOWLIST: Record<string, string[]> = {
   'fal-ai/ffmpeg-api/merge-audio-video': ['video_url', 'audio_url', 'start_offset'],
   'fal-ai/ffmpeg-api/merge-audios': ['audio_urls'],
   'fal-ai/ffmpeg-api/compose': ['tracks'],
-  'fal-ai/ffmpeg-api/loudnorm': ['media_url'],
+  // AUDIO-only endpoint; probe-verified 2026-07-17: input is audio_url
+  // (media_url 422s) and the output is uncompressed WAV (no format knob).
+  'fal-ai/ffmpeg-api/loudnorm': ['audio_url'],
   'fal-ai/ffmpeg-api/extract-frame': ['video_url', 'frame_type'],
   'fal-ai/ffmpeg-api/metadata': ['media_url', 'extract_frames'],
   'fal-ai/ltx-2.3/reframe': ['video_url', 'aspect_ratio', 'resolution'],

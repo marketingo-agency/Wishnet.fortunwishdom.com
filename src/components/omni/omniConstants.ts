@@ -20,6 +20,9 @@ import {
   Zap,
   PersonStanding,
   Recycle,
+  Mic,
+  Podcast,
+  Rss,
 } from 'lucide-react';
 import type { OmniMode, OmniTrack } from '@/hooks/omni';
 
@@ -68,11 +71,11 @@ export const OMNI_TRACKS: OmniTrackDef[] = [
   {
     id: 'audios',
     label: 'Audios',
-    description: 'Voice, music, and sound creation. This track is on the roadmap and will plug in here.',
+    description: 'Podcast production: knowledge-grounded scenarios, chaptered long-form rendering with ElevenLabs casts, jingles, publishing, and video repurposing.',
     icon: Headphones,
-    gradient: 'from-emerald-500 to-teal-600',
-    glow: 'bg-emerald-500/25',
-    availability: 'coming_soon',
+    gradient: 'from-orange-400 to-rose-500',
+    glow: 'bg-orange-500/25',
+    availability: 'available',
   },
 ];
 
@@ -214,6 +217,76 @@ export const OMNI_VIDEO_MODES: OmniVideoModeDef[] = [
     description: 'Every video run, resumable at the exact stage you left it.',
     icon: History,
     accent: 'text-cyan-400',
+    available: true,
+    availabilityNote: '',
+  },
+];
+
+export interface OmniAudioModeDef {
+  /** cast_personas and publish_feed are manager surfaces, not run modes (D-A1). */
+  id: 'podcast_scenario' | 'omni_podcast' | 'cast_personas' | 'podcast_video' | 'publish_feed' | 'history';
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  accent: string;
+  available: boolean;
+  availabilityNote: string;
+}
+
+/** Six-card 2×3 Audios hub (Sam-approved structure, Plan 3 §0). Cards flip
+ *  to available as their phase lands. */
+export const OMNI_AUDIO_MODES: OmniAudioModeDef[] = [
+  {
+    id: 'podcast_scenario',
+    label: 'Podcast Scenario',
+    description: 'Pre-production: topic, URL, or Brain knowledge to a chaptered outline and a full multi-speaker script, ready to seed Podcast Studio.',
+    icon: NotebookPen,
+    accent: 'text-orange-400',
+    available: true,
+    availabilityNote: '',
+  },
+  {
+    id: 'omni_podcast',
+    label: 'Podcast Studio',
+    description: 'The flagship: script to cast to a chunked long-form render with jingles, chapters, show notes, transcript, and cover. A platform-ready episode.',
+    icon: Podcast,
+    accent: 'text-rose-400',
+    available: true,
+    availabilityNote: '',
+  },
+  {
+    id: 'cast_personas',
+    label: 'Cast & Personas',
+    description: 'Define the voices of your shows: personality, speaking style, an ElevenLabs voice with preview, and an AI portrait or a Wishpedia character.',
+    icon: Mic,
+    accent: 'text-amber-400',
+    available: true,
+    availabilityNote: '',
+  },
+  {
+    id: 'podcast_video',
+    label: 'Podcast to Video',
+    description: 'Full-episode audiograms for YouTube, talking-persona promo clips, and captioned vertical highlights for Reels, TikTok, and Shorts.',
+    icon: Clapperboard,
+    accent: 'text-pink-400',
+    available: true,
+    availabilityNote: '',
+  },
+  {
+    id: 'publish_feed',
+    label: 'Publish & Feed',
+    description: 'Self-hosted RSS per show with the AI disclosure baked in, a one-time directory checklist, and one-click episode publishing.',
+    icon: Rss,
+    accent: 'text-orange-300',
+    available: true,
+    availabilityNote: '',
+  },
+  {
+    id: 'history',
+    label: 'History',
+    description: 'Every audio run, resumable at the exact stage you left it.',
+    icon: History,
+    accent: 'text-rose-300',
     available: true,
     availabilityNote: '',
   },

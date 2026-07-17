@@ -31,7 +31,10 @@ export type OmniMode =
   | 'omni_videos'
   | 'video_clips'
   | 'video_animate'
-  | 'video_repurpose';
+  | 'video_repurpose'
+  | 'podcast_scenario'
+  | 'omni_podcast'
+  | 'podcast_video';
 
 export type OmniRunStatus = 'active' | 'completed' | 'failed' | 'archived';
 
@@ -219,6 +222,60 @@ export interface OmniImagesState {
   animate_script?: string;
   animate_voice_id?: string;
   animate_vo_asset_id?: string;
+  /** Audios track (Plan 3 D-A1/D-A3). */
+  podcast_show_id?: string;
+  podcast_brief?: OmniPodcastBrief;
+  podcast_outline?: OmniPodcastOutline;
+  /** Chapter idx (as string key) -> generated/edited segments. */
+  podcast_script?: Record<string, OmniPodcastSegment[]>;
+  /** Speaker label -> persona id (seeded from the show's default cast). */
+  podcast_cast?: Record<string, string>;
+  /** Provenance: the podcast_scenario run a Studio run was seeded from. */
+  podcast_source_run_id?: string;
+  /** Podcast Studio render orchestration (Plan 3 D-A3.3). The finisher's
+   *  assembly sweep reads render_stage + the jingle ids from step_state. */
+  render_stage?: 'chunks' | 'assembling' | 'done';
+  intro_jingle_asset_id?: string;
+  outro_jingle_asset_id?: string;
+  /** The assembled episode's omni_assets row. */
+  episode_asset_id?: string;
+  podcast_cover_path?: string;
+  podcast_shownotes?: OmniPodcastShownotes;
+  /** The draft podcast_episodes row created at finalize. */
+  podcast_episode_id?: string;
+  /** Podcast to Video (Plan 3 Phase 8): generated video assets. */
+  pv_audiogram_asset_id?: string;
+  pv_clip_asset_ids?: string[];
+}
+
+export interface OmniPodcastShownotes {
+  title: string;
+  description: string;
+  tags: string[];
+}
+
+export interface OmniPodcastBrief {
+  brief: string;
+  source_url?: string;
+  pasted_text?: string;
+  target_minutes: number;
+}
+
+export interface OmniPodcastChapter {
+  idx: number;
+  title: string;
+  summary: string;
+  minutes: number;
+}
+
+export interface OmniPodcastOutline {
+  title: string;
+  chapters: OmniPodcastChapter[];
+}
+
+export interface OmniPodcastSegment {
+  speaker: string;
+  text: string;
 }
 
 export interface OmniAnimateRef {
