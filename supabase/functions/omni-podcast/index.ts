@@ -17,7 +17,7 @@ import { createRateLimiter } from '../_shared/rate-limit.ts';
 import { TOKEN_BUDGETS } from '../_shared/token-budgets.ts';
 import { persistFalMedia } from '../_shared/fal.ts';
 import {
-  getElevenKey, listVoices, previewLine, renderLines, type SpeakerLine,
+  listVoices, previewLine, renderLines, resolveTtsEngine, type SpeakerLine, type TtsEngine,
 } from '../_shared/elevenlabs.ts';
 import {
   DEFAULT_DISCLOSURE_LINE, buildChapterScriptPrompt, buildOutlinePrompt, buildShownotesPrompt,
@@ -46,7 +46,7 @@ const AUDIO_BUCKET = 'omni-audio';
 const QUEUE_BASE = 'https://queue.fal.run';
 const CHUNK_MAX_BYTES = 20 * 1024 * 1024;
 const EPISODE_MAX_BYTES = 200 * 1024 * 1024;
-const ELEVEN_NOT_CONNECTED = 'ElevenLabs is not connected. Add the key in Pulse Settings.';
+const ELEVEN_NOT_CONNECTED = 'Text-to-speech is not connected. Add an ElevenLabs key in Pulse Settings, or a fal.ai key in Settings > LLM Providers (TTS runs through fal automatically).';
 const FAL_NOT_CONFIGURED = 'fal.ai is not configured. Add a fal.ai API key in Settings > LLM Providers.';
 
 async function getFalKey(supabaseAdmin: AdminClient): Promise<string | null> {
@@ -315,10 +315,10 @@ async function renderChunk(
   chunkId: string,
   lines: SpeakerLine[],
   modelId: string,
-  key: string,
+  engine: TtsEngine,
 ): Promise<void> {
   try {
-    const { bytes, words } = await renderLines(key, lines, modelId);
+    const { bytes, words } = await renderLines(engine, lines, modelId);
     if (bytes.length > CHUNK_MAX_BYTES) throw new Error('This chapter renders above the 20MB chunk cap; split it.');
     const storagePath = `${ownerId}/omni-podcast/${runId}/chunk-${chunkId}.mp3`;
     const { error: upErr } = await supabaseAdmin.storage
@@ -384,10 +384,10 @@ Deno.serve(async (req: Request) => {
 
     // -- podcast-voices -----
     if (action === 'podcast-voices') {
-      const key = await getElevenKey(supabaseAdmin);
-      if (!key) return jsonResponse({ error: ELEVEN_NOT_CONNECTED }, 503);
+      const engine = await resolveTtsEngine(supabaseAdmin);
+      if (!engine) return jsonResponse({ error: ELEVEN_NOT_CONNECTED }, 503);
       try {
-        return jsonResponse({ voices: await listVoices(key) });
+        return jsonResponse({ voices: await listVoices(engine), engine: engine.kind });
       } catch (e) {
         return jsonResponse({ error: e instanceof Error ? e.message : 'Could not list voices' }, 502);
       }
@@ -395,13 +395,13 @@ Deno.serve(async (req: Request) => {
 
     // -- podcast-preview-line -----
     if (action === 'podcast-preview-line') {
-      const key = await getElevenKey(supabaseAdmin);
-      if (!key) return jsonResponse({ error: ELEVEN_NOT_CONNECTED }, 503);
+      const engine = await resolveTtsEngine(supabaseAdmin);
+      if (!engine) return jsonResponse({ error: ELEVEN_NOT_CONNECTED }, 503);
       const voiceId = typeof body.voice_id === 'string' ? body.voice_id.slice(0, 64) : '';
       const text = typeof body.text === 'string' && body.text.trim() ? body.text.trim() : 'Welcome to the show.';
       if (!voiceId) return jsonResponse({ error: 'voice_id is required' }, 400);
       try {
-        const dataUrl = await previewLine(key, voiceId, text);
+        const dataUrl = await previewLine(engine, voiceId, text);
         return jsonResponse({ audio: dataUrl });
       } catch (e) {
         return jsonResponse({ error: e instanceof Error ? e.message : 'Preview failed' }, 502);
@@ -612,8 +612,8 @@ Deno.serve(async (req: Request) => {
     if (action === 'podcast-render') {
       const runId = body.run_id;
       if (!(await ownRun(runId))) return jsonResponse({ error: 'Run not found' }, 404);
-      const key = await getElevenKey(supabaseAdmin);
-      if (!key) return jsonResponse({ error: ELEVEN_NOT_CONNECTED }, 503);
+      const engine = await resolveTtsEngine(supabaseAdmin);
+      if (!engine) return jsonResponse({ error: ELEVEN_NOT_CONNECTED }, 503);
 
       // First call carries the chapters; rows are created idempotently.
       if (Array.isArray(body.chapters) && body.chapters.length > 0) {
@@ -674,7 +674,7 @@ Deno.serve(async (req: Request) => {
         if (((claimed ?? []) as { id: string }[]).length > 0) {
           const lines = (chunk.metadata?.lines ?? []) as SpeakerLine[];
           const ttsModel = typeof chunk.metadata?.tts_model === 'string' ? chunk.metadata.tts_model as string : 'eleven_multilingual_v2';
-          EdgeRuntime.waitUntil(renderChunk(supabaseAdmin, userId, runId as string, chunk.id, lines, ttsModel, key));
+          EdgeRuntime.waitUntil(renderChunk(supabaseAdmin, userId, runId as string, chunk.id, lines, ttsModel, engine));
           return jsonResponse({ rendering_chunk_id: chunk.id, status: 'generating' });
         }
       }

@@ -116,7 +116,7 @@ export interface PodcastVoice {
   labels?: Record<string, string>;
 }
 
-export const ELEVEN_NOT_CONNECTED_SNIPPET = 'ElevenLabs is not connected';
+export const ELEVEN_NOT_CONNECTED_SNIPPET = 'Text-to-speech is not connected';
 
 export function usePodcastVoices() {
   const query = useQuery({

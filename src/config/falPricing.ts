@@ -197,7 +197,9 @@ export function formatUsd(n: number): string {
 // -- ElevenLabs char-based estimate (Plan 3 D-A9) -----------------------------
 
 /** Default $/1k chars; plan-dependent - configurable, shown as an estimate. */
-export const ELEVENLABS_DEFAULT_RATE_PER_1K_CHARS = 0.15;
+// Verified 2026-07-17 via fal get_pricing: fal-ai/elevenlabs/tts/* bills
+// $0.10 per 1000 characters (the app's TTS routes through fal by default).
+export const ELEVENLABS_DEFAULT_RATE_PER_1K_CHARS = 0.10;
 
 /** Honest TTS cost estimate for a script; null when chars is unknown. */
 export function estimateTtsCost(

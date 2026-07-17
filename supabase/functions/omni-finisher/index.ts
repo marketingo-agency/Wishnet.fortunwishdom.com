@@ -24,7 +24,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 import { FalUserError, assertValidModelId, assertValidRequestId, falStatus, falSubmit } from '../omni/fal-runner.ts';
 import { claimForPersist, persistFalVideo } from '../omni-video/persist.ts';
 import { persistFalMedia } from '../_shared/fal.ts';
-import { getElevenKey, renderLines, type SpeakerLine } from '../_shared/elevenlabs.ts';
+import { renderLines, resolveTtsEngine, type SpeakerLine } from '../_shared/elevenlabs.ts';
 
 type AdminClient = ReturnType<typeof createClient>;
 
@@ -172,8 +172,8 @@ async function sweep(supabaseAdmin: AdminClient, falKey: string): Promise<Record
  * 'generating' rows stale >10 min (a killed worker) are eligible.
  */
 async function ttsSweep(supabaseAdmin: AdminClient): Promise<number> {
-  const key = await getElevenKey(supabaseAdmin);
-  if (!key) return 0;
+  const engine = await resolveTtsEngine(supabaseAdmin);
+  if (!engine) return 0;
   const genCutoff = new Date(Date.now() - 90_000).toISOString();
   const staleCutoff = new Date(Date.now() - 10 * 60_000).toISOString();
   const { data } = await supabaseAdmin
@@ -200,7 +200,7 @@ async function ttsSweep(supabaseAdmin: AdminClient): Promise<number> {
     const lines = (chunk.metadata?.lines ?? []) as SpeakerLine[];
     if (!Array.isArray(lines) || lines.length === 0) throw new Error('The chapter has no renderable lines');
     const ttsModel = typeof chunk.metadata?.tts_model === 'string' ? chunk.metadata.tts_model as string : 'eleven_multilingual_v2';
-    const { bytes, words } = await renderLines(key, lines, ttsModel);
+    const { bytes, words } = await renderLines(engine, lines, ttsModel);
     if (bytes.length > 20 * 1024 * 1024) throw new Error('This chapter renders above the 20MB chunk cap; split it.');
     const storagePath = `${chunk.user_id}/omni-podcast/${chunk.run_id}/chunk-${chunk.id}.mp3`;
     const { error: upErr } = await supabaseAdmin.storage
@@ -337,7 +337,8 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Unauthorized' }, 401);
     }
 
-    // TTS recovery needs only the ElevenLabs key - never gate it on fal.
+    // TTS recovery resolves its own engine (direct ElevenLabs or fal) -
+    // never gated on the sweep's fal-key check below.
     const tts = await ttsSweep(supabaseAdmin);
 
     const { data: llm } = await supabaseAdmin.from('llm_settings').select('fal_api_key').single();
