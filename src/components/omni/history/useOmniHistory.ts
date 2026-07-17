@@ -492,6 +492,11 @@ export function useRetakeRun() {
           // An edited prompt is user-authored again: the edge re-grounds it.
           prompt_provenance: promptOverride ? 'raw' : state.prompt_provenance,
           model_selections: modelSelections,
+          // Wishpedia character anchoring survives the retake: without the
+          // refs a Character Studio clone would generate a look-alike.
+          reference_image_refs: state.reference_image_refs,
+          origin: state.origin,
+          character_entry_id: state.character_entry_id,
           retake_of: source.id,
           // Clones are born v2 (stage ordinal 1 = brief). Brainstorm clones
           // keep their conversation + lock flag (HIST-03); an UNLOCKED clone

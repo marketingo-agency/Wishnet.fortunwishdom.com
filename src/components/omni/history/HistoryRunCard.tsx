@@ -125,6 +125,11 @@ export function HistoryRunCard({ run, thumbs, clonedFromTitle, selected, busy: e
           <p className="truncate text-sm font-medium">{run.title || 'Untitled run'}</p>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <Badge className={cn('border-0 px-1.5 py-0 text-[10px] font-semibold', modeMeta.badge)}>{modeMeta.label}</Badge>
+            {state.origin === 'character_studio' && (
+              <Badge className="border-0 bg-fuchsia-500/15 px-1.5 py-0 text-[10px] font-semibold text-fuchsia-600 dark:text-fuchsia-300">
+                Character Studio
+              </Badge>
+            )}
             <Badge className={cn('border-0 px-1.5 py-0 text-[10px] font-semibold', statusMeta.badge)}>{statusMeta.label}</Badge>
             {isRetake && (
               <Badge

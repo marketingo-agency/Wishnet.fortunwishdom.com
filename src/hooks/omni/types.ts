@@ -177,6 +177,10 @@ export interface OmniImagesState {
   idea_locked?: boolean;
   /** Source run id when this run was created via Retake (HIST-15 backlink). */
   retake_of?: string;
+  /** Curated-entry marker: 'character_studio' runs are ordinary omni_images
+   *  runs pre-seeded from a Wishpedia entry (no new mode, no migration). */
+  origin?: 'character_studio';
+  character_entry_id?: string;
 }
 
 // ── Brainstorming (Mode 6) ───────────────────────────────────────────────────

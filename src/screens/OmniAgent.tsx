@@ -25,6 +25,7 @@ import { OmniComingSoon } from '@/components/omni/OmniComingSoon';
 import { OmniImagesWizard } from '@/components/omni/wizard/OmniImagesWizard';
 import { TransformWizard } from '@/components/omni/transform/TransformWizard';
 import { RepurposeModeWizard } from '@/components/omni/repurpose-mode/RepurposeModeWizard';
+import { CharacterStudioPicker } from '@/components/omni/character-studio/CharacterStudioPicker';
 import { HistoryView } from '@/components/omni/history/HistoryView';
 import { BrainstormView } from '@/components/omni/brainstorm/BrainstormView';
 import { resolveSurfaceForRun } from '@/components/omni/history/historyRouting';
@@ -35,9 +36,9 @@ type OmniView = 'home' | OmniTrack;
 // surprise_me is no longer a surface: it folded into the wizard's step 1 as
 // "Inspire me". ?mode=surprise_me deep links land on the hub (legacy alias);
 // legacy surprise runs open in the wizard via resolveSurfaceForRun as before.
-type ImagesMode = 'hub' | 'omni_images' | 'transform_upscale' | 'repurposing' | 'history' | 'brainstorming';
+type ImagesMode = 'hub' | 'omni_images' | 'character_studio' | 'transform_upscale' | 'repurposing' | 'history' | 'brainstorming';
 
-const IMAGES_MODE_IDS: ImagesMode[] = ['omni_images', 'transform_upscale', 'repurposing', 'history', 'brainstorming'];
+const IMAGES_MODE_IDS: ImagesMode[] = ['omni_images', 'character_studio', 'transform_upscale', 'repurposing', 'history', 'brainstorming'];
 
 const TRACK_IDS = OMNI_TRACKS.map((t) => t.id) as string[];
 
@@ -134,9 +135,9 @@ export default function OmniAgent() {
     syncUrl('images', 'omni_images', wizardRunId);
   }, [syncUrl, wizardRunId]);
 
-  const handleRepurposeHandoff = useCallback((runId: string) => {
-    // Mode 3 creates the run and hands off in one action, so the id arrives
-    // directly instead of via wizardRunId state.
+  const openStudioWithRun = useCallback((runId: string) => {
+    // Repurposing and Character Studio create their run in one action, then
+    // hand the id straight to the Studio wizard.
     setWizardRunId(runId);
     setImagesMode('omni_images');
     syncUrl('images', 'omni_images', runId);
@@ -211,6 +212,13 @@ export default function OmniAgent() {
                 />
               )}
 
+              {view === 'images' && imagesMode === 'character_studio' && (
+                <CharacterStudioPicker
+                  onExit={() => selectView('images')}
+                  onCreated={openStudioWithRun}
+                />
+              )}
+
               {view === 'images' && imagesMode === 'transform_upscale' && (
                 <TransformWizard
                   runId={wizardRunId}
@@ -223,7 +231,7 @@ export default function OmniAgent() {
               {view === 'images' && imagesMode === 'repurposing' && (
                 <RepurposeModeWizard
                   onExit={() => selectView('images')}
-                  onHandoff={handleRepurposeHandoff}
+                  onHandoff={openStudioWithRun}
                 />
               )}
 

@@ -104,8 +104,8 @@ export const OMNI_IMAGE_MODES: OmniModeDef[] = [
     description: 'Create new scenes featuring your Wishpedia characters, anchored to their canon art.',
     icon: Drama,
     accent: 'text-fuchsia-400',
-    available: false,
-    availabilityNote: 'Ships later in this overhaul.',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'brainstorming',
