@@ -71,7 +71,7 @@ export const OMNI_TRACKS: OmniTrackDef[] = [
   {
     id: 'audios',
     label: 'Audios',
-    description: 'Podcast production: knowledge-grounded scenarios, chaptered long-form rendering with ElevenLabs casts, jingles, publishing, and video repurposing.',
+    description: 'Podcast production: knowledge-grounded scenarios, chaptered long-form rendering with AI voice casts, jingles, publishing, and video repurposing.',
     icon: Headphones,
     gradient: 'from-orange-400 to-rose-500',
     glow: 'bg-orange-500/25',
@@ -257,7 +257,7 @@ export const OMNI_AUDIO_MODES: OmniAudioModeDef[] = [
   {
     id: 'cast_personas',
     label: 'Cast & Personas',
-    description: 'Define the voices of your shows: personality, speaking style, an ElevenLabs voice with preview, and an AI portrait or a Wishpedia character.',
+    description: 'Define the voices of your shows: personality, speaking style, a voice with preview, and an AI portrait or a Wishpedia character.',
     icon: Mic,
     accent: 'text-amber-400',
     available: true,

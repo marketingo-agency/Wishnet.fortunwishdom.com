@@ -27,13 +27,13 @@ export interface ElevenVoice {
   labels?: Record<string, string>;
 }
 
-/** ElevenLabs voice library (key shared via Pulse). A 503 means the key is
+/** TTS voices (fal presets via the shared seam). A 503 means no fal key is
  *  not connected — surfaced to the UI as `error`, never retried in a loop. */
 export function useElevenVoices(enabled: boolean) {
   return useQuery({
     queryKey: ['omni-eleven-voices'],
     queryFn: async () => {
-      const res = await callOmniVideo<{ voices: ElevenVoice[] }>('list-voices');
+      const res = await callOmniVideo<{ voices: ElevenVoice[]; engine?: string }>('list-voices');
       return res.voices;
     },
     enabled,

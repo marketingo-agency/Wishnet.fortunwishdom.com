@@ -1,5 +1,5 @@
 /**
- * useWhisperVoices — ElevenLabs voice library (via whisper-api) + saved casting
+ * useWhisperVoices — TTS voice list (fal presets via whisper-api) + saved casting
  * presets (whisper_voices, typed client / admin RLS).
  */
 

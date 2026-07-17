@@ -4,7 +4,7 @@
  * PDPackage (stage 4): assemble the chunks (+jingles) into ONE episode MP3
  * via merge-audios, then the listing package — show notes and cover art.
  * No episode-level loudnorm (Phase 0 verdict: it emits uncompressed WAV);
- * ElevenLabs-native consistency is the v1 mastering.
+ * TTS-native consistency is the v1 mastering.
  */
 
 import { useEffect, useRef, useState } from 'react';

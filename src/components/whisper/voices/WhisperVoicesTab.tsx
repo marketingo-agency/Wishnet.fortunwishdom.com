@@ -79,7 +79,7 @@ export function WhisperVoicesTab() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>
         ) : isError ? (
           <p className="py-10 text-center text-sm text-muted-foreground">
-            {error instanceof Error && /key/i.test(error.message) ? 'Add your ElevenLabs key in Settings to load the voice library.' : 'Could not load voices. Check the ElevenLabs connection in Settings.'}
+            {error instanceof Error ? error.message : 'Could not load voices. Check the fal.ai key in Settings > LLM Providers.'}
           </p>
         ) : filtered.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

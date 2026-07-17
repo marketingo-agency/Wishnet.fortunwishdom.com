@@ -337,7 +337,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Unauthorized' }, 401);
     }
 
-    // TTS recovery resolves its own engine (direct ElevenLabs or fal) -
+    // TTS recovery resolves its own engine (the shared fal-only TTS seam) -
     // never gated on the sweep's fal-key check below.
     const tts = await ttsSweep(supabaseAdmin);
 

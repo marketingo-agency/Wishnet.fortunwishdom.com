@@ -13,9 +13,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2, Save, Plug, Bot } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { usePulseConnectionsStatus } from '@/hooks/usePulseConnections';
-import { PulseConnectionRow } from '@/components/pulse/settings/PulseConnectionRow';
 import { useWhisperSettings, useUpdateWhisperSettings } from '@/hooks/useWhisperSettings';
 import { getTextModelsForProvider, type LLMProviderKey } from '@/config/llmModels';
 import type { WhisperFormat } from '@/types/whisper';
@@ -26,12 +23,6 @@ const PROVIDERS: Array<{ value: LLMProviderKey; label: string }> = [
   { value: 'fal', label: 'fal.ai' },
 ];
 
-const TTS_MODELS = [
-  { value: 'eleven_v3', label: 'Eleven v3 — expressive, 70+ languages, audio tags' },
-  { value: 'eleven_multilingual_v2', label: 'Multilingual v2 — stable, broad language support' },
-  { value: 'eleven_flash_v2_5', label: 'Flash v2.5 — fastest, low latency' },
-];
-
 const FORMATS: Array<{ value: WhisperFormat; label: string }> = [
   { value: 'two_host', label: 'Two-host conversation' },
   { value: 'solo', label: 'Solo narration' },
@@ -40,14 +31,11 @@ const FORMATS: Array<{ value: WhisperFormat; label: string }> = [
 ];
 
 export function WhisperSettingsTab() {
-  const { isAdmin } = useAuth();
-  const { data: connStatus } = usePulseConnectionsStatus(isAdmin === true);
   const { data: settings, isLoading } = useWhisperSettings();
   const updateSettings = useUpdateWhisperSettings();
 
   const [provider, setProvider] = useState<LLMProviderKey>('openai');
   const [model, setModel] = useState('gpt-4.1');
-  const [ttsModel, setTtsModel] = useState('eleven_v3');
   const [format, setFormat] = useState<WhisperFormat>('two_host');
   const [language, setLanguage] = useState('en');
 
@@ -55,7 +43,6 @@ export function WhisperSettingsTab() {
     if (!settings) return;
     setProvider((settings.script_provider as LLMProviderKey) ?? 'openai');
     setModel(settings.script_model ?? 'gpt-4.1');
-    setTtsModel(settings.tts_model ?? 'eleven_v3');
     setFormat(settings.default_format ?? 'two_host');
     setLanguage(settings.default_language ?? 'en');
   }, [settings]);
@@ -70,7 +57,6 @@ export function WhisperSettingsTab() {
     updateSettings.mutate({
       script_provider: provider,
       script_model: model,
-      tts_model: ttsModel,
       default_format: format,
       default_language: language.trim() || 'en',
     });
@@ -78,31 +64,18 @@ export function WhisperSettingsTab() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
-      {/* ElevenLabs connection (shared with Pulse) */}
+      {/* Voice engine (fal — no separate account or key) */}
       <Card className="border shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Plug className="h-4 w-4 text-indigo-500" />
-            <CardTitle className="text-sm">Connection</CardTitle>
+            <CardTitle className="text-sm">Voice engine</CardTitle>
           </div>
           <CardDescription className="text-xs">
-            ElevenLabs powers all voice synthesis. This key is shared with Pulse&apos;s voiceover — set it once.
+            Voices are synthesized through fal.ai (ElevenLabs voices on the app&apos;s fal key) — no separate
+            account or key needed. Manage the fal.ai key in Settings &gt; LLM Providers.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {isAdmin ? (
-            <PulseConnectionRow
-              provider="elevenlabs"
-              name="ElevenLabs"
-              accent="bg-zinc-800"
-              note="Text-to-speech, multi-speaker dialogue, and the voice library."
-              fields={[{ key: 'apiKey', label: 'API Key', secret: true, placeholder: 'sk_…' }]}
-              status={connStatus?.elevenlabs}
-            />
-          ) : (
-            <p className="py-2 text-xs text-muted-foreground">Only admins can manage the ElevenLabs connection.</p>
-          )}
-        </CardContent>
       </Card>
 
       {/* Generation defaults */}
@@ -113,7 +86,7 @@ export function WhisperSettingsTab() {
             <CardTitle className="text-sm">Generation defaults</CardTitle>
           </div>
           <CardDescription className="text-xs">
-            The model that writes scripts and the ElevenLabs model that voices them.
+            The model that writes scripts, plus the default episode format and language.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -136,14 +109,6 @@ export function WhisperSettingsTab() {
                     <SelectContent>{getTextModelsForProvider(provider).map((m) => <SelectItem key={m.value} value={m.value} className="text-sm">{m.label}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Voice model (ElevenLabs)</Label>
-                <Select value={ttsModel} onValueChange={setTtsModel}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>{TTS_MODELS.map((m) => <SelectItem key={m.value} value={m.value} className="text-sm">{m.label}</SelectItem>)}</SelectContent>
-                </Select>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">

@@ -31,11 +31,11 @@ export const mockPlannedReleases: PlannedRelease[] = [
   {
     id: 'p4',
     title: 'Whisper Podcast Agent',
-    description: 'Turn ideas into audio. The Whisper AI agent generates podcast scripts with AI and produces studio-quality narration using the ElevenLabs API.',
+    description: 'Turn ideas into audio. The Whisper AI agent generates podcast scripts with AI and produces studio-quality narration with AI voices via fal.ai.',
     targetDate: 'July 2026',
     quarter: 'Q3 2026',
     status: 'planned',
-    features: ['Whisper Podcast Agent', 'AI Script Generation', 'ElevenLabs Audio']
+    features: ['Whisper Podcast Agent', 'AI Script Generation', 'AI Voice Audio']
   },
   {
     id: 'p5',

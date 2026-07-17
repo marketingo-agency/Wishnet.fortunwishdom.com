@@ -6,25 +6,20 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Library, Clapperboard, AudioLines, Radio, Plug, ArrowRight, Mic, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext';
 import { useWhisperEpisodes } from '@/hooks/useWhisperEpisodes';
 import { useWhisperShows } from '@/hooks/useWhisperShows';
-import { usePulseConnectionsStatus } from '@/hooks/usePulseConnections';
 import { EPISODE_STATUS_META, formatDuration } from '@/components/whisper/whisperStatus';
 import { WhisperEpisodeView } from '@/components/whisper/episodes/WhisperEpisodeView';
 
 export function WhisperOverviewTab({ onNavigate }: { onNavigate: (tab: string) => void }) {
-  const { isAdmin } = useAuth();
   const { data: episodes } = useWhisperEpisodes({});
   const { data: shows } = useWhisperShows();
-  const { data: conn } = usePulseConnectionsStatus(isAdmin === true);
   const [openId, setOpenId] = useState<string | null>(null);
 
   const all = episodes ?? [];
   const inProgress = all.filter((e) => e.status === 'draft' || e.status === 'scripted').length;
   const rendered = all.filter((e) => e.status === 'rendered' || e.status === 'published').length;
   const recent = all.slice(0, 5);
-  const elevenReady = conn?.elevenlabs?.configured ?? false;
 
   const stats = [
     { label: 'Episodes', value: all.length, icon: Library, tab: 'episodes', accent: 'text-indigo-500' },
@@ -82,11 +77,8 @@ export function WhisperOverviewTab({ onNavigate }: { onNavigate: (tab: string) =
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between rounded-lg bg-muted/30 px-2.5 py-2">
-              <span className="flex items-center gap-1.5 text-xs"><Plug className="h-3.5 w-3.5" /> ElevenLabs</span>
-              <span className={cn('flex items-center gap-1.5 text-[11px]', elevenReady ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
-                <span className={cn('h-2 w-2 rounded-full', elevenReady ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
-                {elevenReady ? 'Connected' : 'Not set'}
-              </span>
+              <span className="flex items-center gap-1.5 text-xs"><Plug className="h-3.5 w-3.5" /> Voices via fal.ai</span>
+              <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">app fal key</span>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" onClick={() => onNavigate('studio')} className="gap-1.5"><Clapperboard className="h-4 w-4" /> New episode</Button>

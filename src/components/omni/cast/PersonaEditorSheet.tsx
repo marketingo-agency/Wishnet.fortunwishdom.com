@@ -2,7 +2,7 @@
 
 /**
  * PersonaEditorSheet: create/edit one persona — identity, speaking style,
- * ElevenLabs voice with preview, portrait (Wishpedia character or URL).
+ * voice with preview (fal preset voices), portrait (Wishpedia character or URL).
  * Carries the impersonation-policy note (D-A4: designed/library voices only).
  */
 
@@ -108,10 +108,10 @@ export function PersonaEditorSheet({ open, onOpenChange, persona }: PersonaEdito
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="persona-voice">ElevenLabs voice</Label>
+            <Label htmlFor="persona-voice">Voice</Label>
             {notConnected ? (
               <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400">
-                Text-to-speech is not connected. Add an ElevenLabs key in Pulse Settings or a fal.ai key in Settings (TTS runs through fal automatically); the persona can be saved without a voice.
+                Text-to-speech is not connected. Add a fal.ai API key in Settings &gt; LLM Providers (voices run through fal); the persona can be saved without a voice.
               </p>
             ) : (
               <div className="flex items-center gap-2">

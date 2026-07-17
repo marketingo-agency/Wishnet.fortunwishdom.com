@@ -15,7 +15,7 @@
  *   - update-queue-settings → POST /uploadposts/queue/settings
  *   - get-platforms     → GET platform-specific pages (facebook, linkedin, pinterest)
  *   - get-connections-status / update-connection / reset-connection / test-connection-provider
- *                       → manage Meta/ElevenLabs/Canva credentials (pulse_connections, admin-only)
+ *                       → manage Meta/Canva credentials (pulse_connections, admin-only)
  *   - get-workspace-settings / update-workspace-settings
  *                       → reply model + automation (pulse_settings)
  *
@@ -104,7 +104,7 @@ async function getConnection(admin: AdminClient, provider: string): Promise<Reco
   return (data as Record<string, unknown> | null) ?? null;
 }
 
-const PULSE_PROVIDERS = ['meta', 'elevenlabs', 'canva'] as const;
+const PULSE_PROVIDERS = ['meta', 'canva'] as const;
 
 // Allowlist for publish targets (SEC: don't forward arbitrary platform strings upstream).
 const PUBLISH_PLATFORMS = new Set([
@@ -444,15 +444,6 @@ Deno.serve(async (req) => {
         return errorResponse('Invalid provider', 400);
       }
       const row = await getConnection(supabaseAdmin, provider);
-
-      if (provider === 'elevenlabs') {
-        const key = row?.api_key as string | undefined;
-        if (!key) return jsonResponse({ connected: false, error: 'No ElevenLabs key set' });
-        const resp = await fetch('https://api.elevenlabs.io/v1/user', { headers: { 'xi-api-key': key } });
-        const connected = resp.ok;
-        await supabaseAdmin.from('pulse_connections').update({ status: connected ? 'connected' : 'error', updated_at: new Date().toISOString() }).eq('provider', 'elevenlabs');
-        return jsonResponse({ connected, error: connected ? undefined : `ElevenLabs returned ${resp.status}` });
-      }
 
       if (provider === 'meta') {
         const configured = !!(row?.meta_app_id && row?.meta_app_secret);

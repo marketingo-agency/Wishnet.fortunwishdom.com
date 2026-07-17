@@ -1,7 +1,7 @@
 /**
  * Cast & Personas data layer (Plan 3 Phase 4, D-A1/D-A4).
  * Personas are owner-scoped rows; voices come from the omni-podcast edge
- * (honest not-connected state when no ElevenLabs key exists).
+ * (honest not-connected state when no fal key exists).
  */
 
 import { useRef } from 'react';
@@ -107,7 +107,7 @@ export function useDeletePersona() {
   });
 }
 
-// ── ElevenLabs voices (via the omni-podcast edge) ────────────────────────────
+// ── TTS voices (fal presets, via the omni-podcast edge) ──────────────────────
 
 export interface PodcastVoice {
   voice_id: string;

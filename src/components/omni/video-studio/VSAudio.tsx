@@ -2,14 +2,15 @@
 
 /**
  * Video Studio stage 4: voiceover + music (Plan 2 Phase 6a, D-V5).
- * Narration is editable per scene, voiced through ElevenLabs (the key shared
- * via Pulse — landmine #9), rendered server-side against a polled asset row.
+ * Narration is editable per scene, voiced through the shared fal-only TTS
+ * seam (ElevenLabs voices on fal), rendered server-side against a polled
+ * asset row.
  * Music is a lyria2 bed with the D-V5 "quiet ambient" guidance (there is no
  * ducking — merge-audio-video has no volume knob, Phase-0 verdict).
  * Both are OPTIONAL: a silent film may proceed.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AudioLines, Loader2, Mic, Music, RefreshCw, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -44,6 +45,12 @@ export function VSAudio({
   const [selectedVoice, setSelectedVoice] = useState(voiceId ?? '');
   const [musicText, setMusicText] = useState(musicPrompt ?? DEFAULT_MUSIC_PROMPT);
   const voices = useElevenVoices(true);
+  // Preset-voice membership guard: a voice id persisted before the fal-only
+  // switch (or a removed preset) silently clears so the user re-picks.
+  useEffect(() => {
+    if (!selectedVoice || !voices.data?.length) return;
+    if (!voices.data.some((v) => v.voice_id === selectedVoice)) setSelectedVoice('');
+  }, [voices.data, selectedVoice]);
   const actions = useVideoAudioActions(_runId);
   const vo = usePolledAsset(voiceoverAssetId);
   const music = usePolledAsset(musicAssetId);
@@ -145,7 +152,7 @@ export function VSAudio({
         </div>
         {voices.isError && (
           <p className="text-xs text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400" role="status">
-            {voices.error instanceof Error ? voices.error.message : 'ElevenLabs voices are unavailable.'}
+            {voices.error instanceof Error ? voices.error.message : 'Voices are unavailable.'}
           </p>
         )}
         {vo.status === 'done' && vo.url && (

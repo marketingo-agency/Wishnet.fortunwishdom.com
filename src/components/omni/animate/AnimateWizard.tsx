@@ -4,7 +4,7 @@
  * AnimateWizard: video_animate (Plan 2 Phase 9). Bring a character to life:
  * Source (Wishpedia entry images — the Wishu engine; IDs resolve server-side,
  * never raw URLs) → Motion or talk (Seedance reference-to-video ≤9 refs, or
- * script → ElevenLabs voice → Kling AI Avatar v2 Pro) → Generate & review →
+ * script → brand voice via fal TTS → Kling AI Avatar v2 Pro) → Generate & review →
  * Formats & finalize (network chips + captions + VSFinalizeVideo — the Clips
  * tail reused). Files/Omni-asset/Library sources land in the polish pass.
  */

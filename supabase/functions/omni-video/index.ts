@@ -23,7 +23,8 @@ import {
   HARD_MAX_BYTES, IN_REQUEST_MAX_BYTES, claimForPersist, isFalMediaHost, persistFalVideo, signVideoPath,
 } from './persist.ts';
 import { fetchUrlText, generateScenario } from './scenario.ts';
-import { getElevenKey, listVoices, renderVoiceover, type VoiceoverLine } from './audio.ts';
+import { renderVoiceover, type VoiceoverLine } from './audio.ts';
+import { listVoices, resolveTtsEngine } from '../_shared/elevenlabs.ts';
 import { assembleRun, mediaUrlFrom } from './assembly.ts';
 
 // 60/min: generation surfaces poll every ~3-4s; one active run fits.
@@ -41,6 +42,7 @@ function jsonResponse(payload: unknown, status = 200): Response {
 type AdminClient = ReturnType<typeof createClient>;
 
 const FAL_NOT_CONFIGURED = 'fal.ai is not configured. Add a fal.ai API key in Settings > LLM Providers.';
+const TTS_NOT_CONNECTED = 'Text-to-speech is not connected. Add a fal.ai API key in Settings > LLM Providers (voices run through fal).';
 
 async function getFalKey(supabaseAdmin: AdminClient): Promise<string | null> {
   const { data, error } = await supabaseAdmin.from('llm_settings').select('fal_api_key').single();
@@ -525,13 +527,13 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ asset_id: (asset as { id: string }).id, request_id: submission.requestId });
     }
 
-    // -- list-voices (ElevenLabs picker; key shared via pulse_connections) ----
+    // -- list-voices (fal preset voices via the shared TTS seam) --------------
     if (action === 'list-voices') {
-      const key = await getElevenKey(supabaseAdmin);
-      if (!key) return jsonResponse({ error: 'ElevenLabs is not connected. Add the key in Pulse Settings.' }, 503);
+      const engine = await resolveTtsEngine(supabaseAdmin);
+      if (!engine) return jsonResponse({ error: TTS_NOT_CONNECTED }, 503);
       try {
-        const voices = await listVoices(key);
-        return jsonResponse({ voices });
+        const voices = await listVoices(engine);
+        return jsonResponse({ voices, engine: engine.kind });
       } catch (e) {
         return jsonResponse({ error: e instanceof Error ? e.message : 'Could not list voices' }, 502);
       }
@@ -550,8 +552,8 @@ Deno.serve(async (req: Request) => {
         .filter((l: VoiceoverLine) => l.text && l.voice_id);
       if (lines.length === 0) return jsonResponse({ error: 'At least one narration line with a voice is required' }, 400);
 
-      const key = await getElevenKey(supabaseAdmin);
-      if (!key) return jsonResponse({ error: 'ElevenLabs is not connected. Add the key in Pulse Settings.' }, 503);
+      const engine = await resolveTtsEngine(supabaseAdmin);
+      if (!engine) return jsonResponse({ error: TTS_NOT_CONNECTED }, 503);
 
       const { data: asset, error: assetError } = await supabaseAdmin
         .from('omni_assets')
@@ -572,8 +574,7 @@ Deno.serve(async (req: Request) => {
       }
       const assetId = (asset as { id: string }).id;
       EdgeRuntime.waitUntil(renderVoiceover({
-        supabaseAdmin, ownerId: userId, runId: runId as string, assetId, lines, key,
-        modelId: 'eleven_multilingual_v2',
+        supabaseAdmin, ownerId: userId, runId: runId as string, assetId, lines, engine,
       }));
       return jsonResponse({ asset_id: assetId, status: 'generating' });
     }

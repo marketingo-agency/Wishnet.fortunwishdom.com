@@ -70,7 +70,7 @@ export interface PulseReplyItem {
 
 export type PulseReplyMode = 'manual' | 'semi' | 'auto';
 
-export type PulseConnectionProvider = 'meta' | 'elevenlabs' | 'canva' | 'upload_post';
+export type PulseConnectionProvider = 'meta' | 'canva' | 'upload_post';
 export type PulseConnectionStatusValue = 'connected' | 'disconnected' | 'error';
 
 export interface PulseWorkspaceSettings {

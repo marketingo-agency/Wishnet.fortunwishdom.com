@@ -1,5 +1,5 @@
 /**
- * usePulseConnections — provider credentials for Meta, ElevenLabs, Canva.
+ * usePulseConnections — provider credentials for Meta and Canva.
  * All reads/writes go through the pulse-api edge function (admin-gated, service-role);
  * secrets never reach the browser — status endpoints return booleans only.
  */

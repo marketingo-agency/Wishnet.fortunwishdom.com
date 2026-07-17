@@ -1,54 +1,41 @@
 /**
- * Shared ElevenLabs engine (Plan 3 D-A2 + the fal-routing extension): the ONE
- * code path for TTS across omni functions.
+ * Shared TTS engine (Plan 3 D-A2, fal-only since the 2026-07-17 rehab):
+ * the ONE code path for text-to-speech across omni functions.
  *
- * TWO transports behind one seam (resolveTtsEngine):
- *  - 'direct': the ElevenLabs API with an account key (pulse_connections
- *    provider 'elevenlabs' -> env fallback). Account voice library available.
- *  - 'fal': ElevenLabs' partner endpoints on fal.ai using the app's existing
- *    fal key ($0.10/1k chars, schema-verified 2026-07-17). Preset voices only
- *    (names like "Rachel"); synchronous fal.run - TTS of <=5000 chars returns
- *    in seconds. This is the default working mode for this app (fal is the
- *    sole media engine; no separate ElevenLabs account needed).
+ * ALL synthesis runs through ElevenLabs' partner endpoints ON FAL using the
+ * app's fal key (fal-ai/elevenlabs/tts/multilingual-v2, $0.10/1k chars,
+ * synchronous fal.run). The direct ElevenLabs API integration was removed
+ * app-wide (Sam's call): no xi-api-key, no pulse_connections key, no account
+ * voice library - voices are the curated FAL_PRESET_VOICES set (names).
  *
  * Landmine #5 still applies: 5000 chars/call cap; naive MP3 concat is valid
- * ONLY when every chunk renders with the IDENTICAL output format - both
- * transports are pinned to mp3_44100_128 defaults.
+ * ONLY because every chunk renders with the IDENTICAL output format
+ * (mp3_44100_128, the fal endpoint default).
  */
 
 import type { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.0';
 
 type AdminClient = ReturnType<typeof createClient>;
 
-const ELEVEN_BASE = 'https://api.elevenlabs.io';
 /** Every render in a concat chain MUST use this exact format (landmine #5). */
 export const ELEVEN_OUTPUT_FORMAT = 'mp3_44100_128';
+/** Vestigial model id kept for caller compatibility - the fal transport pins
+ *  FAL_TTS_MODEL and ignores this value. */
 export const ELEVEN_DEFAULT_MODEL = 'eleven_multilingual_v2';
 export const ELEVEN_CHAR_CAP = 5000;
 /** The fal-hosted ElevenLabs TTS endpoint (multilingual v2). */
 export const FAL_TTS_MODEL = 'fal-ai/elevenlabs/tts/multilingual-v2';
 
 export interface TtsEngine {
-  kind: 'direct' | 'fal';
+  kind: 'fal';
   key: string;
 }
 
-export async function getElevenKey(admin: AdminClient): Promise<string | null> {
-  const { data } = await admin.from('pulse_connections').select('api_key').eq('provider', 'elevenlabs').maybeSingle();
-  const dbKey = ((data as { api_key: string | null } | null)?.api_key ?? '').trim();
-  if (dbKey) return dbKey;
-  const envKey = (Deno.env.get('ELEVENLABS_API_KEY') ?? '').trim();
-  return envKey || null;
-}
-
 /**
- * Resolve the TTS transport: a direct ElevenLabs key wins (account voice
- * library); otherwise ElevenLabs-via-fal on the app's fal key; null when
- * neither exists (callers 503 honestly).
+ * Resolve the TTS transport: the app's fal key (llm_settings -> env), or null
+ * when no fal key exists (callers 503 honestly).
  */
 export async function resolveTtsEngine(admin: AdminClient): Promise<TtsEngine | null> {
-  const direct = await getElevenKey(admin);
-  if (direct) return { kind: 'direct', key: direct };
   const { data, error } = await admin.from('llm_settings').select('fal_api_key').single();
   if (error) console.error('tts: llm_settings read error:', error.message);
   const falKey = (((data as { fal_api_key?: string | null } | null)?.fal_api_key) || Deno.env.get('FAL_KEY') || '').trim();
@@ -61,30 +48,6 @@ export interface ElevenVoiceSettings {
   similarity_boost?: number;
   style?: number;
   speed?: number;
-}
-
-/** Direct-API synthesis of one line -> mp3 ArrayBuffer (the whisper pattern). */
-async function directTtsLine(
-  key: string,
-  voiceId: string,
-  text: string,
-  modelId: string,
-  settings?: ElevenVoiceSettings,
-): Promise<ArrayBuffer> {
-  const resp = await fetch(`${ELEVEN_BASE}/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=${ELEVEN_OUTPUT_FORMAT}`, {
-    method: 'POST',
-    headers: { 'xi-api-key': key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      text: text.slice(0, ELEVEN_CHAR_CAP),
-      model_id: modelId,
-      ...(settings && Object.keys(settings).length > 0 ? { voice_settings: settings } : {}),
-    }),
-  });
-  if (!resp.ok) {
-    const detail = await resp.text().catch(() => '');
-    throw new Error(`ElevenLabs TTS ${resp.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`);
-  }
-  return resp.arrayBuffer();
 }
 
 /** fal-routed synthesis of one line via the SYNCHRONOUS fal.run endpoint. */
@@ -123,17 +86,17 @@ async function falTtsLine(
   return audio.arrayBuffer();
 }
 
-/** Synthesize one line -> mp3 ArrayBuffer through the resolved engine. */
+/** Synthesize one line -> mp3 ArrayBuffer through the resolved engine.
+ *  `modelId` is accepted for caller compatibility and ignored (fal pins
+ *  FAL_TTS_MODEL). */
 export async function ttsLine(
   engine: TtsEngine,
   voiceId: string,
   text: string,
-  modelId: string = ELEVEN_DEFAULT_MODEL,
+  _modelId: string = ELEVEN_DEFAULT_MODEL,
   settings?: ElevenVoiceSettings,
 ): Promise<ArrayBuffer> {
-  return engine.kind === 'direct'
-    ? directTtsLine(engine.key, voiceId, text, modelId, settings)
-    : falTtsLine(engine.key, voiceId, text, settings);
+  return falTtsLine(engine.key, voiceId, text, settings);
 }
 
 export interface SpeakerLine {
@@ -208,19 +171,9 @@ export const FAL_PRESET_VOICES: ElevenVoice[] = [
   { voice_id: 'Eric', name: 'Eric', category: 'male · friendly' },
 ];
 
-/** List voices for the resolved engine: the account library (direct) or the
- *  curated fal preset set. */
-export async function listVoices(engine: TtsEngine): Promise<ElevenVoice[]> {
-  if (engine.kind === 'fal') return FAL_PRESET_VOICES;
-  const resp = await fetch(`${ELEVEN_BASE}/v2/voices?page_size=100`, { headers: { 'xi-api-key': engine.key } });
-  if (!resp.ok) throw new Error(`ElevenLabs voices ${resp.status}`);
-  const data = await resp.json() as { voices?: Array<Record<string, unknown>> };
-  return (data.voices ?? []).map((v) => ({
-    voice_id: String(v.voice_id ?? ''),
-    name: String(v.name ?? 'Unnamed'),
-    category: typeof v.category === 'string' ? v.category : undefined,
-    labels: (v.labels && typeof v.labels === 'object' ? v.labels : undefined) as Record<string, string> | undefined,
-  })).filter((v) => v.voice_id);
+/** List voices: the curated fal preset set (fal has no list endpoint). */
+export async function listVoices(_engine: TtsEngine): Promise<ElevenVoice[]> {
+  return FAL_PRESET_VOICES;
 }
 
 /** One short line -> base64 data URL (the whisper preview pattern). */

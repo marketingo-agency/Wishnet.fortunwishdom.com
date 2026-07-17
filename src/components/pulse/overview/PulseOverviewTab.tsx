@@ -31,7 +31,6 @@ export function PulseOverviewTab({ onNavigate }: { onNavigate: (tab: string) => 
   const connections = [
     { label: 'upload-post', ok: hasProviderKey(keyStatus?.pulse ?? 'none') },
     { label: 'Meta', ok: connStatus?.meta?.configured ?? false },
-    { label: 'ElevenLabs', ok: connStatus?.elevenlabs?.status === 'connected' },
     { label: 'Canva', ok: connStatus?.canva?.configured ?? false },
   ];
   const healthy = connections.filter((c) => c.ok).length;

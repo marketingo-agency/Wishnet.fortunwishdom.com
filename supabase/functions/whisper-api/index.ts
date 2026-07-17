@@ -1,9 +1,10 @@
 /**
  * whisper-api Edge Function — AI Podcast Generator backend.
  *
- * Secure server-side proxy for ElevenLabs (TTS / dialogue / voices) + the script
- * model. The ElevenLabs key is SHARED with Pulse: read from
- * pulse_connections.provider='elevenlabs' (or ELEVENLABS_API_KEY env fallback).
+ * Secure server-side proxy for TTS + the script model. Since the 2026-07-17
+ * rehab, ALL text-to-speech runs through the shared fal-only seam
+ * (_shared/elevenlabs.ts: ElevenLabs partner endpoints ON FAL, app fal key,
+ * curated preset voices). The direct ElevenLabs integration was removed.
  * Audio is synthesized here and uploaded to the private `whisper-audio` bucket.
  *
  * Security: Bearer auth → getUser → is_admin gate → 30/min rate limit.
@@ -17,22 +18,12 @@ import { getCorsHeaders } from '../_shared/cors.ts';
 import { createRateLimiter } from '../_shared/rate-limit.ts';
 import { stripDashes } from '../_shared/sanitize.ts';
 import { generateImageViaFal, persistFalMedia } from '../_shared/fal.ts';
+import { listVoices, renderLines, resolveTtsEngine, ttsLine, type SpeakerLine } from '../_shared/elevenlabs.ts';
 
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 30 });
-const ELEVEN_BASE = 'https://api.elevenlabs.io';
+const TTS_NOT_CONNECTED = 'Text-to-speech is not connected. Add a fal.ai API key in Settings > LLM Providers (voices run through fal).';
 
 let corsHeaders: Record<string, string> = getCorsHeaders(null);
-
-type AdminClient = ReturnType<typeof createClient>;
-
-/** Resolve the shared ElevenLabs key (Pulse connection row, then env). */
-async function getElevenKey(admin: AdminClient): Promise<string | null> {
-  const { data } = await admin.from('pulse_connections').select('api_key').eq('provider', 'elevenlabs').maybeSingle();
-  const dbKey = (data as { api_key?: string } | null)?.api_key;
-  if (typeof dbKey === 'string' && dbKey.trim().length > 0) return dbKey.trim();
-  const envKey = Deno.env.get('ELEVENLABS_API_KEY') ?? '';
-  return envKey.length > 0 ? envKey : null;
-}
 
 /** Generate text via the configured script model (OpenAI or Gemini). */
 async function generateText(provider: string, model: string, temperature: number, systemPrompt: string, userPrompt: string, keys: { openai: string; gemini: string }): Promise<string> {
@@ -72,13 +63,18 @@ function isPrivateHost(host: string): boolean {
   return false;
 }
 
-/** Resolve A records and reject if any maps to a private range (DNS-rebinding guard). */
+/** Resolve A + AAAA records and reject if any maps to a private range
+ *  (DNS-rebinding guard). Fails CLOSED: without DNS resolution the private-IP
+ *  check cannot run, so a hostname cannot be cleared (the scenario.ts AAAA
+ *  fix, finally applied here 2026-07-17). */
 async function resolvesToPrivate(host: string): Promise<boolean> {
   if (/^[\d.]+$/.test(host) || host.includes(':')) return isPrivateHost(host);
-  try {
-    const ips = await (Deno as { resolveDns?: (h: string, t: string) => Promise<string[]> }).resolveDns?.(host, 'A') ?? [];
-    return Array.isArray(ips) && ips.some((ip) => isPrivateHost(ip));
-  } catch { return false; }
+  const resolve = (Deno as { resolveDns?: (h: string, t: string) => Promise<string[]> }).resolveDns;
+  if (!resolve) return true;
+  const lookups = await Promise.all(['A', 'AAAA'].map(async (t) => {
+    try { return await resolve(host, t) ?? []; } catch { return []; }
+  }));
+  return lookups.flat().some((ip) => isPrivateHost(String(ip)));
 }
 
 /** SSRF-hardened fetch: https-only, private-host + resolved-IP denylist, NO redirects, size cap. */
@@ -142,26 +138,6 @@ function toBase64(buf: ArrayBuffer): string {
   return btoa(bin);
 }
 
-/** Synthesize one line via ElevenLabs TTS → mp3 ArrayBuffer. */
-async function ttsLine(key: string, voiceId: string, text: string, modelId: string, settings?: Record<string, unknown>): Promise<ArrayBuffer> {
-  const voiceSettings: Record<string, unknown> = {};
-  if (settings) {
-    for (const k of ['stability', 'similarity_boost', 'style', 'use_speaker_boost', 'speed']) {
-      if (settings[k] !== undefined && settings[k] !== null) voiceSettings[k] = settings[k];
-    }
-  }
-  const resp = await fetch(`${ELEVEN_BASE}/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`, {
-    method: 'POST',
-    headers: { 'xi-api-key': key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, model_id: modelId, ...(Object.keys(voiceSettings).length ? { voice_settings: voiceSettings } : {}) }),
-  });
-  if (!resp.ok) {
-    const detail = await resp.text().catch(() => '');
-    throw new Error(`ElevenLabs TTS ${resp.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`);
-  }
-  return resp.arrayBuffer();
-}
-
 function jsonResponse(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 }
@@ -197,24 +173,12 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const { action } = body as { action?: string };
 
-    // ── list-voices (proxy ElevenLabs voice library) ──────────────────
+    // ── list-voices (curated fal preset voices via the shared seam) ───
     if (action === 'list-voices') {
-      const key = await getElevenKey(supabaseAdmin);
-      if (!key) return errorResponse('ElevenLabs key not configured', 400);
-      const resp = await fetch(`${ELEVEN_BASE}/v2/voices?page_size=100`, { headers: { 'xi-api-key': key } });
-      if (!resp.ok) return errorResponse(`Failed to fetch voices (${resp.status})`, 502);
-      const data = await resp.json().catch(() => ({}));
-      const voices = (((data as { voices?: unknown[] }).voices) ?? []).map((v) => {
-        const voice = (v ?? {}) as Record<string, unknown>;
-        return {
-          voice_id: String(voice.voice_id ?? ''),
-          name: String(voice.name ?? 'Unnamed'),
-          category: typeof voice.category === 'string' ? voice.category : undefined,
-          preview_url: typeof voice.preview_url === 'string' ? voice.preview_url : undefined,
-          labels: voice.labels && typeof voice.labels === 'object' ? (voice.labels as Record<string, string>) : undefined,
-        };
-      }).filter((v) => v.voice_id);
-      return jsonResponse({ voices });
+      const engine = await resolveTtsEngine(supabaseAdmin);
+      if (!engine) return errorResponse(TTS_NOT_CONNECTED, 503);
+      const voices = await listVoices(engine);
+      return jsonResponse({ voices, engine: engine.kind });
     }
 
     // ── generate-script (AI podcast script from topic/source) ─────────
@@ -236,8 +200,10 @@ Deno.serve(async (req) => {
         gemini: ((llm as Record<string, unknown> | null)?.gemini_api_key as string) || Deno.env.get('GEMINI_API_KEY') || '',
       };
 
-      const { data: rules } = await supabaseAdmin.from('heart_rules').select('title, content').eq('is_active', true).limit(25);
-      const rulesText = (rules ?? []).map((r) => `- ${(r as { title: string }).title}: ${(r as { content: string }).content}`).join('\n');
+      // Real columns are name/rule_content (the title/content read was a latent
+      // bug that silently dropped every Heart rule from Whisper scripts).
+      const { data: rules } = await supabaseAdmin.from('heart_rules').select('name, rule_content').eq('is_active', true).limit(25);
+      const rulesText = (rules ?? []).map((r) => `- ${(r as { name: string }).name}: ${(r as { rule_content: string }).rule_content}`).join('\n');
 
       let source = (sourceText ?? '').toString();
       if (sourceUrl?.trim()) {
@@ -265,12 +231,10 @@ Deno.serve(async (req) => {
     if (action === 'preview-line') {
       const { voiceId, text } = body as { voiceId?: string; text?: string };
       if (!voiceId || !text?.trim()) return errorResponse('voiceId and text are required', 400);
-      const key = await getElevenKey(supabaseAdmin);
-      if (!key) return errorResponse('ElevenLabs key not configured', 400);
-      const { data: settings } = await supabaseAdmin.from('whisper_settings').select('tts_model').limit(1).maybeSingle();
-      const modelId = ((settings as Record<string, unknown> | null)?.tts_model as string) ?? 'eleven_multilingual_v2';
+      const engine = await resolveTtsEngine(supabaseAdmin);
+      if (!engine) return errorResponse(TTS_NOT_CONNECTED, 503);
       try {
-        const buf = await ttsLine(key, voiceId, text.slice(0, 300), modelId);
+        const buf = await ttsLine(engine, voiceId, text.slice(0, 300));
         return jsonResponse({ audio: `data:audio/mpeg;base64,${toBase64(buf)}` });
       } catch (e) {
         return errorResponse(e instanceof Error ? e.message : 'Preview failed', 502);
@@ -291,40 +255,23 @@ Deno.serve(async (req) => {
       if (segs.length === 0) return errorResponse('This episode has no script lines', 400);
       if (!segs.every((s) => s.voice_id)) return errorResponse('Assign a voice to every speaker before rendering', 400);
 
-      const key = await getElevenKey(supabaseAdmin);
-      if (!key) return errorResponse('ElevenLabs key not configured', 400);
-      const { data: settings } = await supabaseAdmin.from('whisper_settings').select('tts_model').limit(1).maybeSingle();
-      const modelId = ((settings as Record<string, unknown> | null)?.tts_model as string) ?? 'eleven_multilingual_v2';
-
-      // Merge consecutive same-voice lines into one TTS call (fewer calls, better prosody).
-      const groups: Array<{ voiceId: string; text: string }> = [];
-      for (const s of segs) {
-        const last = groups[groups.length - 1];
-        if (last && last.voiceId === s.voice_id) last.text += '\n' + (s.text as string);
-        else groups.push({ voiceId: s.voice_id as string, text: s.text as string });
-      }
+      const engine = await resolveTtsEngine(supabaseAdmin);
+      if (!engine) return errorResponse(TTS_NOT_CONNECTED, 503);
 
       await supabaseAdmin.from('whisper_episodes').update({ status: 'rendering', error: null, updated_at: new Date().toISOString() }).eq('id', episodeId);
 
       // Heavy synthesis runs as a background task so long episodes never hit the
       // HTTP request timeout — we return immediately and the client polls status.
+      // renderLines (shared seam) merges consecutive same-voice lines and chunks
+      // at the 5000-char cap, all mp3_44100_128 so the concat stays valid.
       const job = (async () => {
         try {
-          const buffers: Uint8Array[] = [];
-          let words = 0;
-          for (const g of groups) {
-            const buf = await ttsLine(key, g.voiceId, g.text.slice(0, 5000), modelId);
-            buffers.push(new Uint8Array(buf));
-            words += g.text.split(/\s+/).filter(Boolean).length;
-          }
-          const total = buffers.reduce((n, b) => n + b.length, 0);
-          if (total > 80_000_000) throw new Error('Rendered audio exceeds the size limit; split this into shorter episodes');
-          const merged = new Uint8Array(total);
-          let off = 0;
-          for (const b of buffers) { merged.set(b, off); off += b.length; }
+          const lines: SpeakerLine[] = segs.map((s) => ({ text: s.text as string, voice_id: s.voice_id as string }));
+          const { bytes, words } = await renderLines(engine, lines);
+          if (bytes.length > 80_000_000) throw new Error('Rendered audio exceeds the size limit; split this into shorter episodes');
 
           const path = `episodes/${episodeId}/${Date.now()}.mp3`;
-          const { error: upErr } = await supabaseAdmin.storage.from('whisper-audio').upload(path, new Blob([merged], { type: 'audio/mpeg' }), { contentType: 'audio/mpeg', upsert: true });
+          const { error: upErr } = await supabaseAdmin.storage.from('whisper-audio').upload(path, new Blob([bytes], { type: 'audio/mpeg' }), { contentType: 'audio/mpeg', upsert: true });
           if (upErr) throw new Error(upErr.message);
 
           const duration = Math.max(1, Math.round(words / 2.5)); // ~150 wpm estimate

@@ -46,7 +46,7 @@ const AUDIO_BUCKET = 'omni-audio';
 const QUEUE_BASE = 'https://queue.fal.run';
 const CHUNK_MAX_BYTES = 20 * 1024 * 1024;
 const EPISODE_MAX_BYTES = 200 * 1024 * 1024;
-const ELEVEN_NOT_CONNECTED = 'Text-to-speech is not connected. Add an ElevenLabs key in Pulse Settings, or a fal.ai key in Settings > LLM Providers (TTS runs through fal automatically).';
+const ELEVEN_NOT_CONNECTED = 'Text-to-speech is not connected. Add a fal.ai API key in Settings > LLM Providers (voices run through fal).';
 const FAL_NOT_CONFIGURED = 'fal.ai is not configured. Add a fal.ai API key in Settings > LLM Providers.';
 
 async function getFalKey(supabaseAdmin: AdminClient): Promise<string | null> {

@@ -3,11 +3,11 @@
 /**
  * Animate stage 2: motion or talk (Plan 2 Phase 9).
  * Motion = Seedance reference-to-video (refs addressed as @Image1..N).
- * Talk = script → ElevenLabs brand voice → Kling AI Avatar v2 Pro
+ * Talk = script → brand voice (fal TTS) → Kling AI Avatar v2 Pro
  * (the audio drives the clip length; lipsync tiers stay honest about price).
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MessageSquareText, Move3d } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,11 @@ export function ANDirection({ state, onMotion, onTalk }: ANDirectionProps) {
   const [script, setScript] = useState(state.animate_script ?? '');
   const [voiceId, setVoiceId] = useState(state.animate_voice_id ?? '');
   const voices = useElevenVoices(path === 'talk');
+  // Preset-voice membership guard (pre-fal ids silently clear for a re-pick).
+  useEffect(() => {
+    if (!voiceId || !voices.data?.length) return;
+    if (!voices.data.some((v) => v.voice_id === voiceId)) setVoiceId('');
+  }, [voices.data, voiceId]);
   const refCount = (state.animate_refs ?? []).length;
 
   const submit = () => {
@@ -80,7 +85,7 @@ export function ANDirection({ state, onMotion, onTalk }: ANDirectionProps) {
         >
           <MessageSquareText className="mb-1.5 h-4 w-4 text-violet-400" aria-hidden />
           <p className="text-xs font-semibold">Talk</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">Script → ElevenLabs voice → talking character (Kling AI Avatar, works on stylized characters).</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">Script → brand voice (via fal) → talking character (Kling AI Avatar, works on stylized characters).</p>
         </button>
       </div>
 
@@ -108,7 +113,7 @@ export function ANDirection({ state, onMotion, onTalk }: ANDirectionProps) {
           />
           <Select value={voiceId} onValueChange={setVoiceId} disabled={!voices.data?.length}>
             <SelectTrigger className="h-9 w-64 cursor-pointer text-xs" aria-label="Brand voice">
-              <SelectValue placeholder={voices.isLoading ? 'Loading voices…' : voices.isError ? 'ElevenLabs unavailable' : 'Pick a brand voice'} />
+              <SelectValue placeholder={voices.isLoading ? 'Loading voices…' : voices.isError ? 'Voices unavailable' : 'Pick a brand voice'} />
             </SelectTrigger>
             <SelectContent>
               {(voices.data ?? []).map((v) => (
@@ -120,7 +125,7 @@ export function ANDirection({ state, onMotion, onTalk }: ANDirectionProps) {
           </Select>
           {voices.isError && (
             <p className="text-[11px] text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400" role="status">
-              {voices.error instanceof Error ? voices.error.message : 'ElevenLabs voices are unavailable.'}
+              {voices.error instanceof Error ? voices.error.message : 'Voices are unavailable.'}
             </p>
           )}
           <p className="text-[11px] text-muted-foreground">Only the FIRST reference image drives the avatar; the audio sets the clip length.</p>

@@ -21,7 +21,7 @@ export interface WhisperSettingsData {
 const DEFAULTS: WhisperSettingsData = {
   script_provider: 'openai',
   script_model: 'gpt-4.1',
-  tts_model: 'eleven_v3',
+  tts_model: 'eleven_multilingual_v2',
   default_format: 'two_host',
   default_language: 'en',
   default_cast: {},

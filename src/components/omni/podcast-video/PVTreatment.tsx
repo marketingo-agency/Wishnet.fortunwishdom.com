@@ -55,7 +55,7 @@ export function PVTreatment({ onNext, onOpenAnimate }: PVTreatmentProps) {
           <div className="min-w-0 flex-1">
             <h2 className="text-sm font-semibold">Talking persona promo</h2>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              A persona portrait speaking a promo line (Kling AI Avatar + ElevenLabs). This lives in
+              A persona portrait speaking a promo line (Kling AI Avatar + fal voices). This lives in
               the Videos track&apos;s Animate mode — pick the persona&apos;s Wishpedia art there.
             </p>
             <Button variant="outline" size="sm" onClick={onOpenAnimate} className="mt-2 h-7 cursor-pointer gap-1.5 text-xs">

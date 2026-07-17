@@ -27,13 +27,6 @@ const PROVIDERS: ProviderConfig[] = [
     ],
   },
   {
-    provider: 'elevenlabs',
-    name: 'ElevenLabs',
-    accent: 'bg-zinc-800',
-    note: 'Studio-quality voiceover for video posts.',
-    fields: [{ key: 'apiKey', label: 'API Key', secret: true, placeholder: 'sk_…' }],
-  },
-  {
     provider: 'canva',
     name: 'Canva',
     accent: 'bg-cyan-500',

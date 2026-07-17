@@ -45,7 +45,7 @@ export function PDCast({ state, onNext }: PDCastProps) {
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Every speaker in the script needs a persona with an ElevenLabs voice. Manage them in Cast &amp; Personas.
+        Every speaker in the script needs a persona with a voice. Manage them in Cast &amp; Personas.
       </p>
 
       <div className="space-y-2">

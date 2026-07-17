@@ -4,7 +4,7 @@
  * Animate stage 3: generate & review (Plan 2 Phase 9).
  * Motion: one video-submit on Seedance reference-to-video (refs signed
  * server-side from Wishpedia IDs). Talk: the 3-hop chain reuses EXISTING
- * actions — voiceover-render (ElevenLabs) → video-submit on Kling AI Avatar
+ * actions — voiceover-render (fal TTS) → video-submit on Kling AI Avatar
  * with audio_asset_id. GEN-01: failures retry; paid ids persist at submit.
  */
 
