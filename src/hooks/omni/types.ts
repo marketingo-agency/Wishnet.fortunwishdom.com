@@ -17,7 +17,7 @@ export const DEFAULT_OMNI_SETTINGS: OmniSettings = {
 };
 
 /** The four entry tracks on the Omni home screen. */
-export type OmniTrack = 'brainstorming' | 'images' | 'audios' | 'videos';
+export type OmniTrack = 'brainstorming' | 'images' | 'audios' | 'videos' | 'content';
 
 /** Workflow modes persisted in omni_runs.mode (Images + Videos tracks — the
  *  DB CHECK was widened with the five video modes in migration 20260717050000). */

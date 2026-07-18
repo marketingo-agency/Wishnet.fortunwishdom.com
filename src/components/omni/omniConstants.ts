@@ -10,6 +10,7 @@ import {
   Images,
   Headphones,
   Film,
+  LayoutGrid,
   Sparkles,
   Drama,
   ZoomIn,
@@ -40,16 +41,11 @@ export interface OmniTrackDef {
   availability: TrackAvailability;
 }
 
+// Home tiles, in grid order (2x2 on sm+): Images, Videos, Audios, Content.
+// Brainstorming left the grid and now lives as the centered composer at the
+// bottom of the home screen (OmniHomeBrainstormBar). Content is the reserved
+// slot for the upcoming content command center (the evolution of Pulse).
 export const OMNI_TRACKS: OmniTrackDef[] = [
-  {
-    id: 'brainstorming',
-    label: 'Brainstorming',
-    description: 'Develop ideas in a grounded chat, then jump into the right creation mode with everything prefilled.',
-    icon: Lightbulb,
-    gradient: 'from-amber-400 to-orange-500',
-    glow: 'bg-amber-500/25',
-    availability: 'available',
-  },
   {
     id: 'images',
     label: 'Images',
@@ -76,6 +72,15 @@ export const OMNI_TRACKS: OmniTrackDef[] = [
     gradient: 'from-orange-400 to-rose-500',
     glow: 'bg-orange-500/25',
     availability: 'available',
+  },
+  {
+    id: 'content',
+    label: 'Content',
+    description: 'One command center for all your content: plan, organize, schedule, and publish across every channel.',
+    icon: LayoutGrid,
+    gradient: 'from-fuchsia-500 to-pink-600',
+    glow: 'bg-fuchsia-500/25',
+    availability: 'coming_soon',
   },
 ];
 

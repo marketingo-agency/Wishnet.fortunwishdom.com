@@ -11,6 +11,7 @@ import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { OMNI_TRACKS, type OmniTrackDef } from './omniConstants';
 import { OmniFalHealthCard } from './OmniFalHealthCard';
+import { OmniHomeBrainstormBar } from './OmniHomeBrainstormBar';
 import type { OmniTrack } from '@/hooks/omni';
 
 interface OmniEntryTilesProps {
@@ -43,10 +44,13 @@ export function OmniEntryTiles({ onSelectTrack }: OmniEntryTilesProps) {
   // ui-rules: entrance/hover animations respect prefers-reduced-motion.
   const reduceMotion = useReducedMotion();
   return (
-    // my-auto (not justify-center) on the content: a centered flex container
-    // with overflow clips its top edge on short viewports (375px, F2); auto
-    // margins center when there is room and top-align when content overflows.
-    <div className="flex h-full flex-col items-center overflow-y-auto px-4 py-8 sm:px-8">
+    // The home splits into a scrollable content area (tiles + fal status) and a
+    // pinned brainstorming composer at the bottom.
+    <div className="flex h-full flex-col">
+      {/* my-auto (not justify-center) on the content: a centered flex container
+          with overflow clips its top edge on short viewports (375px, F2); auto
+          margins center when there is room and top-align when content overflows. */}
+      <div className="flex flex-1 flex-col items-center overflow-y-auto px-4 py-8 sm:px-8">
       <div className="my-auto flex w-full flex-col items-center">
       <motion.div
         initial={reduceMotion ? false : { opacity: 0, y: 10 }}
@@ -133,6 +137,9 @@ export function OmniEntryTiles({ onSelectTrack }: OmniEntryTilesProps) {
       {/* fal.ai engine status bar (status only — the paid test CTA lives in the hub). */}
       <OmniFalHealthCard showTestButton={false} />
       </div>
+      </div>
+
+      <OmniHomeBrainstormBar />
     </div>
   );
 }

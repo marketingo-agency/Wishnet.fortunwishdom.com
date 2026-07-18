@@ -52,7 +52,9 @@ type ImagesMode = 'hub' | 'omni_images' | 'character_studio' | 'transform_upscal
 
 const IMAGES_MODE_IDS: ImagesMode[] = ['omni_images', 'character_studio', 'transform_upscale', 'repurposing', 'history', 'brainstorming'];
 
-const TRACK_IDS = OMNI_TRACKS.map((t) => t.id) as string[];
+// Only navigable tracks deep-link from the URL; coming-soon tiles (Content)
+// have no surface, so a ?track=content link must stay on the home screen.
+const TRACK_IDS = OMNI_TRACKS.filter((t) => t.availability !== 'coming_soon').map((t) => t.id) as string[];
 
 type VideosMode = 'hub' | 'history' | 'video_scenario' | 'omni_videos' | 'video_clips' | 'video_animate' | 'video_repurpose';
 
