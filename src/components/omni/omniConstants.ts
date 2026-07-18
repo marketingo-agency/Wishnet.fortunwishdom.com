@@ -331,8 +331,8 @@ export const OMNI_CONTENT_MODES: OmniContentModeDef[] = [
     description: 'Every asset and post you have shipped, browsable and reusable - the archive view of the Desk.',
     icon: Library,
     accent: 'text-pink-400',
-    available: false,
-    availabilityNote: 'Coming soon',
+    available: true,
+    availabilityNote: '',
   },
   {
     id: 'content_calendar',
@@ -364,10 +364,10 @@ export const OMNI_CONTENT_MODES: OmniContentModeDef[] = [
   {
     id: 'connections',
     label: 'Connections',
-    description: 'Social account connections for the day publishing goes automatic.',
+    description: 'Metricool integration: connect once, pick the brand, and approved posts publish themselves.',
     icon: Plug,
     accent: 'text-cyan-400',
-    available: false,
-    availabilityNote: 'Coming soon',
+    available: true,
+    availabilityNote: '',
   },
 ];

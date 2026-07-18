@@ -31,6 +31,8 @@ import { VideosHub } from '@/components/omni/VideosHub';
 import { AudiosHub } from '@/components/omni/AudiosHub';
 import { ContentHub } from '@/components/omni/ContentHub';
 import { PublishingDesk } from '@/components/omni/content/PublishingDesk';
+import { ConnectionsMode } from '@/components/omni/content/ConnectionsMode';
+import { ContentLibraryMode } from '@/components/omni/content/ContentLibraryMode';
 import { CastPersonasView } from '@/components/omni/cast/CastPersonasView';
 import { PodcastScenarioWizard } from '@/components/omni/podcast-scenario/PodcastScenarioWizard';
 import { PodcastStudioWizard } from '@/components/omni/podcast-studio/PodcastStudioWizard';
@@ -65,9 +67,9 @@ type AudiosMode = 'hub' | 'history' | 'podcast_scenario' | 'omni_podcast' | 'cas
  *  wizard (a deep link to an unbuilt surface must land on the hub, not blank). */
 const BUILT_AUDIO_SURFACES: AudiosMode[] = ['history', 'cast_personas', 'podcast_scenario', 'omni_podcast', 'podcast_video', 'publish_feed'];
 
-type ContentMode = 'hub' | 'publishing_desk';
+type ContentMode = 'hub' | 'publishing_desk' | 'connections' | 'content_library';
 /** Content surfaces accepted from the URL (coming-soon modes land on the hub). */
-const BUILT_CONTENT_SURFACES: ContentMode[] = ['publishing_desk'];
+const BUILT_CONTENT_SURFACES: ContentMode[] = ['publishing_desk', 'connections', 'content_library'];
 
 export default function OmniAgent() {
   const router = useRouter();
@@ -361,6 +363,14 @@ export default function OmniAgent() {
 
               {view === 'content' && contentMode === 'publishing_desk' && (
                 <PublishingDesk onExit={() => openContentMode('hub')} />
+              )}
+
+              {view === 'content' && contentMode === 'connections' && (
+                <ConnectionsMode onBack={() => openContentMode('hub')} />
+              )}
+
+              {view === 'content' && contentMode === 'content_library' && (
+                <ContentLibraryMode onBack={() => openContentMode('hub')} onOpenDesk={() => openContentMode('publishing_desk')} />
               )}
 
               {view === 'audios' && audiosMode === 'hub' && (

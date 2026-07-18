@@ -8,7 +8,7 @@
 
 import { useMemo, useState } from 'react';
 import type { UseQueryResult } from '@tanstack/react-query';
-import { AlertCircle, Clapperboard, ImageIcon, Inbox, Plus } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Clapperboard, ImageIcon, Inbox, Plus, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
@@ -29,7 +29,7 @@ interface BoardViewProps {
   onNewPost: () => void;
 }
 
-const STATUS_FILTERS = ['all', 'draft', 'scheduled', 'partially_published', 'published', 'archived'] as const;
+const STATUS_FILTERS = ['all', 'draft', 'pending_approval', 'approved', 'scheduled', 'partially_published', 'published', 'archived'] as const;
 
 export function BoardView({ query, includeArchived, onToggleArchived, onOpenPost, onNewPost }: BoardViewProps) {
   const { user } = useAuth();
@@ -178,18 +178,33 @@ export function BoardView({ query, includeArchived, onToggleArchived, onOpenPost
                       {post.targets.map((t) => {
                         const net = getDeskNetwork(t.network);
                         const Icon = net.icon;
+                        const armed = Boolean(t.metricool_post_id) && t.status !== 'published';
+                        // A failed push has sync_error but no metricool id - it
+                        // must read as failed, not as "auto after approval".
+                        const failed = t.metricool_status === 'ERROR'
+                          || (Boolean(t.sync_error) && t.publish_mode === 'auto' && t.status !== 'published');
+                        const stateWord = t.status === 'published' ? 'published'
+                          : failed ? 'auto-publish failed'
+                          : armed ? 'armed in Metricool'
+                          : t.publish_mode === 'auto' ? 'auto after approval'
+                          : 'manual queue';
                         return (
                           <span
                             key={t.id}
-                            title={`${t.network === 'other' ? t.network_label || 'Other' : net.label}${t.post_type ? ` · ${t.post_type}` : ''} · ${t.status === 'published' ? 'published' : 'to publish'}`}
+                            title={`${t.network === 'other' ? t.network_label || 'Other' : net.label}${t.post_type ? ` · ${t.post_type}` : ''} · ${stateWord}`}
                             className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-1.5 py-0.5"
                           >
                             <Icon className={cn('h-3 w-3', net.accent)} />
+                            {t.publish_mode === 'auto' && t.status !== 'published' && (
+                              failed
+                                ? <AlertTriangle className="h-2.5 w-2.5 text-rose-500" aria-hidden="true" />
+                                : <Zap className={cn('h-2.5 w-2.5', armed ? 'text-cyan-500' : 'text-muted-foreground/60')} aria-hidden="true" />
+                            )}
                             <span
                               aria-hidden="true"
                               className={cn(
                                 'h-1.5 w-1.5 rounded-full',
-                                t.status === 'published' ? 'bg-emerald-500' : 'bg-muted-foreground/40',
+                                t.status === 'published' ? 'bg-emerald-500' : armed ? 'bg-cyan-500' : 'bg-muted-foreground/40',
                               )}
                             />
                           </span>

@@ -17,11 +17,15 @@ import { AlertCircle, CalendarX2, ChevronLeft, ChevronRight, Loader2 } from 'luc
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { useUpdateDeskPost, type DeskPost } from '@/hooks/omni/useContentDesk';
+import { isArmedTarget, useUpdateDeskPost, type DeskPost } from '@/hooks/omni/useContentDesk';
 import { POST_STATUS_META } from './contentConstants';
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const isLocked = (p: DeskPost) => p.status === 'published' || p.status === 'archived';
+// Approved/armed posts are locked too: Metricool holds their schedule, so a
+// drag would silently lie (revert the approval to reschedule).
+const isLocked = (p: DeskPost) =>
+  p.status === 'published' || p.status === 'archived' || p.status === 'approved'
+  || p.targets.some(isArmedTarget);
 
 function PostChip({ post, onOpen }: { post: DeskPost; onOpen: (p: DeskPost) => void }) {
   const locked = isLocked(post);

@@ -1016,35 +1016,92 @@ export type Database = {
           },
         ]
       }
+      omni_content_connections: {
+        Row: {
+          api_token: string
+          blog_id: string | null
+          brand_label: string | null
+          brand_timezone: string | null
+          created_at: string
+          created_by: string
+          id: string
+          last_checked_at: string | null
+          metricool_user_id: string
+          networks: Json
+          pinterest_boards: Json
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          api_token: string
+          blog_id?: string | null
+          brand_label?: string | null
+          brand_timezone?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          last_checked_at?: string | null
+          metricool_user_id: string
+          networks?: Json
+          pinterest_boards?: Json
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          api_token?: string
+          blog_id?: string | null
+          brand_label?: string | null
+          brand_timezone?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          last_checked_at?: string | null
+          metricool_user_id?: string
+          networks?: Json
+          pinterest_boards?: Json
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       omni_content_posts: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           created_at: string
           created_by: string
           id: string
           metadata: Json
           notes: string | null
+          rejected_reason: string | null
           scheduled_at: string | null
           status: string
           title: string
           updated_at: string
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           created_by: string
           id?: string
           metadata?: Json
           notes?: string | null
+          rejected_reason?: string | null
           scheduled_at?: string | null
           status?: string
           title?: string
           updated_at?: string
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           created_by?: string
           id?: string
           metadata?: Json
           notes?: string | null
+          rejected_reason?: string | null
           scheduled_at?: string | null
           status?: string
           title?: string
@@ -1057,40 +1114,55 @@ export type Database = {
           caption: string
           created_at: string
           id: string
+          last_synced_at: string | null
+          metricool_post_id: string | null
+          metricool_status: string | null
           network: string
           network_label: string | null
           post_id: string
           post_type: string
+          publish_mode: string
           published_at: string | null
           published_by: string | null
           published_url: string | null
           status: string
+          sync_error: string | null
         }
         Insert: {
           caption?: string
           created_at?: string
           id?: string
+          last_synced_at?: string | null
+          metricool_post_id?: string | null
+          metricool_status?: string | null
           network: string
           network_label?: string | null
           post_id: string
           post_type?: string
+          publish_mode?: string
           published_at?: string | null
           published_by?: string | null
           published_url?: string | null
           status?: string
+          sync_error?: string | null
         }
         Update: {
           caption?: string
           created_at?: string
           id?: string
+          last_synced_at?: string | null
+          metricool_post_id?: string | null
+          metricool_status?: string | null
           network?: string
           network_label?: string | null
           post_id?: string
           post_type?: string
+          publish_mode?: string
           published_at?: string | null
           published_by?: string | null
           published_url?: string | null
           status?: string
+          sync_error?: string | null
         }
         Relationships: [
           {

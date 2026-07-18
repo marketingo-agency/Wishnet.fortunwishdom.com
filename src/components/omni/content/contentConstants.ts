@@ -52,13 +52,21 @@ export const POST_STATUS_META: Record<string, { label: string; className: string
     label: 'Draft',
     className: 'border-border bg-muted/60 text-muted-foreground',
   },
+  pending_approval: {
+    label: 'Awaiting approval',
+    className: 'border-amber-500/40 bg-amber-500/10 text-amber-800 [[data-omni-theme=dark]_&]:text-amber-300',
+  },
+  approved: {
+    label: 'Approved · armed',
+    className: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 [[data-omni-theme=dark]_&]:text-cyan-300',
+  },
   scheduled: {
     label: 'Scheduled',
     className: 'border-violet-500/40 bg-violet-500/10 text-violet-700 [[data-omni-theme=dark]_&]:text-violet-300',
   },
   partially_published: {
     label: 'Partially published',
-    className: 'border-amber-500/40 bg-amber-500/10 text-amber-700 [[data-omni-theme=dark]_&]:text-amber-300',
+    className: 'border-amber-500/40 bg-amber-500/10 text-amber-800 [[data-omni-theme=dark]_&]:text-amber-300',
   },
   published: {
     label: 'Published',
@@ -68,6 +76,16 @@ export const POST_STATUS_META: Record<string, { label: string; className: string
     label: 'Archived',
     className: 'border-border bg-muted/40 text-muted-foreground/70',
   },
+};
+
+/** Live Metricool per-target state -> a short honest label + tone. */
+export const METRICOOL_STATUS_META: Record<string, { label: string; className: string }> = {
+  PENDING: { label: 'Scheduled in Metricool', className: 'text-cyan-700 [[data-omni-theme=dark]_&]:text-cyan-300' },
+  PUBLISHING: { label: 'Publishing now', className: 'text-violet-700 [[data-omni-theme=dark]_&]:text-violet-300' },
+  PUBLISHED: { label: 'Published', className: 'text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-300' },
+  AWAITING_CONFIRMATION: { label: 'Needs the Metricool mobile app to finish', className: 'text-amber-800 [[data-omni-theme=dark]_&]:text-amber-300' },
+  ERROR: { label: 'Publish failed', className: 'text-rose-700 [[data-omni-theme=dark]_&]:text-rose-400' },
+  DRAFT: { label: 'Draft in Metricool', className: 'text-muted-foreground' },
 };
 
 /** Uploads accepted by the Desk (mirrors the bucket + edge allowlists). */

@@ -2,12 +2,13 @@
 
 /**
  * Compose - destinations: toggle networks (the six + Other), then per
- * destination pick the POST TYPE (Story vs Feed vs Reel...), and write or
- * AI-generate the caption. Published destinations are the publish trail and
- * render locked. "Generate captions" runs ONE full-RAG call for all rows.
+ * destination pick the POST TYPE, the LANE (Auto via Metricool / Manual
+ * queue), and write or AI-generate the caption. Published destinations are
+ * the publish trail; ARMED destinations (live in Metricool) render locked -
+ * revert the approval to change them. One full-RAG call writes all captions.
  */
 
-import { CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { CheckCircle2, Loader2, Lock, Sparkles, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,7 +16,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { DESK_NETWORKS, getDeskNetwork } from './contentConstants';
+import { DESK_NETWORKS, METRICOOL_STATUS_META, getDeskNetwork } from './contentConstants';
 
 export interface EditableTarget {
   /** Set for targets that already exist server-side. */
@@ -25,7 +26,13 @@ export interface EditableTarget {
   post_type: string;
   caption: string;
   status: 'scheduled' | 'published';
+  publish_mode: 'auto' | 'manual';
+  metricool_post_id?: string | null;
+  metricool_status?: string | null;
+  sync_error?: string | null;
 }
+
+const isArmed = (t: EditableTarget) => Boolean(t.metricool_post_id) && t.status !== 'published';
 
 interface ComposeTargetsProps {
   targets: EditableTarget[];
@@ -33,22 +40,28 @@ interface ComposeTargetsProps {
   onGenerateCaptions: () => void;
   generating: boolean;
   disabled?: boolean;
+  /** Metricool connected + brand picked -> the Auto lane is available. */
+  autoAvailable: boolean;
+  /** Networks connected on the Metricool brand (auto actually works there). */
+  connectedNetworks: Record<string, string>;
 }
 
-export function ComposeTargets({ targets, onChange, onGenerateCaptions, generating, disabled }: ComposeTargetsProps) {
-  const has = (network: string) => targets.some((t) => t.network === network);
-
+export function ComposeTargets({ targets, onChange, onGenerateCaptions, generating, disabled, autoAvailable, connectedNetworks }: ComposeTargetsProps) {
   const toggleNetwork = (network: string) => {
-    if (has(network)) {
-      const target = targets.find((t) => t.network === network);
-      if (target?.status === 'published') return; // the publish trail is immutable here
+    const existing = targets.find((t) => t.network === network);
+    if (existing) {
+      if (existing.status === 'published' || isArmed(existing)) return; // trail / armed rows are immutable here
       onChange(targets.filter((t) => t.network !== network));
       return;
     }
     const def = getDeskNetwork(network);
+    const autoDefault = autoAvailable && network !== 'other' && Boolean(connectedNetworks[network]);
     onChange([
       ...targets,
-      { network, network_label: null, post_type: def.postTypes[0] ?? '', caption: '', status: 'scheduled' },
+      {
+        network, network_label: null, post_type: def.postTypes[0] ?? '', caption: '',
+        status: 'scheduled', publish_mode: autoDefault ? 'auto' : 'manual',
+      },
     ]);
   };
 
@@ -56,7 +69,7 @@ export function ComposeTargets({ targets, onChange, onGenerateCaptions, generati
     onChange(targets.map((t, i) => (i === index ? { ...t, ...p } : t)));
   };
 
-  const editable = targets.filter((t) => t.status !== 'published');
+  const editable = targets.filter((t) => t.status !== 'published' && !isArmed(t));
 
   return (
     <div className="space-y-2.5">
@@ -80,20 +93,20 @@ export function ComposeTargets({ targets, onChange, onGenerateCaptions, generati
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="Networks">
         {DESK_NETWORKS.map((n) => {
           const Icon = n.icon;
-          const selected = has(n.id);
-          const locked = targets.find((t) => t.network === n.id)?.status === 'published';
+          const row = targets.find((t) => t.network === n.id);
+          const locked = row ? row.status === 'published' || isArmed(row) : false;
           return (
             <button
               key={n.id}
               type="button"
-              aria-pressed={selected}
+              aria-pressed={Boolean(row)}
               onClick={() => toggleNetwork(n.id)}
               disabled={disabled || locked}
-              title={locked ? 'Already published on this network' : undefined}
+              title={locked ? 'Published or armed - locked' : undefined}
               className={cn(
                 'flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors duration-200',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                selected
+                row
                   ? 'border-fuchsia-500/50 bg-fuchsia-500/10 text-fuchsia-700 [[data-omni-theme=dark]_&]:text-fuchsia-300'
                   : 'border-border bg-muted/40 text-muted-foreground hover:border-fuchsia-500/30 hover:text-foreground',
                 locked && 'cursor-not-allowed opacity-70',
@@ -109,11 +122,20 @@ export function ComposeTargets({ targets, onChange, onGenerateCaptions, generati
       {targets.length === 0 && (
         <p className="text-xs text-muted-foreground">Pick at least one network to define where this post goes.</p>
       )}
+      {!autoAvailable && targets.some((t) => t.network !== 'other') && (
+        <p className="text-[11px] text-muted-foreground">
+          Connect Metricool (Content hub, Connections) to unlock the Auto lane - until then everything runs through the manual Publish Queue.
+        </p>
+      )}
 
       {targets.map((t, i) => {
         const net = getDeskNetwork(t.network);
         const Icon = net.icon;
         const published = t.status === 'published';
+        const armed = isArmed(t);
+        const rowLocked = published || armed;
+        const mcMeta = t.metricool_status ? METRICOOL_STATUS_META[t.metricool_status] : undefined;
+        const canAuto = autoAvailable && t.network !== 'other' && Boolean(connectedNetworks[t.network]);
         return (
           <div key={`${t.network}-${t.id ?? i}`} className="space-y-2 rounded-xl border border-border bg-muted/20 p-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -124,6 +146,10 @@ export function ComposeTargets({ targets, onChange, onGenerateCaptions, generati
               {published ? (
                 <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-300">
                   <CheckCircle2 className="h-3 w-3" /> Published
+                </span>
+              ) : armed ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-medium text-cyan-700 [[data-omni-theme=dark]_&]:text-cyan-300">
+                  <Lock className="h-3 w-3" /> Armed in Metricool
                 </span>
               ) : t.network === 'other' ? (
                 <>
@@ -156,6 +182,43 @@ export function ComposeTargets({ targets, onChange, onGenerateCaptions, generati
                   </SelectContent>
                 </Select>
               )}
+              {!rowLocked && t.network !== 'other' && (
+                <div className="ml-auto flex items-center rounded-full border border-border bg-background/60 p-0.5" role="group" aria-label={`${net.label} publish lane`}>
+                  <button
+                    type="button"
+                    aria-pressed={t.publish_mode === 'auto'}
+                    disabled={disabled || !canAuto}
+                    onClick={() => patch(i, { publish_mode: 'auto' })}
+                    title={canAuto ? 'Publishes itself via Metricool at the scheduled time' : 'Needs Metricool + this network connected on the brand'}
+                    className={cn(
+                      'flex cursor-pointer items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors duration-200',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      t.publish_mode === 'auto'
+                        ? 'bg-cyan-500/15 text-cyan-700 [[data-omni-theme=dark]_&]:text-cyan-300'
+                        : 'text-muted-foreground hover:text-foreground',
+                      !canAuto && 'cursor-not-allowed opacity-50',
+                    )}
+                  >
+                    <Zap className="h-2.5 w-2.5" /> Auto
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={t.publish_mode === 'manual'}
+                    disabled={disabled}
+                    onClick={() => patch(i, { publish_mode: 'manual' })}
+                    title="A teammate downloads the asset and posts it manually from the Queue"
+                    className={cn(
+                      'cursor-pointer rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors duration-200',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      t.publish_mode === 'manual'
+                        ? 'bg-fuchsia-500/15 text-fuchsia-700 [[data-omni-theme=dark]_&]:text-fuchsia-300'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    Manual
+                  </button>
+                </div>
+              )}
             </div>
             <Textarea
               value={t.caption}
@@ -163,9 +226,15 @@ export function ComposeTargets({ targets, onChange, onGenerateCaptions, generati
               placeholder={`Caption for ${t.network === 'other' ? (t.network_label || 'this network') : net.label}${t.post_type ? ` (${t.post_type})` : ''}…`}
               aria-label={`Caption for ${net.label}`}
               rows={3}
-              disabled={disabled || published}
+              disabled={disabled || rowLocked}
               className="resize-none bg-background/60 text-sm"
             />
+            {armed && (
+              <p className={cn('text-[11px]', mcMeta?.className ?? 'text-muted-foreground')}>
+                {mcMeta?.label ?? 'Scheduled in Metricool'}
+                {t.sync_error ? ` - ${t.sync_error}` : ''}
+              </p>
+            )}
           </div>
         );
       })}

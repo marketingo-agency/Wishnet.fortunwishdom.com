@@ -9,15 +9,18 @@
 
 import { useState } from 'react';
 import type { UseQueryResult } from '@tanstack/react-query';
-import { AlertCircle, Check, CheckCircle2, Copy, Download, PartyPopper, Undo2 } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, Copy, Download, Loader2, PartyPopper, RefreshCw, Undo2, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMarkPublished, useUnpublishTarget, type DeskPost, type DeskTarget } from '@/hooks/omni/useContentDesk';
-import { formatScheduled, getDeskNetwork } from './contentConstants';
+import {
+  isArmedTarget, useMarkPublished, useMetricoolSync, useUnpublishTarget,
+  type DeskPost, type DeskTarget,
+} from '@/hooks/omni/useContentDesk';
+import { METRICOOL_STATUS_META, formatScheduled, getDeskNetwork } from './contentConstants';
 
 function TargetRow({ post, target }: { post: DeskPost; target: DeskTarget }) {
   const [confirming, setConfirming] = useState(false);
@@ -25,6 +28,8 @@ function TargetRow({ post, target }: { post: DeskPost; target: DeskTarget }) {
   const markPublished = useMarkPublished();
   const net = getDeskNetwork(target.network);
   const Icon = net.icon;
+  const armed = isArmedTarget(target);
+  const mcMeta = target.metricool_status ? METRICOOL_STATUS_META[target.metricool_status] : undefined;
 
   const copyCaption = async () => {
     try {
@@ -56,7 +61,12 @@ function TargetRow({ post, target }: { post: DeskPost; target: DeskTarget }) {
               <Copy className="h-3 w-3" /> Caption
             </Button>
           )}
-          {!confirming ? (
+          {armed ? (
+            <span className={cn('inline-flex items-center gap-1 text-[11px] font-medium', mcMeta?.className ?? 'text-cyan-700 [[data-omni-theme=dark]_&]:text-cyan-300')}>
+              <Zap className="h-3 w-3" />
+              {mcMeta?.label ?? 'Scheduled in Metricool'}
+            </span>
+          ) : !confirming ? (
             <Button
               size="sm"
               onClick={() => setConfirming(true)}
@@ -83,12 +93,15 @@ function TargetRow({ post, target }: { post: DeskPost; target: DeskTarget }) {
           )}
         </div>
       </div>
+      {armed && target.sync_error && (
+        <p className="text-[11px] text-rose-700 [[data-omni-theme=dark]_&]:text-rose-400">{target.sync_error}</p>
+      )}
       {target.caption ? (
         <p className="whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-xs leading-relaxed">{target.caption}</p>
       ) : (
         <p className="text-[11px] italic text-muted-foreground">No caption for this destination.</p>
       )}
-      {post.media.length > 0 && (
+      {!armed && post.media.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {post.media.map((m, i) => (
             <a
@@ -120,6 +133,7 @@ interface QueueViewProps {
 export function QueueView({ query, onOpenPost }: QueueViewProps) {
   const { user } = useAuth();
   const unpublish = useUnpublishTarget();
+  const sync = useMetricoolSync();
 
   if (query.isLoading) {
     return (
@@ -140,11 +154,16 @@ export function QueueView({ query, onOpenPost }: QueueViewProps) {
 
   const posts = (query.data ?? []).filter((p) => p.status !== 'archived');
   const now = Date.now();
+  // The queue works APPROVED posts (plus legacy pre-approval-layer 'scheduled'
+  // ones). Drafts and posts still under review live on the Board.
+  const QUEUE_STATUSES = new Set(['approved', 'scheduled', 'partially_published']);
   const withWork = posts
-    .filter((p) => p.targets.some((t) => t.status === 'scheduled'))
+    .filter((p) => QUEUE_STATUSES.has(p.status) && p.targets.some((t) => t.status === 'scheduled'))
     .sort((a, b) => (a.scheduled_at ?? '9999').localeCompare(b.scheduled_at ?? '9999'));
   const due = withWork.filter((p) => p.scheduled_at && Date.parse(p.scheduled_at) <= now);
   const upcoming = withWork.filter((p) => !p.scheduled_at || Date.parse(p.scheduled_at) > now);
+  const armedCount = posts.reduce((n, p) => n + p.targets.filter(isArmedTarget).length, 0);
+  const awaitingApproval = posts.filter((p) => p.status === 'pending_approval').length;
   const published = posts
     .flatMap((p) => p.targets.filter((t) => t.status === 'published').map((t) => ({ post: p, target: t })))
     .sort((a, b) => (b.target.published_at ?? '').localeCompare(a.target.published_at ?? ''))
@@ -174,12 +193,34 @@ export function QueueView({ query, onOpenPost }: QueueViewProps) {
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
+      {armedCount > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-cyan-500/25 bg-cyan-500/5 px-3 py-2">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-cyan-700 [[data-omni-theme=dark]_&]:text-cyan-300">
+            <Zap className="h-3.5 w-3.5" />
+            {armedCount} destination{armedCount === 1 ? '' : 's'} armed - Metricool publishes them on schedule.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => sync.mutate(undefined)}
+            disabled={sync.isPending}
+            className="h-7 cursor-pointer gap-1.5 text-[11px]"
+          >
+            {sync.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            Sync status
+          </Button>
+        </div>
+      )}
       {withWork.length === 0 && (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-16 text-center">
           <PartyPopper className="h-7 w-7 text-muted-foreground/60" />
           <div>
             <p className="text-sm font-medium">Queue clear</p>
-            <p className="mt-1 text-xs text-muted-foreground">Nothing is waiting to be published. Stage a post on the Board.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {awaitingApproval > 0
+                ? `${awaitingApproval} post${awaitingApproval === 1 ? '' : 's'} awaiting approval on the Board - the queue picks them up once approved.`
+                : 'Nothing is waiting to be published. Stage a post on the Board.'}
+            </p>
           </div>
         </div>
       )}

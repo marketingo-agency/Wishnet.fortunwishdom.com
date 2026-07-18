@@ -23,12 +23,13 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
-  DESK_QUERY_KEY, uploadDeskMedia, useArchiveDeskPost, useCreateDeskPost, useDeleteDeskMedia,
-  useDeleteDeskPost, useGenerateDeskCaptions, useUpdateDeskPost,
+  DESK_QUERY_KEY, isArmedTarget, uploadDeskMedia, useArchiveDeskPost, useCreateDeskPost,
+  useDeleteDeskMedia, useDeleteDeskPost, useGenerateDeskCaptions, useMetricoolStatus, useUpdateDeskPost,
   type DeskMedia, type DeskPost,
 } from '@/hooks/omni/useContentDesk';
 import { ComposeMedia } from './ComposeMedia';
 import { ComposeTargets, type EditableTarget } from './ComposeTargets';
+import { ComposeApprovalBar } from './ComposeApprovalBar';
 import { filesToPending, type PendingFile } from './contentConstants';
 
 const toLocalInput = (iso: string | null): string => {
@@ -63,6 +64,11 @@ export function ComposeSheet({ open, onOpenChange, post }: ComposeSheetProps) {
   const deletePost = useDeleteDeskPost();
   const deleteMedia = useDeleteDeskMedia();
   const captions = useGenerateDeskCaptions();
+  const metricool = useMetricoolStatus();
+
+  const autoAvailable = metricool.data?.configured === true && metricool.data?.brand_selected === true;
+  const connectedNetworks = metricool.data?.networks ?? {};
+  const hasArmed = (post?.targets ?? []).some(isArmedTarget);
 
   // Closing without saving must not leak the local preview object URLs.
   useEffect(() => {
@@ -82,6 +88,8 @@ export function ComposeSheet({ open, onOpenChange, post }: ComposeSheetProps) {
     setTargets((post?.targets ?? []).map((t) => ({
       id: t.id, network: t.network, network_label: t.network_label,
       post_type: t.post_type, caption: t.caption, status: t.status,
+      publish_mode: t.publish_mode, metricool_post_id: t.metricool_post_id,
+      metricool_status: t.metricool_status, sync_error: t.sync_error,
     })));
     setMedia(post?.media ?? []);
     setPending([]);
@@ -96,8 +104,11 @@ export function ComposeSheet({ open, onOpenChange, post }: ComposeSheetProps) {
       .filter(Boolean).join(' + ') || 'no media yet';
   }, [media, pending]);
 
+  // Published rows are the trail; any Metricool-linked row is armed or live.
+  const isRowLocked = (t: EditableTarget) => t.status === 'published' || Boolean(t.metricool_post_id);
+
   const handleGenerateCaptions = () => {
-    const editable = targets.filter((t) => t.status !== 'published');
+    const editable = targets.filter((t) => !isRowLocked(t));
     if (editable.length === 0) return;
     captions.mutate(
       {
@@ -110,7 +121,7 @@ export function ComposeSheet({ open, onOpenChange, post }: ComposeSheetProps) {
         onSuccess: (res) => {
           let cursor = 0;
           setTargets((prev) => prev.map((t) => {
-            if (t.status === 'published') return t;
+            if (isRowLocked(t)) return t;
             const caption = res.captions[cursor++] ?? t.caption;
             return caption ? { ...t, caption } : t;
           }));
@@ -147,9 +158,14 @@ export function ComposeSheet({ open, onOpenChange, post }: ComposeSheetProps) {
     setSaving(true);
     try {
       const scheduledAt = scheduledLocal ? new Date(scheduledLocal).toISOString() : null;
+      // Published rows are the trail; armed rows live in Metricool - the edge
+      // preserves both, so the payload carries only the editable rows.
       const targetsPayload = targets
-        .filter((t) => t.status !== 'published')
-        .map((t) => ({ network: t.network, network_label: t.network_label, post_type: t.post_type, caption: t.caption }));
+        .filter((t) => !isRowLocked(t))
+        .map((t) => ({
+          network: t.network, network_label: t.network_label, post_type: t.post_type,
+          caption: t.caption, publish_mode: t.publish_mode,
+        }));
       if (post) {
         await updatePost.mutateAsync({
           post_id: post.id, title: title.trim(), notes: notes.trim() || null,
@@ -181,7 +197,8 @@ export function ComposeSheet({ open, onOpenChange, post }: ComposeSheetProps) {
         <SheetHeader className="border-b border-border px-5 py-4 text-left">
           <SheetTitle className="text-base">{post ? 'Edit post' : 'Stage a post'}</SheetTitle>
           <SheetDescription className="text-xs">
-            Media, captions per destination, and a schedule. Your team publishes it manually from the Queue.
+            Media, captions per destination, and a schedule. After approval, Auto destinations publish themselves via
+            Metricool; Manual ones go to the Publish Queue.
           </SheetDescription>
         </SheetHeader>
 
@@ -215,6 +232,8 @@ export function ComposeSheet({ open, onOpenChange, post }: ComposeSheetProps) {
             onGenerateCaptions={handleGenerateCaptions}
             generating={captions.isPending}
             disabled={busy}
+            autoAvailable={autoAvailable}
+            connectedNetworks={connectedNetworks}
           />
 
           <div className="space-y-1.5">
@@ -224,10 +243,19 @@ export function ComposeSheet({ open, onOpenChange, post }: ComposeSheetProps) {
               type="datetime-local"
               value={scheduledLocal}
               onChange={(e) => setScheduledLocal(e.target.value)}
-              disabled={busy}
+              disabled={busy || hasArmed}
               className="w-full sm:w-[240px]"
             />
+            {hasArmed && (
+              <p className="text-[11px] text-muted-foreground">
+                Armed for auto-publish - revert the approval to reschedule.
+              </p>
+            )}
           </div>
+
+          {post && (
+            <ComposeApprovalBar post={post} disabled={busy} onDone={() => onOpenChange(false)} />
+          )}
 
           {post && (
             <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
