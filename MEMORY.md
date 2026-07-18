@@ -2,9 +2,9 @@
 
 No active task. Ready for next assignment.
 
-## Pending human actions (from the Omni Videos rehab, 2026-07-17)
-- ROTATE the Supabase access token used for the omni v33 CLI deploy (https://supabase.com/dashboard/account/tokens) and the fal key (transited a transcript).
-- Optional follow-ups: live paid E2E over the video/podcast wizards; the 10b long->shorts mini-plan.
+## Pending human actions
+- ROTATE the Supabase access token used for CLI deploys + the fal key (both transited transcripts).
+- Live visual pass over: Omni home rework, Scenario Studio overhaul, and the new Content hub / Publishing Desk (all deployed; Omni is auth-gated so first eyes are Sam's).
 
-## Reference (rehab fully deployed)
-All six edge functions live: omni-video v7 (TRUE), omni-finisher v6 (FALSE), pulse-api v21 (FALSE), whisper-api v21 (FALSE), omni-podcast v6 (TRUE), omni v33 (TRUE). Each byte-diff IDENTICAL to disk. Full record in CLAUDE.md audit history.
+## Reference
+Publishing Desk shipped 2026-07-18 (full record in CLAUDE.md audit history): omni-content edge v2, migrations 20260718090000+120000, Content hub w/ 5 coming-soon modes.
