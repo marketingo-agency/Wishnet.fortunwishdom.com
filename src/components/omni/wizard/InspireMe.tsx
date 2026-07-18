@@ -18,6 +18,7 @@ import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
 } from '@/components/ui/sheet';
 import { useSurpriseIdeas, type SurpriseIdea, type SurpriseResult } from '@/hooks/omni';
+import { stripKnowledgeMarkers } from '@/lib/omni/stripKnowledgeMarkers';
 
 const BATCH_CACHE_KEY = ['omni-surprise-batch'];
 
@@ -45,7 +46,7 @@ export function InspireMe({ onPick, disabled }: InspireMeProps) {
   };
 
   const handleUse = (idea: SurpriseIdea) => {
-    onPick(idea.objective);
+    onPick(stripKnowledgeMarkers(idea.objective));
     setOpen(false);
   };
 
@@ -129,12 +130,9 @@ export function InspireMe({ onPick, disabled }: InspireMeProps) {
                     key={`${idea.title}-${index}`}
                     className="rounded-lg border border-border bg-card p-3 transition-colors duration-200 hover:border-fuchsia-500/40"
                   >
-                    <h3 className="text-sm font-semibold">{idea.title}</h3>
+                    <h3 className="text-sm font-semibold">{stripKnowledgeMarkers(idea.title)}</h3>
                     {idea.summary && (
-                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{idea.summary}</p>
-                    )}
-                    {idea.grounding && (
-                      <p className="mt-1.5 text-[11px] italic text-muted-foreground/70">{idea.grounding}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{stripKnowledgeMarkers(idea.summary)}</p>
                     )}
                     <Button
                       size="sm"

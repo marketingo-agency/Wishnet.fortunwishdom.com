@@ -4,19 +4,42 @@
  * Scenario Studio data layer (Plan 2 Phase 4).
  * scenario-generate runs on the omni-video function; storyboard keyframes
  * reuse the EXISTING image pipeline (omni variant-submit + variants-poll)
- * with a cheap draft model.
+ * with a caller-chosen image model.
  */
 
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { callOmni, callOmniVideo } from '@/lib/omniApi';
+import { stripKnowledgeMarkers } from '@/lib/omni/stripKnowledgeMarkers';
 import type { OmniScenarioScene, OmniVideoScenario, VariantPollResult } from './types';
 
+/** Default keyframe model when no reference images are involved. */
 export const KEYFRAME_MODEL = 'fal-ai/flux/schnell';
-/** Canon scenes render keyframes on the proven edit model with the character's
- *  Wishpedia reference art attached (Phase 4 — the Wishu fix). */
+/** Default when references ARE involved: the proven edit model that consumes
+ *  Wishpedia reference art (Phase 4 — the Wishu fix). */
 export const CANON_KEYFRAME_MODEL = 'fal-ai/nano-banana-pro/edit';
 const MAX_KEYFRAME_REFS = 8;
+
+/** Curated storyboard image models (the picker in stage 3; "browse all" adds
+ *  the live fal catalog on top). Edit models consume reference images. */
+export interface KeyframeModelOption {
+  id: string;
+  label: string;
+  edit: boolean;
+}
+export const KEYFRAME_MODEL_OPTIONS: KeyframeModelOption[] = [
+  { id: 'fal-ai/flux/schnell', label: 'FLUX schnell — fast & cheap', edit: false },
+  { id: 'fal-ai/flux/dev', label: 'FLUX dev — higher quality', edit: false },
+  { id: 'fal-ai/flux-pro/v1.1-ultra', label: 'FLUX1.1 Pro Ultra', edit: false },
+  { id: 'fal-ai/nano-banana-2', label: 'Nano Banana 2', edit: false },
+  { id: 'fal-ai/ideogram/v3', label: 'Ideogram V3 — strong typography', edit: false },
+  { id: 'fal-ai/recraft/v4/text-to-image', label: 'Recraft V4 — design-grade', edit: false },
+  { id: 'fal-ai/nano-banana-pro/edit', label: 'Nano Banana Pro — edit / references', edit: true },
+  { id: 'fal-ai/nano-banana-2/edit', label: 'Nano Banana 2 — edit / references', edit: true },
+  { id: 'fal-ai/gemini-25-flash-image/edit', label: 'Gemini 2.5 Flash Image — edit', edit: true },
+  { id: 'fal-ai/bytedance/seedream/v4/edit', label: 'Seedream V4 — edit', edit: true },
+  { id: 'fal-ai/flux-pro/kontext/max/multi', label: 'FLUX Kontext Max — edit', edit: true },
+];
 
 /** Canon reference image ids for a scene (its characters' Wishpedia art). */
 export function canonRefsForScene(scenario: OmniVideoScenario, scene: OmniScenarioScene): string[] {
@@ -26,7 +49,21 @@ export function canonRefsForScene(scenario: OmniVideoScenario, scene: OmniScenar
     const member = scenario.cast.find((c) => c.name === name);
     if (member) refs.push(...member.image_ids);
   }
-  return [...new Set(refs)].slice(0, MAX_KEYFRAME_REFS);
+  return [...new Set(refs)];
+}
+
+/** Strip citation markers ([W#]/[B#]/[n]) leaked into scenario text at the
+ *  source, so structure + storyboard render clean prompts. */
+function sanitizeScenario(scenario: OmniVideoScenario): OmniVideoScenario {
+  return {
+    ...scenario,
+    title: stripKnowledgeMarkers(scenario.title),
+    scenes: scenario.scenes.map((s) => ({
+      ...s,
+      visual_prompt: stripKnowledgeMarkers(s.visual_prompt),
+      narration: stripKnowledgeMarkers(s.narration ?? ''),
+    })),
+  };
 }
 
 export interface ScenarioGenerateInput {
@@ -44,31 +81,54 @@ export interface ScenarioGenerateResult {
 
 export function useGenerateScenario() {
   return useMutation<ScenarioGenerateResult, Error, ScenarioGenerateInput>({
-    mutationFn: (input) => callOmniVideo<ScenarioGenerateResult>('scenario-generate', { ...input }),
+    mutationFn: async (input) => {
+      const result = await callOmniVideo<ScenarioGenerateResult>('scenario-generate', { ...input });
+      return { ...result, scenario: sanitizeScenario(result.scenario) };
+    },
     onError: (e) => toast.error(e.message),
   });
 }
 
-/** Submit one keyframe generation for a scene (16:9). Scenes WITH canon
- *  characters run on the edit model with their Wishpedia reference images
- *  attached (server-resolved ids, canon-anchor auto-injected by the omni
- *  edge); cast-less scenes stay on the cheap draft model. */
+export interface KeyframeSubmitOptions {
+  /** The fal image model chosen in the storyboard step. */
+  modelId: string;
+  /** Whether modelId is edit-capable (consumes reference images). */
+  modelIsEdit: boolean;
+  /** Combined Wishpedia reference image ids (step-1 refs + this scene's canon). */
+  referenceImageIds?: string[];
+  camera?: string;
+}
+
+/**
+ * Submit one keyframe generation for a scene (16:9). When the scene has
+ * reference images, they route to an edit model (the chosen one if edit-capable,
+ * else the proven canon edit model) with the ids attached; otherwise the chosen
+ * model runs text-to-image. The spec carries both an aspect ratio and a size
+ * preset so the edge picks whichever the model's convention needs.
+ */
 export async function submitKeyframe(
   runId: string,
   visualPrompt: string,
-  camera?: string,
-  canonRefIds: string[] = [],
+  opts: KeyframeSubmitOptions,
 ): Promise<string> {
+  const { modelId, modelIsEdit, referenceImageIds = [], camera } = opts;
   const prompt = `${visualPrompt}${camera ? `, ${camera} camera` : ''}, cinematic still frame, high detail`;
-  const hasRefs = canonRefIds.length > 0;
+  const refs = referenceImageIds.slice(0, MAX_KEYFRAME_REFS);
+  const hasRefs = refs.length > 0;
+  // Match the model to the scene: references demand an edit model (honor the
+  // choice if edit-capable, else the proven canon edit model); a scene with NO
+  // references must NOT run an edit model (edit models require an image input),
+  // so an edit choice downgrades to the default text-to-image model here.
+  const effectiveModel = hasRefs
+    ? (modelIsEdit ? modelId : CANON_KEYFRAME_MODEL)
+    : (modelIsEdit ? KEYFRAME_MODEL : modelId);
   const res = await callOmni<{ asset_id: string }>('variant-submit', {
     run_id: runId,
-    model_id: hasRefs ? CANON_KEYFRAME_MODEL : KEYFRAME_MODEL,
+    model_id: effectiveModel,
     prompt,
     prompt_provenance: 'raw',
-    ...(hasRefs
-      ? { reference_image_ids: canonRefIds.slice(0, MAX_KEYFRAME_REFS), spec: { aspectRatio: '16:9' } }
-      : { spec: { imageSize: 'landscape_16_9' } }),
+    spec: { aspectRatio: '16:9', imageSize: 'landscape_16_9' },
+    ...(hasRefs ? { reference_image_ids: refs } : {}),
   });
   return res.asset_id;
 }

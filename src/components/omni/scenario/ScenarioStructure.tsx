@@ -1,23 +1,24 @@
 "use client";
 
 /**
- * Scenario Studio stage 2: the structure editor. Every scene is editable
- * (visual prompt, narration, duration, camera preset), reorderable, and
- * removable; scenes can be added; the whole scenario can be regenerated
- * from the brief.
+ * Scenario Studio stage 2: the structure editor. Each scene shows its time
+ * window (from X to Y seconds), ONE visual-prompt box with a Promptor wand to
+ * optimize it, and an editable length. Scenes reorder, remove, and add; the
+ * whole scenario can be regenerated from the brief.
  */
 
-import { ArrowDown, ArrowRight, ArrowUp, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowDown, ArrowRight, ArrowUp, Loader2, Plus, RefreshCw, Trash2, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
 import { useGenerateScenario } from '@/hooks/omni/useScenario';
+import { useOptimizeDraft } from '@/hooks/promptor';
+import { stripKnowledgeMarkers } from '@/lib/omni/stripKnowledgeMarkers';
 import type { OmniScenarioScene, OmniVideoScenario } from '@/hooks/omni';
 
-const CAMERA_PRESETS = ['static wide', 'slow push-in', 'slow pull-back', 'pan left', 'pan right', 'tracking', 'handheld', 'aerial'];
+const MAX_SCENES = 20;
+const fmtSeconds = (n: number) => (Number.isInteger(n) ? `${n}s` : `${n.toFixed(1)}s`);
 
 interface ScenarioStructureProps {
   brief: string;
@@ -28,6 +29,8 @@ interface ScenarioStructureProps {
 
 export function ScenarioStructure({ brief, scenario, onChange, onNext }: ScenarioStructureProps) {
   const regenerate = useGenerateScenario();
+  const { optimizeDraft } = useOptimizeDraft();
+  const [optimizingIdx, setOptimizingIdx] = useState<number | null>(null);
 
   const patchScene = (idx: number, patch: Partial<OmniScenarioScene>) => {
     onChange({
@@ -53,16 +56,40 @@ export function ScenarioStructure({ brief, scenario, onChange, onNext }: Scenari
   };
 
   const addScene = () => {
+    if (scenario.scenes.length >= MAX_SCENES) return;
     onChange({
       ...scenario,
       scenes: reindex([
         ...scenario.scenes,
-        { idx: 0, visual_prompt: '', narration: '', duration_s: 8, camera: 'static wide' },
+        { idx: 0, visual_prompt: '', narration: '', duration_s: 8 },
       ]),
     });
   };
 
-  const totalSeconds = scenario.scenes.reduce((sum, s) => sum + (s.duration_s || 0), 0);
+  const optimizeScene = async (idx: number, current: string) => {
+    if (!current.trim() || optimizingIdx !== null) return;
+    setOptimizingIdx(idx);
+    try {
+      const improved = await optimizeDraft(
+        `${current.trim()}\n\n(Rewrite this as a single, vivid, cinematic shot description for ONE video scene: subject, setting, style, lighting, and motion. Output only the description.)`,
+      );
+      if (improved) patchScene(idx, { visual_prompt: stripKnowledgeMarkers(improved) });
+    } catch {
+      // useOptimizeDraft already toasts.
+    } finally {
+      setOptimizingIdx(null);
+    }
+  };
+
+  // Cumulative time windows: scene N runs from the sum of prior durations to
+  // that plus its own length.
+  let running = 0;
+  const ranges = scenario.scenes.map((s) => {
+    const start = running;
+    running += s.duration_s || 0;
+    return { start, end: running };
+  });
+  const totalSeconds = running;
   const canContinue = scenario.scenes.length > 0 && scenario.scenes.every((s) => s.visual_prompt.trim().length > 0);
 
   return (
@@ -76,7 +103,7 @@ export function ScenarioStructure({ brief, scenario, onChange, onNext }: Scenari
             className="h-9 max-w-sm font-semibold"
           />
           <p className="mt-1 text-xs text-muted-foreground">
-            {scenario.scenes.length} scenes · ≈{totalSeconds}s total
+            {scenario.scenes.length} scene{scenario.scenes.length === 1 ? '' : 's'} · {fmtSeconds(totalSeconds)} total
           </p>
         </div>
         <Button
@@ -84,7 +111,7 @@ export function ScenarioStructure({ brief, scenario, onChange, onNext }: Scenari
           size="sm"
           disabled={regenerate.isPending || !brief}
           onClick={() => regenerate.mutate(
-            { brief, target_scenes: scenario.scenes.length || 6, seconds_per_scene: 8 },
+            { brief, target_scenes: Math.min(scenario.scenes.length || 6, MAX_SCENES), seconds_per_scene: 8 },
             { onSuccess: (r) => onChange(r.scenario) },
           )}
           className="h-8 cursor-pointer gap-1.5 text-xs"
@@ -94,11 +121,16 @@ export function ScenarioStructure({ brief, scenario, onChange, onNext }: Scenari
         </Button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         {scenario.scenes.map((scene, i) => (
           <div key={scene.idx} className="rounded-xl border border-border bg-card p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Scene {scene.idx}</p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Scene {scene.idx}</span>
+                <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] font-medium text-violet-700 [[data-omni-theme=dark]_&]:text-violet-300">
+                  {fmtSeconds(ranges[i].start)} → {fmtSeconds(ranges[i].end)}
+                </span>
+              </div>
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="icon" onClick={() => move(scene.idx, -1)} disabled={i === 0} aria-label={`Move scene ${scene.idx} up`} className="h-8 w-8 cursor-pointer">
                   <ArrowUp className="h-3.5 w-3.5" />
@@ -111,54 +143,51 @@ export function ScenarioStructure({ brief, scenario, onChange, onNext }: Scenari
                 </Button>
               </div>
             </div>
-            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+
+            {/* ONE prompt box, with a bottom-right Promptor wand. */}
+            <div className="relative mt-2">
               <Textarea
                 value={scene.visual_prompt}
                 onChange={(e) => patchScene(scene.idx, { visual_prompt: e.target.value })}
-                placeholder="Visual prompt: subject, setting, style, motion…"
+                placeholder="Visual prompt: subject, setting, style, lighting, motion…"
                 aria-label={`Scene ${scene.idx} visual prompt`}
                 rows={3}
-                className="resize-none text-sm"
+                className="resize-none pr-11 text-sm"
+                disabled={optimizingIdx === scene.idx}
               />
-              <Textarea
-                value={scene.narration}
-                onChange={(e) => patchScene(scene.idx, { narration: e.target.value })}
-                placeholder="Narration (voiceover) — empty for visual-only"
-                aria-label={`Scene ${scene.idx} narration`}
-                rows={3}
-                className="resize-none text-sm"
-              />
+              <Button
+                type="button"
+                size="icon"
+                onClick={() => void optimizeScene(scene.idx, scene.visual_prompt)}
+                disabled={!scene.visual_prompt.trim() || optimizingIdx !== null}
+                aria-label={`Optimize scene ${scene.idx} prompt with Promptor`}
+                title="Optimize cinematically with Promptor"
+                className="absolute bottom-2 right-2 h-7 w-7 cursor-pointer bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-sm transition-all duration-300 hover:opacity-90"
+              >
+                {optimizingIdx === scene.idx ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+              </Button>
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <label htmlFor={`scene-${scene.idx}-duration`} className="text-xs text-muted-foreground">Seconds</label>
-                <Input
-                  id={`scene-${scene.idx}-duration`}
-                  type="number"
-                  min={3}
-                  max={15}
-                  value={scene.duration_s}
-                  onChange={(e) => patchScene(scene.idx, { duration_s: Math.min(Math.max(Number(e.target.value) || 8, 3), 15) })}
-                  className="h-8 w-20 text-sm"
-                />
-              </div>
-              <Select value={scene.camera ?? 'static wide'} onValueChange={(v) => patchScene(scene.idx, { camera: v })}>
-                <SelectTrigger className="h-8 w-[150px] cursor-pointer text-xs" aria-label={`Scene ${scene.idx} camera`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CAMERA_PRESETS.map((c) => (
-                    <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+            <div className="mt-2 flex items-center gap-1.5">
+              <label htmlFor={`scene-${scene.idx}-duration`} className="text-xs text-muted-foreground">Length</label>
+              <Input
+                id={`scene-${scene.idx}-duration`}
+                type="number"
+                min={3}
+                max={15}
+                value={scene.duration_s}
+                onChange={(e) => patchScene(scene.idx, { duration_s: Math.min(Math.max(Number(e.target.value) || 8, 3), 15) })}
+                className="h-8 w-20 text-sm"
+                aria-label={`Scene ${scene.idx} length in seconds`}
+              />
+              <span className="text-xs text-muted-foreground">seconds</span>
             </div>
           </div>
         ))}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4">
-        <Button variant="outline" size="sm" onClick={addScene} className="h-8 cursor-pointer gap-1.5 text-xs">
+        <Button variant="outline" size="sm" onClick={addScene} disabled={scenario.scenes.length >= MAX_SCENES} className="h-8 cursor-pointer gap-1.5 text-xs">
           <Plus className="h-3.5 w-3.5" /> Add scene
         </Button>
         <Button

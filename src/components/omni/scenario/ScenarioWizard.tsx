@@ -17,7 +17,7 @@ import {
   VIDEO_MODES, VIDEO_SCHEMA_VERSION, resolveVideoPosition,
 } from '../stepRegistry';
 import { useCreateOmniRun, useOmniRun, useUpdateOmniRun } from '@/hooks/omni';
-import type { OmniImagesState, OmniVideoScenario } from '@/hooks/omni';
+import type { OmniImagesState, OmniVideoScenario, OmniWishReferenceRef } from '@/hooks/omni';
 import { StageRail } from '../wizard/StageRail';
 import { ScenarioBrief } from './ScenarioBrief';
 import { ScenarioStructure } from './ScenarioStructure';
@@ -66,7 +66,7 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
     }
   };
 
-  const handleGenerated = async (brief: string, scenario: OmniVideoScenario) => {
+  const handleGenerated = async (brief: string, scenario: OmniVideoScenario, references: OmniWishReferenceRef[]) => {
     if (!runId) {
       try {
         const created = await createRun.mutateAsync({
@@ -76,6 +76,7 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
           step_state: {
             objective: brief,
             scenario,
+            reference_image_refs: references,
             video_schema_version: VIDEO_SCHEMA_VERSION,
             max_step_reached: 2,
           },
@@ -87,7 +88,7 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
       }
       return;
     }
-    await persist(2, { objective: brief, scenario, title: scenario.title });
+    await persist(2, { objective: brief, scenario, title: scenario.title, reference_image_refs: references });
   };
 
   const handleSendToStudio = async () => {
@@ -212,7 +213,11 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
       >
         <div className="mx-auto w-full max-w-3xl">
           {ordinal === 1 && (
-            <ScenarioBrief initialBrief={state.objective ?? ''} onGenerated={(b, sc) => void handleGenerated(b, sc)} />
+            <ScenarioBrief
+              initialBrief={state.objective ?? ''}
+              initialReferences={state.reference_image_refs ?? []}
+              onGenerated={(b, sc, refs) => void handleGenerated(b, sc, refs)}
+            />
           )}
           {ordinal === 2 && scenario && (
             <ScenarioStructure
@@ -226,6 +231,7 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
             <ScenarioStoryboard
               runId={runId}
               scenario={scenario}
+              references={state.reference_image_refs ?? []}
               onChange={(sc) => void persist(3, { scenario: sc })}
               onNext={() => void persist(4, {})}
             />
