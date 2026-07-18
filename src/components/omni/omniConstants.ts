@@ -24,6 +24,12 @@ import {
   Mic,
   Podcast,
   Rss,
+  Send,
+  Library,
+  CalendarDays,
+  MessagesSquare,
+  BarChart3,
+  Plug,
 } from 'lucide-react';
 import type { OmniMode, OmniTrack } from '@/hooks/omni';
 
@@ -80,7 +86,7 @@ export const OMNI_TRACKS: OmniTrackDef[] = [
     icon: LayoutGrid,
     gradient: 'from-fuchsia-500 to-pink-600',
     glow: 'bg-fuchsia-500/25',
-    availability: 'coming_soon',
+    availability: 'available',
   },
 ];
 
@@ -294,5 +300,74 @@ export const OMNI_AUDIO_MODES: OmniAudioModeDef[] = [
     accent: 'text-rose-300',
     available: true,
     availabilityNote: '',
+  },
+];
+
+export interface OmniContentModeDef {
+  id: 'publishing_desk' | 'content_library' | 'content_calendar' | 'engagement' | 'analytics' | 'connections';
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  accent: string;
+  available: boolean;
+  availabilityNote: string;
+}
+
+/** Six-card 2x3 Content hub (Sam-approved). Publishing Desk ships first; the
+ *  rest are reserved slots that flip on as they are built. */
+export const OMNI_CONTENT_MODES: OmniContentModeDef[] = [
+  {
+    id: 'publishing_desk',
+    label: 'Publishing Desk',
+    description: 'Stage a post: media, per-network captions and post types, a schedule. Your team downloads the asset and publishes it manually, then marks it done.',
+    icon: Send,
+    accent: 'text-fuchsia-400',
+    available: true,
+    availabilityNote: '',
+  },
+  {
+    id: 'content_library',
+    label: 'Content Library',
+    description: 'Every asset and post you have shipped, browsable and reusable - the archive view of the Desk.',
+    icon: Library,
+    accent: 'text-pink-400',
+    available: false,
+    availabilityNote: 'Coming soon',
+  },
+  {
+    id: 'content_calendar',
+    label: 'Calendar',
+    description: 'The full planning calendar across everything: campaigns, series, and recurring slots.',
+    icon: CalendarDays,
+    accent: 'text-violet-400',
+    available: false,
+    availabilityNote: 'Coming soon',
+  },
+  {
+    id: 'engagement',
+    label: 'Engagement',
+    description: 'Comments, replies, and DMs from every network in one inbox, with AI-drafted answers.',
+    icon: MessagesSquare,
+    accent: 'text-rose-400',
+    available: false,
+    availabilityNote: 'Coming soon',
+  },
+  {
+    id: 'analytics',
+    label: 'Analytics',
+    description: 'Reach, engagement, and growth across networks - what worked and what to make more of.',
+    icon: BarChart3,
+    accent: 'text-amber-400',
+    available: false,
+    availabilityNote: 'Coming soon',
+  },
+  {
+    id: 'connections',
+    label: 'Connections',
+    description: 'Social account connections for the day publishing goes automatic.',
+    icon: Plug,
+    accent: 'text-cyan-400',
+    available: false,
+    availabilityNote: 'Coming soon',
   },
 ];

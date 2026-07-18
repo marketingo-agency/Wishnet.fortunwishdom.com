@@ -32,6 +32,7 @@ export const WHISPER_API_ENDPOINT = `${EDGE_FUNCTIONS_URL}/whisper-api`;
 export const OMNI_API_ENDPOINT = `${EDGE_FUNCTIONS_URL}/omni`;
 export const OMNI_VIDEO_API_ENDPOINT = `${EDGE_FUNCTIONS_URL}/omni-video`;
 export const OMNI_PODCAST_API_ENDPOINT = `${EDGE_FUNCTIONS_URL}/omni-podcast`;
+export const OMNI_CONTENT_API_ENDPOINT = `${EDGE_FUNCTIONS_URL}/omni-content`;
 export const CONTENT_LIBRARY_ENDPOINT = `${EDGE_FUNCTIONS_URL}/content-library`;
 
 // Storage

@@ -29,6 +29,8 @@ import { HistoryView } from '@/components/omni/history/HistoryView';
 import { BrainstormView } from '@/components/omni/brainstorm/BrainstormView';
 import { VideosHub } from '@/components/omni/VideosHub';
 import { AudiosHub } from '@/components/omni/AudiosHub';
+import { ContentHub } from '@/components/omni/ContentHub';
+import { PublishingDesk } from '@/components/omni/content/PublishingDesk';
 import { CastPersonasView } from '@/components/omni/cast/CastPersonasView';
 import { PodcastScenarioWizard } from '@/components/omni/podcast-scenario/PodcastScenarioWizard';
 import { PodcastStudioWizard } from '@/components/omni/podcast-studio/PodcastStudioWizard';
@@ -63,6 +65,10 @@ type AudiosMode = 'hub' | 'history' | 'podcast_scenario' | 'omni_podcast' | 'cas
  *  wizard (a deep link to an unbuilt surface must land on the hub, not blank). */
 const BUILT_AUDIO_SURFACES: AudiosMode[] = ['history', 'cast_personas', 'podcast_scenario', 'omni_podcast', 'podcast_video', 'publish_feed'];
 
+type ContentMode = 'hub' | 'publishing_desk';
+/** Content surfaces accepted from the URL (coming-soon modes land on the hub). */
+const BUILT_CONTENT_SURFACES: ContentMode[] = ['publishing_desk'];
+
 export default function OmniAgent() {
   const router = useRouter();
 
@@ -92,6 +98,7 @@ export default function OmniAgent() {
   const [imagesMode, setImagesMode] = useState<ImagesMode>('hub');
   const [videosMode, setVideosMode] = useState<VideosMode>('hub');
   const [audiosMode, setAudiosMode] = useState<AudiosMode>('hub');
+  const [contentMode, setContentMode] = useState<ContentMode>('hub');
   const [wizardRunId, setWizardRunId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -125,6 +132,10 @@ export default function OmniAgent() {
       const run = params.get('run');
       if (run) setWizardRunId(run);
     }
+    if (track === 'content') {
+      const mode = params.get('mode');
+      if (mode && (BUILT_CONTENT_SURFACES as string[]).includes(mode)) setContentMode(mode as ContentMode);
+    }
   }, []);
 
   const syncUrl = useCallback((next: OmniView, mode: ImagesMode, runId: string | null) => {
@@ -157,6 +168,7 @@ export default function OmniAgent() {
     setImagesMode('hub');
     setVideosMode('hub');
     setAudiosMode('hub');
+    setContentMode('hub');
     setWizardRunId(null);
     syncUrl(next, 'hub', null);
   }, [openImagesMode, syncUrl]);
@@ -182,6 +194,16 @@ export default function OmniAgent() {
     else url.searchParams.set('mode', mode);
     if (runId && mode !== 'hub') url.searchParams.set('run', runId);
     else url.searchParams.delete('run');
+    window.history.replaceState({}, '', url);
+  }, []);
+
+  const openContentMode = useCallback((mode: ContentMode) => {
+    setContentMode(mode);
+    const url = new URL(window.location.href);
+    url.searchParams.set('track', 'content');
+    if (mode === 'hub') url.searchParams.delete('mode');
+    else url.searchParams.set('mode', mode);
+    url.searchParams.delete('run');
     window.history.replaceState({}, '', url);
   }, []);
 
@@ -325,6 +347,20 @@ export default function OmniAgent() {
                   onLocked={handleHistoryOpenRun}
                   onExit={() => selectView('images')}
                 />
+              )}
+
+              {view === 'content' && contentMode === 'hub' && (
+                <ContentHub
+                  onBack={goHome}
+                  onSelectMode={(mode) => {
+                    if ((BUILT_CONTENT_SURFACES as string[]).includes(mode)) openContentMode(mode as ContentMode);
+                    // Coming-soon modes are inert cards in the hub.
+                  }}
+                />
+              )}
+
+              {view === 'content' && contentMode === 'publishing_desk' && (
+                <PublishingDesk onExit={() => openContentMode('hub')} />
               )}
 
               {view === 'audios' && audiosMode === 'hub' && (

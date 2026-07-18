@@ -969,6 +969,139 @@ export type Database = {
           },
         ]
       }
+      omni_content_media: {
+        Row: {
+          byte_size: number | null
+          created_at: string
+          height: number | null
+          id: string
+          kind: string
+          mime_type: string
+          post_id: string
+          sort: number
+          storage_path: string
+          width: number | null
+        }
+        Insert: {
+          byte_size?: number | null
+          created_at?: string
+          height?: number | null
+          id?: string
+          kind: string
+          mime_type: string
+          post_id: string
+          sort?: number
+          storage_path: string
+          width?: number | null
+        }
+        Update: {
+          byte_size?: number | null
+          created_at?: string
+          height?: number | null
+          id?: string
+          kind?: string
+          mime_type?: string
+          post_id?: string
+          sort?: number
+          storage_path?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_content_media_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "omni_content_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_content_posts: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          metadata: Json
+          notes: string | null
+          scheduled_at: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          metadata?: Json
+          notes?: string | null
+          scheduled_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          metadata?: Json
+          notes?: string | null
+          scheduled_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      omni_content_targets: {
+        Row: {
+          caption: string
+          created_at: string
+          id: string
+          network: string
+          network_label: string | null
+          post_id: string
+          post_type: string
+          published_at: string | null
+          published_by: string | null
+          published_url: string | null
+          status: string
+        }
+        Insert: {
+          caption?: string
+          created_at?: string
+          id?: string
+          network: string
+          network_label?: string | null
+          post_id: string
+          post_type?: string
+          published_at?: string | null
+          published_by?: string | null
+          published_url?: string | null
+          status?: string
+        }
+        Update: {
+          caption?: string
+          created_at?: string
+          id?: string
+          network?: string
+          network_label?: string | null
+          post_id?: string
+          post_type?: string
+          published_at?: string | null
+          published_by?: string | null
+          published_url?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_content_targets_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "omni_content_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       omni_personas: {
         Row: {
           created_at: string
