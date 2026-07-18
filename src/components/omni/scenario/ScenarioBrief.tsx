@@ -19,7 +19,8 @@ import {
 } from '@/components/ui/select';
 import { InspireMe } from '../wizard/InspireMe';
 import { OmniWishReferencePicker } from '../wizard/OmniWishReferencePicker';
-import { useGenerateScenario } from '@/hooks/omni/useScenario';
+import { ScenarioReferenceUploader } from './ScenarioReferenceUploader';
+import { useGenerateScenario, type ScenarioUploadedRef } from '@/hooks/omni/useScenario';
 import { useOptimizeDraft } from '@/hooks/promptor';
 import { stripKnowledgeMarkers } from '@/lib/omni/stripKnowledgeMarkers';
 import type { OmniVideoScenario, OmniWishReferenceRef } from '@/hooks/omni';
@@ -30,10 +31,12 @@ const SECONDS_PER_SCENE = 8;
 interface ScenarioBriefProps {
   initialBrief: string;
   initialReferences: OmniWishReferenceRef[];
+  uploaded: ScenarioUploadedRef[];
+  onUploadedChange: (refs: ScenarioUploadedRef[]) => void;
   onGenerated: (brief: string, scenario: OmniVideoScenario, references: OmniWishReferenceRef[]) => void;
 }
 
-export function ScenarioBrief({ initialBrief, initialReferences, onGenerated }: ScenarioBriefProps) {
+export function ScenarioBrief({ initialBrief, initialReferences, uploaded, onUploadedChange, onGenerated }: ScenarioBriefProps) {
   const [brief, setBrief] = useState(initialBrief);
   const [pasted, setPasted] = useState('');
   const [showPaste, setShowPaste] = useState(false);
@@ -107,7 +110,10 @@ export function ScenarioBrief({ initialBrief, initialReferences, onGenerated }: 
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
-        <OmniWishReferencePicker value={references} onChange={setReferences} disabled={busy} />
+        <div className="space-y-2">
+          <OmniWishReferencePicker value={references} onChange={setReferences} disabled={busy} />
+          <ScenarioReferenceUploader value={uploaded} onChange={onUploadedChange} disabled={busy} />
+        </div>
         <div className="space-y-1.5">
           <Label htmlFor="scenario-scenes">Target scenes</Label>
           <Select value={sceneCount} onValueChange={setSceneCount} disabled={busy}>
@@ -123,9 +129,9 @@ export function ScenarioBrief({ initialBrief, initialReferences, onGenerated }: 
           <p className="text-[11px] text-muted-foreground">Up to 20. Each scene&apos;s length is editable next.</p>
         </div>
       </div>
-      {references.length > 0 && (
+      {(references.length > 0 || uploaded.length > 0) && (
         <p className="-mt-1 text-[11px] text-muted-foreground">
-          Reference images anchor the storyboard keyframes to your canon characters.
+          Reference images (Wishpedia + your uploads) anchor the storyboard keyframes.
         </p>
       )}
 

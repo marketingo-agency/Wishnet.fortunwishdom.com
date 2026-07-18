@@ -17,6 +17,7 @@ import {
   VIDEO_MODES, VIDEO_SCHEMA_VERSION, resolveVideoPosition,
 } from '../stepRegistry';
 import { useCreateOmniRun, useOmniRun, useUpdateOmniRun } from '@/hooks/omni';
+import type { ScenarioUploadedRef } from '@/hooks/omni/useScenario';
 import type { OmniImagesState, OmniVideoScenario, OmniWishReferenceRef } from '@/hooks/omni';
 import { StageRail } from '../wizard/StageRail';
 import { ScenarioBrief } from './ScenarioBrief';
@@ -41,6 +42,9 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
   const updateRun = useUpdateOmniRun();
   const [localState, setLocalState] = useState<OmniImagesState | null>(null);
   const [finishing, setFinishing] = useState(false);
+  // Uploaded reference images live in memory (base64) until the storyboard
+  // materializes them into owned assets — never persisted to step_state.
+  const [uploaded, setUploaded] = useState<ScenarioUploadedRef[]>([]);
 
   const state: OmniImagesState = useMemo(
     () => localState ?? ((run.data?.step_state ?? {}) as OmniImagesState),
@@ -216,6 +220,8 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
             <ScenarioBrief
               initialBrief={state.objective ?? ''}
               initialReferences={state.reference_image_refs ?? []}
+              uploaded={uploaded}
+              onUploadedChange={setUploaded}
               onGenerated={(b, sc, refs) => void handleGenerated(b, sc, refs)}
             />
           )}
@@ -232,6 +238,8 @@ export function ScenarioWizard({ runId, onRunCreated, onExit, onHandoffToStudio 
               runId={runId}
               scenario={scenario}
               references={state.reference_image_refs ?? []}
+              uploaded={uploaded}
+              onUploadedChange={setUploaded}
               onChange={(sc) => void persist(3, { scenario: sc })}
               onNext={() => void persist(4, {})}
             />

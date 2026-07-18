@@ -89,6 +89,25 @@ export function useGenerateScenario() {
   });
 }
 
+/** An uploaded reference image held in the wizard before it is materialized
+ *  into an owned omni_asset (which needs a run) at storyboard time. */
+export interface ScenarioUploadedRef {
+  /** Client-side id (stable across the session). */
+  id: string;
+  name: string;
+  mime: string;
+  /** Data URL for preview + upload (base64). Not persisted to the DB. */
+  dataUrl: string;
+  /** Set once materialized via save-reference-image. */
+  assetId?: string;
+}
+
+/** Persist an uploaded reference image as an owned asset (needs a run). */
+export async function saveReferenceImage(runId: string, dataUrl: string, mime: string): Promise<string> {
+  const res = await callOmni<{ asset_id: string }>('save-reference-image', { run_id: runId, image: dataUrl, mime });
+  return res.asset_id;
+}
+
 export interface KeyframeSubmitOptions {
   /** The fal image model chosen in the storyboard step. */
   modelId: string;
@@ -96,6 +115,8 @@ export interface KeyframeSubmitOptions {
   modelIsEdit: boolean;
   /** Combined Wishpedia reference image ids (step-1 refs + this scene's canon). */
   referenceImageIds?: string[];
+  /** Uploaded reference asset ids (materialized own omni_assets). */
+  referenceAssetIds?: string[];
   camera?: string;
 }
 
@@ -111,10 +132,11 @@ export async function submitKeyframe(
   visualPrompt: string,
   opts: KeyframeSubmitOptions,
 ): Promise<string> {
-  const { modelId, modelIsEdit, referenceImageIds = [], camera } = opts;
+  const { modelId, modelIsEdit, referenceImageIds = [], referenceAssetIds = [], camera } = opts;
   const prompt = `${visualPrompt}${camera ? `, ${camera} camera` : ''}, cinematic still frame, high detail`;
   const refs = referenceImageIds.slice(0, MAX_KEYFRAME_REFS);
-  const hasRefs = refs.length > 0;
+  const assetRefs = referenceAssetIds.slice(0, MAX_KEYFRAME_REFS);
+  const hasRefs = refs.length > 0 || assetRefs.length > 0;
   // Match the model to the scene: references demand an edit model (honor the
   // choice if edit-capable, else the proven canon edit model); a scene with NO
   // references must NOT run an edit model (edit models require an image input),
@@ -128,7 +150,8 @@ export async function submitKeyframe(
     prompt,
     prompt_provenance: 'raw',
     spec: { aspectRatio: '16:9', imageSize: 'landscape_16_9' },
-    ...(hasRefs ? { reference_image_ids: refs } : {}),
+    ...(refs.length > 0 ? { reference_image_ids: refs } : {}),
+    ...(assetRefs.length > 0 ? { reference_asset_ids: assetRefs } : {}),
   });
   return res.asset_id;
 }

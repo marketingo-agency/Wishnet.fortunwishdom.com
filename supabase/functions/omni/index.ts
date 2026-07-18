@@ -496,6 +496,82 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // -- save-reference-image (persist an uploaded image as an OWNED asset the
+    // storyboard can attach to a keyframe generation via reference_asset_ids) -
+    if (action === 'save-reference-image') {
+      const runId = body.run_id;
+      const image = typeof body.image === 'string' ? body.image : '';
+      const mime = typeof body.mime === 'string' ? body.mime : '';
+      const EXT_FOR_MIME: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+      const ext = EXT_FOR_MIME[mime];
+      if (typeof runId !== 'string' || !image || !ext) {
+        return jsonResponse({ error: 'run_id, image (base64), and a png/jpeg/webp mime are required' }, 400);
+      }
+
+      const { data: refRun } = await supabaseAdmin
+        .from('omni_runs')
+        .select('id')
+        .eq('id', runId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!refRun) return jsonResponse({ error: 'Run not found' }, 404);
+
+      let bytes: Uint8Array;
+      try {
+        const clean = image.includes(',') ? image.slice(image.indexOf(',') + 1) : image;
+        const bin = atob(clean);
+        bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      } catch {
+        return jsonResponse({ error: 'The reference image could not be decoded' }, 400);
+      }
+      if (bytes.byteLength < 64 || bytes.byteLength > 8 * 1024 * 1024) {
+        return jsonResponse({ error: 'A reference image must be between 64 bytes and 8MB' }, 400);
+      }
+      // Magic-byte sanity: the declared mime is client-supplied, so confirm the
+      // bytes are actually a PNG / JPEG / WebP before persisting.
+      const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+      const isJpg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+      const isWebp = bytes.length >= 12 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+        && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+      if (!isPng && !isJpg && !isWebp) {
+        return jsonResponse({ error: 'The file is not a valid PNG, JPEG, or WebP image' }, 400);
+      }
+
+      const assetId = crypto.randomUUID();
+      const storagePath = `${userId}/omni-refs/${runId}/${assetId}.${ext}`;
+      const { error: upErr } = await supabaseAdmin.storage
+        .from('files')
+        .upload(storagePath, bytes, { contentType: mime, upsert: true });
+      if (upErr) {
+        console.error('Omni: reference upload error:', upErr.message);
+        return jsonResponse({ error: 'Could not store the reference image' }, 500);
+      }
+      const { data: refAsset, error: refInsErr } = await supabaseAdmin
+        .from('omni_assets')
+        .insert({
+          id: assetId,
+          user_id: userId,
+          run_id: runId,
+          kind: 'image',
+          model_id: null,
+          prompt: null,
+          status: 'done',
+          storage_path: storagePath,
+          mime_type: mime,
+          // source: excludes it from History's generated-output filter (an
+          // uploaded reference is an input, not a produced asset).
+          metadata: { kind: 'reference_upload', source: 'reference_upload' },
+        })
+        .select('id')
+        .single();
+      if (refInsErr || !refAsset) {
+        console.error('Omni: reference asset insert error:', refInsErr?.message);
+        return jsonResponse({ error: 'Could not register the reference image' }, 500);
+      }
+      return jsonResponse({ asset_id: assetId });
+    }
+
     if (action === 'variant-submit') {
       const falKey = await getFalKey(supabaseAdmin);
       if (!falKey) return jsonResponse({ error: FAL_NOT_CONFIGURED }, 503);
@@ -510,6 +586,12 @@ Deno.serve(async (req: Request) => {
       // clamping is enforced client-side at model selection).
       const referenceImageIds = Array.isArray(body.reference_image_ids)
         ? (body.reference_image_ids as unknown[]).filter((x): x is string => typeof x === 'string').slice(0, 10)
+        : [];
+      // Uploaded reference images: the caller's OWN omni_assets (persisted via
+      // save-reference-image), resolved to signed URLs server-side (never raw
+      // URLs), confined to the caller's namespace.
+      const referenceAssetIds = Array.isArray(body.reference_asset_ids)
+        ? (body.reference_asset_ids as unknown[]).filter((x): x is string => typeof x === 'string').slice(0, 10)
         : [];
       const promptStr = typeof body.prompt === 'string' ? body.prompt.trim() : '';
       if (typeof runId !== 'string' || typeof modelId !== 'string') {
@@ -574,6 +656,26 @@ Deno.serve(async (req: Request) => {
         const refs = await resolveWishpediaReferences(supabaseAdmin, referenceImageIds.slice(0, maxRefs));
         for (const r of refs) imageUrls.push(r.url);
         referenceNames = [...new Set(refs.map((r) => r.entryName).filter((n) => n.length > 0))];
+      }
+
+      if (referenceAssetIds.length > 0) {
+        // Own uploaded refs -> signed URLs, confined to the caller's namespace
+        // (signStoragePath refuses paths outside `${userId}/`), sharing the
+        // model's ref budget with any Wishpedia refs above.
+        const maxRefs = EDIT_MODEL_MAX_REFS[modelId] ?? DEFAULT_EDIT_MODEL_MAX_REFS;
+        const remaining = Math.max(0, maxRefs - imageUrls.length);
+        if (remaining > 0) {
+          const { data: refAssets } = await supabaseAdmin
+            .from('omni_assets')
+            .select('id, storage_path')
+            .in('id', referenceAssetIds.slice(0, remaining))
+            .eq('user_id', userId);
+          for (const a of ((refAssets as { id: string; storage_path: string | null }[] | null) ?? [])) {
+            if (!a.storage_path) continue;
+            const url = await signStoragePath(supabaseAdmin, a.storage_path, userId, 60 * 60);
+            if (url) imageUrls.push(url);
+          }
+        }
       }
 
       if (imageUrls.length > 0) {
@@ -646,7 +748,7 @@ Deno.serve(async (req: Request) => {
           model_id: modelId,
           prompt: promptStr || null,
           status: 'generating',
-          metadata: { source_asset_id: sourceAssetId, reference_image_ids: referenceImageIds },
+          metadata: { source_asset_id: sourceAssetId, reference_image_ids: referenceImageIds, reference_asset_ids: referenceAssetIds },
         })
         .select('id')
         .single();
@@ -660,7 +762,7 @@ Deno.serve(async (req: Request) => {
         const submission = await falSubmit(falKey, modelId, input);
         await supabaseAdmin
           .from('omni_assets')
-          .update({ metadata: { source_asset_id: sourceAssetId, reference_image_ids: referenceImageIds, fal_request_id: submission.requestId } })
+          .update({ metadata: { source_asset_id: sourceAssetId, reference_image_ids: referenceImageIds, reference_asset_ids: referenceAssetIds, fal_request_id: submission.requestId } })
           .eq('id', assetId);
         return jsonResponse({ asset_id: assetId, request_id: submission.requestId, queue_position: submission.queuePosition });
       } catch (e) {

@@ -16,7 +16,8 @@ import { ArrowRight, ImageOff, Loader2, Play, RefreshCw, Square } from 'lucide-r
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
-  CANON_KEYFRAME_MODEL, KEYFRAME_MODEL, canonRefsForScene, pollKeyframes, submitKeyframe,
+  CANON_KEYFRAME_MODEL, KEYFRAME_MODEL, canonRefsForScene, pollKeyframes, saveReferenceImage, submitKeyframe,
+  type ScenarioUploadedRef,
 } from '@/hooks/omni/useScenario';
 import { getFalPrice } from '@/config/falPricing';
 import { stripKnowledgeMarkers } from '@/lib/omni/stripKnowledgeMarkers';
@@ -38,22 +39,25 @@ const FRAME_MEGAPIXELS = (1024 * 576) / 1_000_000;
 interface ScenarioStoryboardProps {
   runId: string;
   scenario: OmniVideoScenario;
-  /** Reference images chosen in the brief (anchor every scene's keyframe). */
+  /** Wishpedia reference images chosen in the brief (anchor every keyframe). */
   references: OmniWishReferenceRef[];
+  /** Uploaded reference images (materialized into owned assets on generate). */
+  uploaded: ScenarioUploadedRef[];
+  onUploadedChange: (refs: ScenarioUploadedRef[]) => void;
   onChange: (scenario: OmniVideoScenario) => void;
   onNext: () => void;
 }
 
-export function ScenarioStoryboard({ runId, scenario, references, onChange, onNext }: ScenarioStoryboardProps) {
+export function ScenarioStoryboard({ runId, scenario, references, uploaded, onUploadedChange, onChange, onNext }: ScenarioStoryboardProps) {
   const step1RefIds = useMemo(() => references.map((r) => r.wishpediaImageId), [references]);
   const hasCanon = useMemo(
     () => scenario.scenes.some((s) => canonRefsForScene(scenario, s).length > 0),
     [scenario],
   );
-  const needsEdit = step1RefIds.length > 0 || hasCanon;
+  const needsEdit = step1RefIds.length > 0 || hasCanon || uploaded.length > 0;
 
   const [model, setModel] = useState<{ id: string; isEdit: boolean }>(() =>
-    (step1RefIds.length > 0 || hasCanon) ? { id: CANON_KEYFRAME_MODEL, isEdit: true } : { id: KEYFRAME_MODEL, isEdit: false });
+    (step1RefIds.length > 0 || hasCanon || uploaded.length > 0) ? { id: CANON_KEYFRAME_MODEL, isEdit: true } : { id: KEYFRAME_MODEL, isEdit: false });
 
   const [frames, setFrames] = useState<Record<number, FrameState>>(() => {
     const init: Record<number, FrameState> = {};
@@ -107,6 +111,28 @@ export function ScenarioStoryboard({ runId, scenario, references, onChange, onNe
   const refsForScene = (scene: OmniScenarioScene): string[] =>
     [...new Set([...step1RefIds, ...canonRefsForScene(scenario, scene)])].slice(0, MAX_KEYFRAME_REFS);
 
+  /** Upload any not-yet-persisted reference images once, caching their asset
+   *  ids on the wizard so a re-roll never re-uploads. */
+  const materializeUploads = async (): Promise<string[]> => {
+    if (uploaded.length === 0) return [];
+    const ids: string[] = [];
+    let next = uploaded;
+    let changed = false;
+    for (const u of uploaded) {
+      if (u.assetId) { ids.push(u.assetId); continue; }
+      try {
+        const assetId = await saveReferenceImage(runId, u.dataUrl, u.mime);
+        ids.push(assetId);
+        next = next.map((r) => (r.id === u.id ? { ...r, assetId } : r));
+        changed = true;
+      } catch {
+        toast.error(`Could not upload reference "${u.name}"`);
+      }
+    }
+    if (changed) onUploadedChange(next);
+    return ids;
+  };
+
   /**
    * Submit new keyframes for `submitIdxs`, and RESUME polling (never resubmit)
    * for `resumeEntries` — scenes already generating server-side, whose assets
@@ -118,6 +144,8 @@ export function ScenarioStoryboard({ runId, scenario, references, onChange, onNe
     setIsRunning(true);
     stopRef.current = false;
     try {
+      // Materialize uploaded refs once (shared by every scene in this run).
+      const uploadedAssetIds = submitIdxs.length > 0 ? await materializeUploads() : [];
       const pending = new Map<string, number>();
       const submitted = new Map<string, number>();
       for (const e of resumeEntries) pending.set(e.assetId, e.idx);
@@ -131,6 +159,7 @@ export function ScenarioStoryboard({ runId, scenario, references, onChange, onNe
             modelId: model.id,
             modelIsEdit: model.isEdit,
             referenceImageIds: refsForScene(scene),
+            referenceAssetIds: uploadedAssetIds,
             camera: scene.camera,
           });
           pending.set(assetId, idx);

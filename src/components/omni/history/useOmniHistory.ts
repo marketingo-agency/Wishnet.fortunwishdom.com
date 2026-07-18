@@ -258,6 +258,8 @@ async function listRunFolder(bucket: string, folder: string): Promise<string[]> 
  *  runs silently orphan their storage). */
 const RUN_MEDIA_FOLDERS = (userId: string, runId: string): { bucket: string; folder: string }[] => [
   { bucket: 'files', folder: `${userId}/omni-images/${runId}` },
+  // Uploaded scenario reference images (save-reference-image) — clear them too.
+  { bucket: 'files', folder: `${userId}/omni-refs/${runId}` },
   { bucket: 'omni-video', folder: `${userId}/omni-videos/${runId}` },
   // Plan 3: podcast working files. podcast-public (the live feed's bucket) is
   // deliberately ABSENT — published episodes must survive run deletion
