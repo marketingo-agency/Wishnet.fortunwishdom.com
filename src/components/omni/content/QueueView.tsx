@@ -9,7 +9,7 @@
 
 import { useState } from 'react';
 import type { UseQueryResult } from '@tanstack/react-query';
-import { AlertCircle, Check, CheckCircle2, Copy, Download, Loader2, PartyPopper, RefreshCw, Undo2, Zap } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, Clapperboard, Copy, Download, ImageIcon, Loader2, Maximize2, PartyPopper, RefreshCw, Undo2, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,45 @@ import {
   isArmedTarget, useMarkPublished, useMetricoolSync, useUnpublishTarget,
   type DeskPost, type DeskTarget,
 } from '@/hooks/omni/useContentDesk';
-import { METRICOOL_STATUS_META, formatScheduled, getDeskNetwork } from './contentConstants';
+import { METRICOOL_STATUS_META, formatScheduled, getDeskNetwork, toLightboxItems, type LightboxItem } from './contentConstants';
+import { DeskLightbox } from './DeskLightbox';
+
+/** The post's media, visible and clickable (fullscreen preview on click). */
+function PostMediaRail({ post, onPreview }: { post: DeskPost; onPreview: (index: number) => void }) {
+  const cover = post.media[0];
+  if (!cover) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => onPreview(0)}
+      aria-label="Preview the media fullscreen"
+      className="group relative h-24 w-24 shrink-0 cursor-zoom-in overflow-hidden rounded-lg border border-border bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-28 sm:w-28"
+    >
+      {cover.url ? (
+        cover.kind === 'video' ? (
+          <video src={cover.url} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+        ) : (
+          <img src={cover.url} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+        )
+      ) : (
+        <span className="flex h-full items-center justify-center"><ImageIcon className="h-5 w-5 text-muted-foreground/50" /></span>
+      )}
+      <span className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all duration-200 group-hover:bg-black/30 group-hover:opacity-100 group-focus-visible:bg-black/30 group-focus-visible:opacity-100">
+        <Maximize2 className="h-4 w-4 text-white" />
+      </span>
+      {cover.kind === 'video' && (
+        <span className="absolute left-1 top-1 inline-flex items-center gap-0.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-medium text-white">
+          <Clapperboard className="h-2.5 w-2.5" /> Video
+        </span>
+      )}
+      {post.media.length > 1 && (
+        <span className="absolute bottom-1 right-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+          +{post.media.length - 1}
+        </span>
+      )}
+    </button>
+  );
+}
 
 function TargetRow({ post, target }: { post: DeskPost; target: DeskTarget }) {
   const [confirming, setConfirming] = useState(false);
@@ -134,6 +172,7 @@ export function QueueView({ query, onOpenPost }: QueueViewProps) {
   const { user } = useAuth();
   const unpublish = useUnpublishTarget();
   const sync = useMetricoolSync();
+  const [lightbox, setLightbox] = useState<{ items: LightboxItem[]; index: number } | null>(null);
 
   if (query.isLoading) {
     return (
@@ -173,19 +212,25 @@ export function QueueView({ query, onOpenPost }: QueueViewProps) {
     <section className="space-y-2.5" aria-label={label}>
       <p className={cn('text-[11px] font-semibold uppercase tracking-wider', accent)}>{label}</p>
       {group.map((post) => (
-        <div key={post.id} className="space-y-2 rounded-xl border border-border bg-card p-3">
-          <button
-            type="button"
-            onClick={() => onOpenPost(post)}
-            className="cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={`Open post ${post.title || 'Untitled'}`}
-          >
-            <p className="text-sm font-semibold hover:underline">{post.title || 'Untitled post'}</p>
-            <p className="text-[11px] text-muted-foreground">{formatScheduled(post.scheduled_at)}</p>
-          </button>
-          {post.targets.filter((t) => t.status === 'scheduled').map((t) => (
-            <TargetRow key={t.id} post={post} target={t} />
-          ))}
+        <div key={post.id} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row">
+          <PostMediaRail
+            post={post}
+            onPreview={(index) => setLightbox({ items: toLightboxItems(post.media), index })}
+          />
+          <div className="min-w-0 flex-1 space-y-2">
+            <button
+              type="button"
+              onClick={() => onOpenPost(post)}
+              className="cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={`Open post ${post.title || 'Untitled'}`}
+            >
+              <p className="text-sm font-semibold hover:underline">{post.title || 'Untitled post'}</p>
+              <p className="text-[11px] text-muted-foreground">{formatScheduled(post.scheduled_at)}</p>
+            </button>
+            {post.targets.filter((t) => t.status === 'scheduled').map((t) => (
+              <TargetRow key={t.id} post={post} target={t} />
+            ))}
+          </div>
         </div>
       ))}
     </section>
@@ -264,6 +309,12 @@ export function QueueView({ query, onOpenPost }: QueueViewProps) {
           })}
         </section>
       )}
+
+      <DeskLightbox
+        items={lightbox?.items ?? []}
+        index={lightbox?.index ?? null}
+        onIndexChange={(i) => setLightbox((prev) => (i === null || !prev ? null : { ...prev, index: i }))}
+      />
     </div>
   );
 }

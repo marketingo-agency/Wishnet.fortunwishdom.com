@@ -97,6 +97,8 @@ export interface RunThumbs {
   estCost: number | null;
   /** True when a produced asset could not be priced (opaque model / no dims). */
   hasUnknownCost: boolean;
+  /** Done image/video OUTPUT asset ids (up to 10) - feeds Plan-in-Desk. */
+  outputAssetIds: string[];
 }
 
 const THUMBS_PER_RUN = 4;
@@ -107,7 +109,7 @@ function chunk<T>(items: T[], size: number): T[][] {
   return out;
 }
 
-type ThumbAssetRow = Pick<OmniAsset, 'id' | 'run_id' | 'storage_path' | 'metadata' | 'created_at' | 'model_id' | 'width' | 'height' | 'status'>;
+type ThumbAssetRow = Pick<OmniAsset, 'id' | 'run_id' | 'kind' | 'storage_path' | 'metadata' | 'created_at' | 'model_id' | 'width' | 'height' | 'status'>;
 
 /**
  * Per-run card data: thumbnail strip (≤4), image count, model count, and the
@@ -131,7 +133,7 @@ export function useRunThumbs(runIds: string[]) {
       for (const ids of chunk(runIds, 80)) {
         const { data, error } = await supabase
           .from('omni_assets')
-          .select('id, run_id, storage_path, metadata, created_at, model_id, width, height, status')
+          .select('id, run_id, kind, storage_path, metadata, created_at, model_id, width, height, status')
           .in('run_id', ids)
           .in('status', ['done', 'discarded'])
           .order('created_at', { ascending: false });
@@ -163,6 +165,10 @@ export function useRunThumbs(runIds: string[]) {
           modelCount: new Set(produced.map((a) => a.model_id)).size,
           estCost: total > 0 ? total : null,
           hasUnknownCost: hasUnknown,
+          outputAssetIds: outputs
+            .filter((a) => a.kind === 'image' || a.kind === 'video')
+            .slice(0, 10)
+            .map((a) => a.id),
         };
         for (const a of strip) {
           const path = a.storage_path!;

@@ -20,6 +20,7 @@ import { useUpdateOmniRun, type OmniImagesState, type OmniRun } from '@/hooks/om
 import { validateJumpTarget } from '../stepRegistry';
 import { RUN_MODE_META, RUN_STATUS_META, isRunFinalized, resumableStepsForRun, runProgress, stepReached } from './historyRouting';
 import { useArchiveRun, type RunThumbs } from './useOmniHistory';
+import { SendToDeskButton } from '@/components/omni/content/SendToDeskButton';
 
 interface HistoryRunCardProps {
   run: OmniRun;
@@ -167,6 +168,14 @@ export function HistoryRunCard({ run, thumbs, clonedFromTitle, selected, busy: e
         </div>
 
         <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
+          {(thumbs?.outputAssetIds.length ?? 0) > 0 && (
+            <SendToDeskButton
+              assetIds={thumbs!.outputAssetIds}
+              title={run.title ?? undefined}
+              size="xs"
+              variant="ghost"
+            />
+          )}
           <Button
             size="sm"
             onClick={() => onOpen(run)}

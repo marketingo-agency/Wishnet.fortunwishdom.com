@@ -16,6 +16,7 @@ import { downloadFromUrl } from '@/lib/downloadFromUrl';
 import { usePolledAsset } from '@/hooks/omni/useVideoAudio';
 import { usePodcastEpisodes } from '@/hooks/omni/usePodcastEpisodes';
 import type { OmniImagesState } from '@/hooks/omni';
+import { SendToDeskButton } from '@/components/omni/content/SendToDeskButton';
 
 interface PVFinalizeProps {
   state: OmniImagesState;
@@ -102,6 +103,10 @@ export function PVFinalize({ state, runId, onFinish }: PVFinalizeProps) {
       </p>
 
       <div className="flex flex-col justify-end gap-2 border-t border-border pt-4 sm:flex-row">
+        {assetIds.length > 0 && (
+          // The audiogram/clips are plain videos - plannable on any network.
+          <SendToDeskButton assetIds={assetIds} title="Podcast video set" className="h-10 sm:h-10" />
+        )}
         {savedItemId ? (
           <span className="flex items-center gap-1 text-xs font-medium text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-400">
             <Check className="h-4 w-4" />

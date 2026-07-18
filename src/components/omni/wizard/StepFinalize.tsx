@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { getNetwork, getPreset, type OmniNetworkId } from '../omniNetworkPresets';
 import { getAssetSignedUrl, useFinalizeRun, type OmniRepurposedRef } from '@/hooks/omni';
 import { supabase } from '@/integrations/supabase/client';
+import { SendToDeskButton } from '@/components/omni/content/SendToDeskButton';
 
 interface StepFinalizeProps {
   runId: string;
@@ -152,9 +153,13 @@ export function StepFinalize({ runId, defaultTitle, chosenDescription, chosenCap
         />
       </div>
 
-      <p className="text-sm text-muted-foreground">
-        {posts.length} approved post{posts.length === 1 ? '' : 's'} across {groups.length} network{groups.length === 1 ? '' : 's'}.
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          {posts.length} approved post{posts.length === 1 ? '' : 's'} across {groups.length} network{groups.length === 1 ? '' : 's'}.
+        </p>
+        {/* Plan these finished images straight into the Content hub's Desk. */}
+        <SendToDeskButton assetIds={[...new Set(approvedRefs.map((r) => r.asset_id))]} title={title} />
+      </div>
 
       {groups.map(({ net, refs }) => {
         const network = getNetwork(net as OmniNetworkId);

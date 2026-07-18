@@ -9,7 +9,7 @@
 
 import { useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { AlertCircle, ArrowLeft, ArrowUpRight, Clapperboard, ExternalLink, ImageIcon, Library, Search } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowUpRight, Clapperboard, ExternalLink, ImageIcon, Library, Maximize2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,7 +18,8 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useDeskPosts, type DeskPost } from '@/hooks/omni/useContentDesk';
-import { DESK_NETWORKS, POST_STATUS_META, getDeskNetwork } from './contentConstants';
+import { DESK_NETWORKS, POST_STATUS_META, getDeskNetwork, toLightboxItems, type LightboxItem } from './contentConstants';
+import { DeskLightbox } from './DeskLightbox';
 
 const SHOWN_STATUSES = new Set(['published', 'partially_published', 'archived']);
 
@@ -33,6 +34,7 @@ export function ContentLibraryMode({ onBack, onOpenDesk }: ContentLibraryModePro
   const [search, setSearch] = useState('');
   const [networkFilter, setNetworkFilter] = useState('all');
   const [scope, setScope] = useState<'shipped' | 'all'>('shipped');
+  const [lightbox, setLightbox] = useState<{ items: LightboxItem[]; index: number } | null>(null);
 
   const posts = useMemo(() => {
     const all = query.data ?? [];
@@ -147,28 +149,48 @@ export function ContentLibraryMode({ onBack, onOpenDesk }: ContentLibraryModePro
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {posts.map((post) => (
-                <LibraryCard key={post.id} post={post} />
+                <LibraryCard
+                  key={post.id}
+                  post={post}
+                  onPreview={(index) => setLightbox({ items: toLightboxItems(post.media), index })}
+                />
               ))}
             </div>
           )}
         </div>
+
+        <DeskLightbox
+          items={lightbox?.items ?? []}
+          index={lightbox?.index ?? null}
+          onIndexChange={(i) => setLightbox((prev) => (i === null || !prev ? null : { ...prev, index: i }))}
+        />
       </motion.div>
     </div>
   );
 }
 
-function LibraryCard({ post }: { post: DeskPost }) {
+function LibraryCard({ post, onPreview }: { post: DeskPost; onPreview: (index: number) => void }) {
   const cover = post.media[0];
   const statusMeta = POST_STATUS_META[post.status] ?? POST_STATUS_META.draft;
   const publishedTargets = post.targets.filter((t) => t.status === 'published');
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card transition-all duration-300 hover:border-fuchsia-500/40 hover:shadow-lg hover:shadow-fuchsia-500/10">
-      <div className="relative flex aspect-video items-center justify-center overflow-hidden bg-muted/40">
+      <div className="group relative flex aspect-video items-center justify-center overflow-hidden bg-muted/40">
         {cover?.url ? (
           cover.kind === 'video' ? (
             <video src={cover.url} controls muted playsInline preload="metadata" className="h-full w-full object-cover" />
           ) : (
-            <img src={cover.url} alt="" loading="lazy" className="h-full w-full object-cover" />
+            <button
+              type="button"
+              onClick={() => onPreview(0)}
+              aria-label="View the media fullscreen"
+              className="h-full w-full cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <img src={cover.url} alt="" loading="lazy" className="h-full w-full object-cover" />
+              <span className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all duration-200 group-hover:bg-black/25 group-hover:opacity-100">
+                <Maximize2 className="h-4 w-4 text-white" />
+              </span>
+            </button>
           )
         ) : (
           <ImageIcon className="h-6 w-6 text-muted-foreground/50" />

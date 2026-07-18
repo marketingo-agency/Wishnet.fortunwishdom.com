@@ -41,7 +41,10 @@ type AdminClient = ReturnType<typeof createClient>;
 
 const BUCKET = 'omni-content';
 const SIGNED_TTL = 60 * 60;
-const NETWORKS = new Set(['facebook', 'instagram', 'x', 'tiktok', 'youtube', 'pinterest', 'other']);
+const NETWORKS = new Set([
+  'facebook', 'instagram', 'x', 'tiktok', 'youtube', 'pinterest',
+  'linkedin', 'threads', 'bluesky', 'google_business', 'other',
+]);
 const ALLOWED_MIME: Record<string, 'image' | 'video'> = {
   'image/png': 'image',
   'image/jpeg': 'image',
@@ -983,6 +986,97 @@ Deno.serve(async (req: Request) => {
       await supabaseAdmin.from('omni_content_posts').update({ status: 'draft' }).eq('id', postId);
       const status = await recomputePostStatus(supabaseAdmin, postId);
       return jsonResponse({ success: true, post_status: status });
+    }
+
+    // -- import-assets: plan generated Omni media in the Publishing Desk -----
+    // Copies the caller's OWN finished omni_assets (images from 'files',
+    // videos from 'omni-video') into the Desk's bucket and creates a DRAFT
+    // post around them - the Desk stays self-contained, so deleting the
+    // source run never breaks a planned post.
+    if (action === 'import-assets') {
+      const ids = Array.isArray(body.asset_ids)
+        ? (body.asset_ids as unknown[]).filter((x): x is string => typeof x === 'string' && UUID_RE.test(x)).slice(0, 10)
+        : [];
+      if (ids.length === 0) return jsonResponse({ error: 'asset_ids is required' }, 400);
+      const title = typeof body.title === 'string' ? body.title.trim().slice(0, 200) : '';
+
+      const { data: assetRows } = await supabaseAdmin
+        .from('omni_assets')
+        .select('id, kind, status, storage_path, mime_type, user_id')
+        .in('id', ids)
+        .eq('user_id', userId);
+      const assets = ((assetRows ?? []) as {
+        id: string; kind: string; status: string; storage_path: string | null; mime_type: string | null;
+      }[]).filter((a) =>
+        a.status === 'done' && a.storage_path
+        && (a.kind === 'image' || a.kind === 'video')
+        && a.storage_path.startsWith(`${userId}/`));
+      if (assets.length === 0) {
+        return jsonResponse({ error: 'No importable finished image or video assets were found' }, 400);
+      }
+
+      const { data: newPost, error: postErr } = await supabaseAdmin
+        .from('omni_content_posts')
+        .insert({ created_by: userId, title: title || 'Planned from Omni', status: 'draft' })
+        .select('id')
+        .single();
+      if (postErr || !newPost) return jsonResponse({ error: 'Failed to create the post' }, 500);
+      const newPostId = (newPost as { id: string }).id;
+
+      const IMPORT_MAX_BYTES = 150 * 1024 * 1024;
+      // Preserve the caller's selection order (.in() returns arbitrary order).
+      assets.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+      let imported = 0;
+      const failures: string[] = [];
+      for (const [i, asset] of assets.entries()) {
+        try {
+          const sourceBucket = asset.kind === 'video' ? 'omni-video' : 'files';
+          const sourcePath = asset.storage_path as string;
+          // Size-probe BEFORE downloading (the register-media list() pattern):
+          // .download() buffers the whole object in edge memory, so the cap
+          // must reject oversize files without ever pulling them.
+          const slash = sourcePath.lastIndexOf('/');
+          const { data: listed } = await supabaseAdmin.storage
+            .from(sourceBucket)
+            .list(sourcePath.slice(0, slash), { search: sourcePath.slice(slash + 1), limit: 5 });
+          const entry = (listed ?? []).find((f) => f.name === sourcePath.slice(slash + 1));
+          const probedSize = (entry?.metadata as { size?: number } | undefined)?.size;
+          if (typeof probedSize === 'number' && probedSize > IMPORT_MAX_BYTES) {
+            throw new Error('file is over the 150MB import limit');
+          }
+          const { data: blob, error: dlErr } = await supabaseAdmin.storage
+            .from(sourceBucket)
+            .download(sourcePath);
+          if (dlErr || !blob) throw new Error('source file unavailable');
+          if (blob.size > IMPORT_MAX_BYTES) throw new Error('file is over the 150MB import limit');
+          const mime = ALLOWED_MIME[asset.mime_type ?? ''] ? (asset.mime_type as string)
+            : asset.kind === 'video' ? 'video/mp4' : 'image/png';
+          if (ALLOWED_MIME[mime] !== asset.kind) throw new Error('unsupported media type');
+          const ext = mime.split('/')[1] === 'quicktime' ? 'mov' : mime.split('/')[1];
+          const destPath = `${userId}/${newPostId}/${crypto.randomUUID()}.${ext}`;
+          const { error: upErr } = await supabaseAdmin.storage
+            .from(BUCKET)
+            .upload(destPath, blob, { contentType: mime, upsert: false });
+          if (upErr) throw new Error(upErr.message);
+          const { error: insErr } = await supabaseAdmin.from('omni_content_media').insert({
+            post_id: newPostId,
+            kind: asset.kind,
+            storage_path: destPath,
+            mime_type: mime,
+            sort: i,
+            byte_size: blob.size,
+          });
+          if (insErr) throw new Error(insErr.message);
+          imported++;
+        } catch (e) {
+          failures.push(`${asset.kind}: ${e instanceof Error ? e.message.slice(0, 120) : 'copy failed'}`);
+        }
+      }
+      if (imported === 0) {
+        await supabaseAdmin.from('omni_content_posts').delete().eq('id', newPostId);
+        return jsonResponse({ error: `Import failed: ${failures.join('; ') || 'no files copied'}` }, 500);
+      }
+      return jsonResponse({ success: true, post_id: newPostId, imported, failures });
     }
 
     // -- delete-post (storage sweep + cascade) -----

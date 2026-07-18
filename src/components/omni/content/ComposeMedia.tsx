@@ -8,10 +8,11 @@
  */
 
 import { useRef, useState } from 'react';
-import { Loader2, Upload, X } from 'lucide-react';
+import { Loader2, Maximize2, Upload, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { DeskMedia } from '@/hooks/omni/useContentDesk';
 import { DESK_UPLOAD_MAX_FILES, DESK_UPLOAD_MIMES, type PendingFile } from './contentConstants';
+import { DeskLightbox, type LightboxItem } from './DeskLightbox';
 
 interface ComposeMediaProps {
   media: DeskMedia[];
@@ -26,7 +27,20 @@ interface ComposeMediaProps {
 export function ComposeMedia({ media, pending, uploadingIds, disabled, onAddFiles, onRemovePending, onDeleteMedia }: ComposeMediaProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const total = media.length + pending.length;
+
+  // Uploaded media first, then local pending previews - one browsable set.
+  const lightboxItems: LightboxItem[] = [
+    ...media
+      .filter((m): m is DeskMedia & { url: string } => Boolean(m.url))
+      .map((m) => ({ id: m.id, kind: m.kind, url: m.url })),
+    ...pending.map((p) => ({ id: p.id, kind: p.kind, url: p.previewUrl, label: p.file.name })),
+  ];
+  const openPreview = (id: string) => {
+    const idx = lightboxItems.findIndex((i) => i.id === id);
+    if (idx >= 0) setLightboxIndex(idx);
+  };
 
   return (
     <div className="space-y-2">
@@ -71,10 +85,27 @@ export function ComposeMedia({ media, pending, uploadingIds, disabled, onAddFile
                 m.kind === 'video' ? (
                   <video src={m.url} controls muted playsInline preload="metadata" className="h-full w-full object-cover" />
                 ) : (
-                  <img src={m.url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => openPreview(m.id)}
+                    aria-label="View this image fullscreen"
+                    className="h-full w-full cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <img src={m.url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  </button>
                 )
               ) : (
                 <div className="flex h-full items-center justify-center text-[10px] text-muted-foreground">Preview unavailable</div>
+              )}
+              {m.url && (
+                <button
+                  type="button"
+                  onClick={() => openPreview(m.id)}
+                  aria-label="View fullscreen"
+                  className="absolute left-1 top-1 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-background/80 text-muted-foreground opacity-100 transition-opacity hover:bg-background hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+                >
+                  <Maximize2 className="h-3 w-3" />
+                </button>
               )}
               <button
                 type="button"
@@ -92,7 +123,14 @@ export function ComposeMedia({ media, pending, uploadingIds, disabled, onAddFile
               {p.kind === 'video' ? (
                 <video src={p.previewUrl} muted playsInline preload="metadata" className="h-full w-full object-cover" />
               ) : (
-                <img src={p.previewUrl} alt={p.file.name} className="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => openPreview(p.id)}
+                  aria-label={`View ${p.file.name} fullscreen`}
+                  className="h-full w-full cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <img src={p.previewUrl} alt={p.file.name} className="h-full w-full object-cover" />
+                </button>
               )}
               {uploadingIds.has(p.id) ? (
                 <span className="absolute inset-0 flex items-center justify-center bg-black/40" aria-label={`Uploading ${p.file.name}`}>
@@ -118,6 +156,8 @@ export function ComposeMedia({ media, pending, uploadingIds, disabled, onAddFile
           ))}
         </div>
       )}
+
+      <DeskLightbox items={lightboxItems} index={lightboxIndex} onIndexChange={setLightboxIndex} />
     </div>
   );
 }

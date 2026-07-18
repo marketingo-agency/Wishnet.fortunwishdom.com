@@ -101,6 +101,7 @@ export default function OmniAgent() {
   const [videosMode, setVideosMode] = useState<VideosMode>('hub');
   const [audiosMode, setAudiosMode] = useState<AudiosMode>('hub');
   const [contentMode, setContentMode] = useState<ContentMode>('hub');
+  const [deskPostId, setDeskPostId] = useState<string | null>(null);
   const [wizardRunId, setWizardRunId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -137,6 +138,8 @@ export default function OmniAgent() {
     if (track === 'content') {
       const mode = params.get('mode');
       if (mode && (BUILT_CONTENT_SURFACES as string[]).includes(mode)) setContentMode(mode as ContentMode);
+      const post = params.get('post');
+      if (post) setDeskPostId(post);
     }
   }, []);
 
@@ -362,7 +365,11 @@ export default function OmniAgent() {
               )}
 
               {view === 'content' && contentMode === 'publishing_desk' && (
-                <PublishingDesk onExit={() => openContentMode('hub')} />
+                <PublishingDesk
+                  onExit={() => openContentMode('hub')}
+                  initialPostId={deskPostId}
+                  onInitialPostConsumed={() => setDeskPostId(null)}
+                />
               )}
 
               {view === 'content' && contentMode === 'connections' && (

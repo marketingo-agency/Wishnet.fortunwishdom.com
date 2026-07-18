@@ -22,6 +22,7 @@ import { callOmniVideo } from '@/lib/omniApi';
 import { usePolledAsset } from '@/hooks/omni/useVideoAudio';
 import { OMNI_VIDEO_NETWORKS, getVideoPreset, type OmniVideoNetworkId } from '../omniVideoNetworkPresets';
 import type { OmniVideoVariantRef } from '@/hooks/omni';
+import { SendToDeskButton } from '@/components/omni/content/SendToDeskButton';
 
 interface VSFinalizeVideoProps {
   runId: string;
@@ -158,10 +159,17 @@ export function VSFinalizeVideo({
         </div>
       </section>
 
-      <p className="flex items-start gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-[11px] text-amber-700 [[data-omni-theme=dark]_&]:text-amber-400" role="note">
-        <Info className="mt-px h-3.5 w-3.5 shrink-0" />
-        Automatic publishing is image-only today: every video post saves to the Library and publishes manually via Pulse (upload-post). Scheduling a video post parks it with this same note.
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-fuchsia-500/30 bg-fuchsia-500/5 p-3" role="note">
+        <p className="flex items-start gap-1.5 text-[11px] text-fuchsia-700 [[data-omni-theme=dark]_&]:text-fuchsia-300">
+          <Info className="mt-px h-3.5 w-3.5 shrink-0" />
+          Want this video scheduled and auto-published? Plan it in the Publishing Desk (Content hub) - approval, captions, and Metricool auto-publish live there.
+        </p>
+        <SendToDeskButton
+          assetIds={[...new Set([assemblyAssetId, ...Object.values(variants).map((v) => v.asset_id)].filter((x): x is string => Boolean(x)))]}
+          title={title}
+          size="xs"
+        />
+      </div>
 
       {[...byNetwork.entries()].map(([networkId, refs]) => {
         const network = OMNI_VIDEO_NETWORKS.find((n) => n.id === networkId);

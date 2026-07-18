@@ -30,6 +30,7 @@ import {
 import { ComposeMedia } from './ComposeMedia';
 import { ComposeTargets, type EditableTarget } from './ComposeTargets';
 import { ComposeApprovalBar } from './ComposeApprovalBar';
+import { DeskSchedulePicker } from './DeskSchedulePicker';
 import { filesToPending, type PendingFile } from './contentConstants';
 
 const toLocalInput = (iso: string | null): string => {
@@ -237,14 +238,11 @@ export function ComposeSheet({ open, onOpenChange, post }: ComposeSheetProps) {
           />
 
           <div className="space-y-1.5">
-            <Label htmlFor="compose-schedule">Publish on <span className="font-normal text-muted-foreground">(date + hour; empty = draft)</span></Label>
-            <Input
-              id="compose-schedule"
-              type="datetime-local"
+            <Label>Publish on <span className="font-normal text-muted-foreground">(date + hour; empty = draft)</span></Label>
+            <DeskSchedulePicker
               value={scheduledLocal}
-              onChange={(e) => setScheduledLocal(e.target.value)}
+              onChange={setScheduledLocal}
               disabled={busy || hasArmed}
-              className="w-full sm:w-[240px]"
             />
             {hasArmed && (
               <p className="text-[11px] text-muted-foreground">

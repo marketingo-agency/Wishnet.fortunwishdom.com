@@ -7,7 +7,7 @@
  * the Publish Queue (download the asset, post it manually, mark it done).
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, CalendarDays, LayoutGrid, ListChecks, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -28,9 +28,13 @@ const TABS: { id: DeskTab; label: string; icon: typeof LayoutGrid }[] = [
 
 interface PublishingDeskProps {
   onExit: () => void;
+  /** Deep-linked post (e.g. freshly planned from another hub): opens its
+   *  compose sheet once the board has loaded. */
+  initialPostId?: string | null;
+  onInitialPostConsumed?: () => void;
 }
 
-export function PublishingDesk({ onExit }: PublishingDeskProps) {
+export function PublishingDesk({ onExit, initialPostId, onInitialPostConsumed }: PublishingDeskProps) {
   const reduceMotion = useReducedMotion();
   const [tab, setTab] = useState<DeskTab>('board');
   const [includeArchived, setIncludeArchived] = useState(false);
@@ -43,6 +47,18 @@ export function PublishingDesk({ onExit }: PublishingDeskProps) {
     setEditPost(post);
     setComposeOpen(true);
   };
+
+  useEffect(() => {
+    if (!initialPostId || !posts.data) return;
+    const target = posts.data.find((p) => p.id === initialPostId);
+    // Consume only once the post is actually found - a stale first snapshot
+    // must not swallow the deep link.
+    if (target) {
+      openCompose(target);
+      onInitialPostConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per deep link, when the data lands
+  }, [initialPostId, posts.data]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
