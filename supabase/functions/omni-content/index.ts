@@ -41,10 +41,7 @@ type AdminClient = ReturnType<typeof createClient>;
 
 const BUCKET = 'omni-content';
 const SIGNED_TTL = 60 * 60;
-const NETWORKS = new Set([
-  'facebook', 'instagram', 'x', 'tiktok', 'youtube', 'pinterest',
-  'linkedin', 'threads', 'bluesky', 'google_business', 'other',
-]);
+const NETWORKS = new Set(['facebook', 'instagram', 'x', 'tiktok', 'youtube', 'pinterest', 'other']);
 const ALLOWED_MIME: Record<string, 'image' | 'video'> = {
   'image/png': 'image',
   'image/jpeg': 'image',

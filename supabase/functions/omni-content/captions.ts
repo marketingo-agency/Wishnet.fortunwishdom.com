@@ -27,10 +27,6 @@ const NETWORK_BRIEFS: Record<string, { cap: number; guidance: string }> = {
   tiktok: { cap: 2200, guidance: 'Hook-first, casual, trend-aware, 3-5 hashtags, emoji natural.' },
   youtube: { cap: 5000, guidance: 'Descriptive and searchable: what it shows and why it matters, keywords early.' },
   pinterest: { cap: 500, guidance: 'Inspirational and descriptive, searchable keywords, no hashtag spam.' },
-  linkedin: { cap: 3000, guidance: 'Professional but human: insight-forward, short paragraphs, no hashtag walls (2-3 max), minimal emoji.' },
-  threads: { cap: 500, guidance: 'Conversational and quick, like talking to friends; a question or hot take lands well; no hashtag spam.' },
-  bluesky: { cap: 300, guidance: 'HARD 300-character limit. Sharp, personable single thought; hashtags rare.' },
-  google_business: { cap: 1500, guidance: 'Local-business update voice: clear, factual, benefit-first, ends with a concrete call to action.' },
 };
 
 /** Post-type nuances layered on top of the network voice. */

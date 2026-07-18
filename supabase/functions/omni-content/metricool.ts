@@ -32,8 +32,8 @@ export interface MetricoolBrand {
   networks: Record<string, string>;
 }
 
-/** Our Desk network ids -> Metricool provider network strings (the full
- *  schedulable set from the live swagger; GBP's provider value is 'google'). */
+/** Our Desk network ids -> Metricool provider network strings (the client's
+ *  chosen six; Metricool supports more, deliberately not offered). */
 export const NETWORK_TO_PROVIDER: Record<string, string> = {
   facebook: 'facebook',
   instagram: 'instagram',
@@ -41,10 +41,6 @@ export const NETWORK_TO_PROVIDER: Record<string, string> = {
   tiktok: 'tiktok',
   youtube: 'youtube',
   pinterest: 'pinterest',
-  linkedin: 'linkedin',
-  threads: 'threads',
-  bluesky: 'bluesky',
-  google_business: 'google',
 };
 
 async function mcFetch(
@@ -96,14 +92,6 @@ function toBrand(blog: Record<string, unknown>): MetricoolBrand {
   if (yt) networks.youtube = yt;
   const pin = handle(blog.pinterest);
   if (pin) networks.pinterest = pin;
-  const li = handle(blog.linkedinCompany) ?? handle(blog.linkedInCompanyName);
-  if (li) networks.linkedin = li;
-  const th = handle(blog.threads) ?? handle(blog.threadsAccountName);
-  if (th) networks.threads = th;
-  const bs = handle(blog.bluesky) ?? handle(blog.blueskyHandle);
-  if (bs) networks.bluesky = bs;
-  const gb = handle(blog.gmb) ?? handle(blog.gmbAccountName);
-  if (gb) networks.google_business = gb;
   return {
     id: Number(blog.id),
     label: (handle(blog.label) ?? handle(blog.title) ?? `Brand ${blog.id}`) as string,
@@ -216,10 +204,6 @@ function perNetworkData(input: TargetPushInput): Record<string, unknown> {
         },
       };
     }
-    case 'linkedin':
-      return { linkedinData: { type: 'POST' } };
-    // threads / bluesky / google_business: Metricool's defaults are correct
-    // for plain posts - a wrong guessed sub-field would be worse than none.
     default:
       return {};
   }

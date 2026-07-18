@@ -5,13 +5,10 @@
  */
 
 import type { ComponentType } from 'react';
-import { Globe, Linkedin, MapPin } from 'lucide-react';
+import { Globe } from 'lucide-react';
 import { OMNI_NETWORKS } from '../omniNetworkPresets';
-import { BlueskyIcon, ThreadsIcon } from './contentIcons';
 
-export type DeskNetworkId =
-  | 'facebook' | 'instagram' | 'x' | 'tiktok' | 'youtube' | 'pinterest'
-  | 'linkedin' | 'threads' | 'bluesky' | 'google_business' | 'other';
+export type DeskNetworkId = 'facebook' | 'instagram' | 'x' | 'tiktok' | 'youtube' | 'pinterest' | 'other';
 
 export interface DeskNetworkDef {
   id: DeskNetworkId;
@@ -36,36 +33,6 @@ export const DESK_NETWORKS: DeskNetworkDef[] = [
       : n.id === 'youtube' ? ['Video', 'Short', 'Community post']
       : ['Pin', 'Idea Pin'],
   })),
-  // The four remaining Metricool-schedulable networks (locked from the live
-  // swagger: linkedinData/threadsData/blueskyData/gmbData all exist).
-  {
-    id: 'linkedin',
-    label: 'LinkedIn',
-    icon: Linkedin,
-    accent: 'text-sky-600',
-    postTypes: ['Post'],
-  },
-  {
-    id: 'threads',
-    label: 'Threads',
-    icon: ThreadsIcon,
-    accent: 'text-foreground',
-    postTypes: ['Post'],
-  },
-  {
-    id: 'bluesky',
-    label: 'Bluesky',
-    icon: BlueskyIcon,
-    accent: 'text-sky-400',
-    postTypes: ['Post'],
-  },
-  {
-    id: 'google_business',
-    label: 'Google Business',
-    icon: MapPin,
-    accent: 'text-emerald-500',
-    postTypes: ['Update'],
-  },
   // Manual-lane escape hatch: anywhere a human posts by hand.
   {
     id: 'other',
