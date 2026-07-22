@@ -2386,10 +2386,6 @@ export type Database = {
           mastermind_can_edit: boolean | null
           updated_at: string | null
           user_id: string
-          wishnetrium: Database["public"]["Enums"]["permission_level"] | null
-          wishnetrium_can_access_wishfeed: boolean | null
-          wishnetrium_can_access_wishper: boolean | null
-          wishnetrium_can_access_wishprint: boolean | null
         }
         Insert: {
           ai_agents?: Database["public"]["Enums"]["permission_level"] | null
@@ -2418,10 +2414,6 @@ export type Database = {
           mastermind_can_edit?: boolean | null
           updated_at?: string | null
           user_id: string
-          wishnetrium?: Database["public"]["Enums"]["permission_level"] | null
-          wishnetrium_can_access_wishfeed?: boolean | null
-          wishnetrium_can_access_wishper?: boolean | null
-          wishnetrium_can_access_wishprint?: boolean | null
         }
         Update: {
           ai_agents?: Database["public"]["Enums"]["permission_level"] | null
@@ -2450,10 +2442,6 @@ export type Database = {
           mastermind_can_edit?: boolean | null
           updated_at?: string | null
           user_id?: string
-          wishnetrium?: Database["public"]["Enums"]["permission_level"] | null
-          wishnetrium_can_access_wishfeed?: boolean | null
-          wishnetrium_can_access_wishper?: boolean | null
-          wishnetrium_can_access_wishprint?: boolean | null
         }
         Relationships: []
       }
