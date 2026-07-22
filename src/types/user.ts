@@ -29,11 +29,7 @@ export interface UserPermissions {
   files_manager: PermissionLevel | null;
   mastermind: PermissionLevel | null;
   ai_agents: PermissionLevel | null;
-  wishdom: PermissionLevel | null;
-  
-  taskforce: PermissionLevel | null;
-  marketing_hub: PermissionLevel | null;
-  
+
   // Admin settings access
   can_access_branding: boolean | null;
   can_access_user_management: boolean | null;
@@ -60,24 +56,7 @@ export interface UserPermissions {
   ai_can_access_pixel: boolean | null;
   ai_can_access_atlas: boolean | null;
   ai_can_access_omni: boolean | null;
-  
-  // Wishdom granular permissions
-  wishdom_can_access_main: boolean | null;
-  wishdom_can_access_plushes: boolean | null;
-  wishdom_can_access_figurines: boolean | null;
-  wishdom_can_access_cards: boolean | null;
-  wishdom_can_access_stocks: boolean | null;
-  
-  
-  // Marketing Hub granular permissions
-  marketing_can_access_plan: boolean | null;
-  marketing_can_access_operations: boolean | null;
-  
-  // Taskforce granular permissions
-  taskforce_can_create: boolean | null;
-  taskforce_can_edit: boolean | null;
-  taskforce_can_delete: boolean | null;
-  
+
   created_at: string | null;
   updated_at: string | null;
 }

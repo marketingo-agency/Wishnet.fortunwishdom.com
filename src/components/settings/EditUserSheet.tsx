@@ -21,8 +21,6 @@ import {
   FolderOpen, 
   Brain, 
   Bot,
-  Sparkles,
-  ListTodo,
   ChevronDown,
   Settings,
   Loader2,
@@ -38,11 +36,6 @@ import {
   Share2,
   Palette,
   Boxes,
-  Home,
-  Cat,
-  PersonStanding,
-  Spade,
-  Package,
   Orbit,
 } from 'lucide-react';
 
@@ -104,32 +97,6 @@ const toolConfigs = [
       { key: 'ai_can_access_omni', label: 'Omni (Creation)', icon: Orbit },
     ]
   },
-  { 
-    key: 'wishdom' as const, 
-    label: 'Fortun Wishdom', 
-    icon: Sparkles, 
-    color: 'text-fuchsia-500',
-    hasAdvanced: true,
-    advancedOptions: [
-      { key: 'wishdom_can_access_main', label: 'The Wishdom (Main)', icon: Home },
-      { key: 'wishdom_can_access_plushes', label: 'Plushes', icon: Cat },
-      { key: 'wishdom_can_access_figurines', label: 'Figurines', icon: PersonStanding },
-      { key: 'wishdom_can_access_cards', label: 'Cards', icon: Spade },
-      { key: 'wishdom_can_access_stocks', label: 'Stocks', icon: Package },
-    ]
-  },
-  { 
-    key: 'taskforce' as const, 
-    label: 'Taskforce', 
-    icon: ListTodo, 
-    color: 'text-orange-500',
-    hasAdvanced: true,
-    advancedOptions: [
-      { key: 'taskforce_can_create', label: 'Can create tasks', icon: Plus },
-      { key: 'taskforce_can_edit', label: 'Can edit tasks', icon: Edit },
-      { key: 'taskforce_can_delete', label: 'Can delete tasks', icon: Trash2 },
-    ]
-  },
 ];
 
 export function EditUserSheet({ open, onOpenChange, user, onSave }: EditUserSheetProps) {
@@ -151,9 +118,6 @@ export function EditUserSheet({ open, onOpenChange, user, onSave }: EditUserShee
     files_manager: 'none',
     mastermind: 'none',
     ai_agents: 'none',
-    wishdom: 'none',
-    
-    taskforce: 'none',
     can_access_branding: false,
     can_access_user_management: false,
     // Files Manager
@@ -169,20 +133,10 @@ export function EditUserSheet({ open, onOpenChange, user, onSave }: EditUserShee
     ai_can_access_pixel: true,
     ai_can_access_atlas: true,
     ai_can_access_omni: true,
-    // Wishdom
-    wishdom_can_access_main: true,
-    wishdom_can_access_plushes: true,
-    wishdom_can_access_figurines: true,
-    wishdom_can_access_cards: true,
-    wishdom_can_access_stocks: true,
     // MasterMind
     mastermind_can_create: true,
     mastermind_can_edit: true,
     mastermind_can_delete: true,
-    // Taskforce
-    taskforce_can_create: true,
-    taskforce_can_edit: true,
-    taskforce_can_delete: true,
   });
 
   // Initialize form when user changes
@@ -201,9 +155,6 @@ export function EditUserSheet({ open, onOpenChange, user, onSave }: EditUserShee
         files_manager: userPermissions.files_manager,
         mastermind: userPermissions.mastermind,
         ai_agents: userPermissions.ai_agents,
-        wishdom: userPermissions.wishdom,
-        
-        taskforce: userPermissions.taskforce,
         can_access_branding: userPermissions.can_access_branding,
         can_access_user_management: userPermissions.can_access_user_management,
         // Files Manager
@@ -219,20 +170,10 @@ export function EditUserSheet({ open, onOpenChange, user, onSave }: EditUserShee
         ai_can_access_pixel: userPermissions.ai_can_access_pixel,
         ai_can_access_atlas: userPermissions.ai_can_access_atlas,
         ai_can_access_omni: userPermissions.ai_can_access_omni,
-        // Wishdom
-        wishdom_can_access_main: userPermissions.wishdom_can_access_main,
-        wishdom_can_access_plushes: userPermissions.wishdom_can_access_plushes,
-        wishdom_can_access_figurines: userPermissions.wishdom_can_access_figurines,
-        wishdom_can_access_cards: userPermissions.wishdom_can_access_cards,
-        wishdom_can_access_stocks: userPermissions.wishdom_can_access_stocks,
         // MasterMind
         mastermind_can_create: userPermissions.mastermind_can_create,
         mastermind_can_edit: userPermissions.mastermind_can_edit,
         mastermind_can_delete: userPermissions.mastermind_can_delete,
-        // Taskforce
-        taskforce_can_create: userPermissions.taskforce_can_create,
-        taskforce_can_edit: userPermissions.taskforce_can_edit,
-        taskforce_can_delete: userPermissions.taskforce_can_delete,
       });
     }
   }, [userPermissions]);

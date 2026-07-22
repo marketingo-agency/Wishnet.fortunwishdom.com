@@ -4,28 +4,20 @@
  */
 
 import type { LucideIcon } from 'lucide-react';
-import { 
-  FolderOpen, 
-  Brain, 
-  Bot, 
-  Sparkles, 
-   
-  ListTodo,
-  Megaphone
+import {
+  FolderOpen,
+  Brain,
+  Bot,
 } from 'lucide-react';
 import type { PermissionLevel } from '@/types/user';
 
 // Re-export for convenience
 export type { PermissionLevel };
 
-export type ToolKey = 
-  | 'files_manager' 
-  | 'mastermind' 
-  | 'ai_agents' 
-  | 'wishdom' 
-   
-  | 'taskforce'
-  | 'marketing_hub';
+export type ToolKey =
+  | 'files_manager'
+  | 'mastermind'
+  | 'ai_agents';
 
 export interface ToolDefinition {
   key: ToolKey;
@@ -63,33 +55,6 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     icon: Bot,
     iconColor: 'text-cyan-500',
     description: 'Access to AI agent capabilities',
-    hasAdvancedOptions: true,
-  },
-  {
-    key: 'wishdom',
-    label: 'Wishdom',
-    shortLabel: 'Wishdom',
-    icon: Sparkles,
-    iconColor: 'text-fuchsia-500',
-    description: 'Collectibles and inventory management',
-    hasAdvancedOptions: true,
-  },
-  {
-    key: 'taskforce',
-    label: 'Taskforce',
-    shortLabel: 'Tasks',
-    icon: ListTodo,
-    iconColor: 'text-orange-500',
-    description: 'Task and project management',
-    hasAdvancedOptions: true,
-  },
-  {
-    key: 'marketing_hub',
-    label: 'Marketing Hub',
-    shortLabel: 'Marketing',
-    icon: Megaphone,
-    iconColor: 'text-rose-500',
-    description: 'Marketing planning and operations',
     hasAdvancedOptions: true,
   },
 ];

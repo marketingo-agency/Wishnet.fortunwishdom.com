@@ -4,24 +4,19 @@
  */
 
 import type { LucideIcon } from 'lucide-react';
-import { 
+import {
   LayoutDashboard,
   Bot,
-  Megaphone,
-  Sparkles,
   Settings,
   Newspaper,
   Settings2,
   FolderOpen,
-  ListTodo,
   Brain,
 } from 'lucide-react';
 import type { ToolKey } from '@/config/permissions';
 import {
   AI_AGENT_ROUTES,
   MASTERMIND_ROUTES,
-  MARKETING_ROUTES,
-  WISHDOM_ROUTES,
   type RouteConfig,
 } from '@/routes/routeConfig';
 
@@ -94,24 +89,6 @@ export const NAV_SECTIONS: NavSection[] = [
       ...AI_AGENT_ROUTES.map(r => routeToNav(r)),
     ],
   },
-  {
-    id: 'marketing',
-    title: 'Marketing Hub',
-    icon: Megaphone,
-    iconColor: 'text-rose-500',
-    toolKey: 'marketing_hub',
-    defaultUrl: '/marketing/plan',
-    items: routesToNavItems(MARKETING_ROUTES, false),
-  },
-  {
-    id: 'wishdom',
-    title: 'Fortun Wishdom',
-    icon: Sparkles,
-    iconColor: 'text-fuchsia-500',
-    toolKey: 'wishdom',
-    defaultUrl: '/wishdom',
-    items: routesToNavItems(WISHDOM_ROUTES),
-  },
 ];
 
 // Footer nav items
@@ -123,18 +100,7 @@ export const FOOTER_NAV_ITEMS: NavItem[] = [
 // Simple items that need tool access check
 export const TOOL_NAV_ITEMS: { item: NavItem; toolKey: ToolKey }[] = [
   {
-    item: { title: 'Taskforce', url: '/taskforce', icon: ListTodo, iconColor: 'text-orange-500' },
-    toolKey: 'taskforce',
-  },
-  {
     item: { title: 'Files Manager', url: '/files', icon: FolderOpen, iconColor: 'text-amber-500' },
     toolKey: 'files_manager',
   },
 ];
-
-// Check if a path is within a section
-export function isPathInSection(pathname: string, sectionId: string): boolean {
-  const section = NAV_SECTIONS.find(s => s.id === sectionId);
-  if (!section) return false;
-  return section.items.some(item => pathname.startsWith(item.url.split('/').slice(0, 2).join('/')));
-}

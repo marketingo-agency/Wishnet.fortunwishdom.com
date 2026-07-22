@@ -9,19 +9,9 @@
 import { ToolProtectedRoute } from "@/components/ToolProtectedRoute";
 import ComingSoon from "@/screens/ComingSoon";
 import { Sparkles } from "lucide-react";
-import {
-  AI_AGENT_ROUTES,
-  MARKETING_ROUTES,
-  WISHDOM_ROUTES,
-  OTHER_ROUTES,
-} from "@/routes/routeConfig";
+import { AI_AGENT_ROUTES } from "@/routes/routeConfig";
 
-const ALL_ROUTES = [
-  ...AI_AGENT_ROUTES,
-  ...MARKETING_ROUTES,
-  ...WISHDOM_ROUTES,
-  ...OTHER_ROUTES,
-];
+const ALL_ROUTES = [...AI_AGENT_ROUTES];
 
 export function ComingSoonRoute({ path }: { path: string }) {
   const route = ALL_ROUTES.find((r) => r.path === path);

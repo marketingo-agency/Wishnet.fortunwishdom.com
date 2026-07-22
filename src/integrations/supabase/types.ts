@@ -2378,27 +2378,14 @@ export type Database = {
           files_can_upload: boolean | null
           files_manager: Database["public"]["Enums"]["permission_level"] | null
           id: string
-          marketing_can_access_operations: boolean | null
-          marketing_can_access_plan: boolean | null
-          marketing_hub: Database["public"]["Enums"]["permission_level"] | null
           mastermind: Database["public"]["Enums"]["permission_level"] | null
           mastermind_can_access_brain: boolean | null
           mastermind_can_access_heart: boolean | null
           mastermind_can_create: boolean | null
           mastermind_can_delete: boolean | null
           mastermind_can_edit: boolean | null
-          taskforce: Database["public"]["Enums"]["permission_level"] | null
-          taskforce_can_create: boolean | null
-          taskforce_can_delete: boolean | null
-          taskforce_can_edit: boolean | null
           updated_at: string | null
           user_id: string
-          wishdom: Database["public"]["Enums"]["permission_level"] | null
-          wishdom_can_access_cards: boolean | null
-          wishdom_can_access_figurines: boolean | null
-          wishdom_can_access_main: boolean | null
-          wishdom_can_access_plushes: boolean | null
-          wishdom_can_access_stocks: boolean | null
           wishnetrium: Database["public"]["Enums"]["permission_level"] | null
           wishnetrium_can_access_wishfeed: boolean | null
           wishnetrium_can_access_wishper: boolean | null
@@ -2423,27 +2410,14 @@ export type Database = {
           files_can_upload?: boolean | null
           files_manager?: Database["public"]["Enums"]["permission_level"] | null
           id?: string
-          marketing_can_access_operations?: boolean | null
-          marketing_can_access_plan?: boolean | null
-          marketing_hub?: Database["public"]["Enums"]["permission_level"] | null
           mastermind?: Database["public"]["Enums"]["permission_level"] | null
           mastermind_can_access_brain?: boolean | null
           mastermind_can_access_heart?: boolean | null
           mastermind_can_create?: boolean | null
           mastermind_can_delete?: boolean | null
           mastermind_can_edit?: boolean | null
-          taskforce?: Database["public"]["Enums"]["permission_level"] | null
-          taskforce_can_create?: boolean | null
-          taskforce_can_delete?: boolean | null
-          taskforce_can_edit?: boolean | null
           updated_at?: string | null
           user_id: string
-          wishdom?: Database["public"]["Enums"]["permission_level"] | null
-          wishdom_can_access_cards?: boolean | null
-          wishdom_can_access_figurines?: boolean | null
-          wishdom_can_access_main?: boolean | null
-          wishdom_can_access_plushes?: boolean | null
-          wishdom_can_access_stocks?: boolean | null
           wishnetrium?: Database["public"]["Enums"]["permission_level"] | null
           wishnetrium_can_access_wishfeed?: boolean | null
           wishnetrium_can_access_wishper?: boolean | null
@@ -2468,27 +2442,14 @@ export type Database = {
           files_can_upload?: boolean | null
           files_manager?: Database["public"]["Enums"]["permission_level"] | null
           id?: string
-          marketing_can_access_operations?: boolean | null
-          marketing_can_access_plan?: boolean | null
-          marketing_hub?: Database["public"]["Enums"]["permission_level"] | null
           mastermind?: Database["public"]["Enums"]["permission_level"] | null
           mastermind_can_access_brain?: boolean | null
           mastermind_can_access_heart?: boolean | null
           mastermind_can_create?: boolean | null
           mastermind_can_delete?: boolean | null
           mastermind_can_edit?: boolean | null
-          taskforce?: Database["public"]["Enums"]["permission_level"] | null
-          taskforce_can_create?: boolean | null
-          taskforce_can_delete?: boolean | null
-          taskforce_can_edit?: boolean | null
           updated_at?: string | null
           user_id?: string
-          wishdom?: Database["public"]["Enums"]["permission_level"] | null
-          wishdom_can_access_cards?: boolean | null
-          wishdom_can_access_figurines?: boolean | null
-          wishdom_can_access_main?: boolean | null
-          wishdom_can_access_plushes?: boolean | null
-          wishdom_can_access_stocks?: boolean | null
           wishnetrium?: Database["public"]["Enums"]["permission_level"] | null
           wishnetrium_can_access_wishfeed?: boolean | null
           wishnetrium_can_access_wishper?: boolean | null

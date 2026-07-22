@@ -64,11 +64,7 @@ export function useCurrentUserPermissions() {
       permissions: {
         files_manager: 'full' as PermissionLevel,
         mastermind: 'full' as PermissionLevel,
-        taskforce: 'full' as PermissionLevel,
         ai_agents: 'full' as PermissionLevel,
-        wishdom: 'full' as PermissionLevel,
-        
-        marketing_hub: 'full' as PermissionLevel,
         can_access_branding: true,
         can_access_user_management: true,
         // Files Manager
@@ -85,25 +81,12 @@ export function useCurrentUserPermissions() {
         ai_can_access_pixel: true,
         ai_can_access_atlas: true,
         ai_can_access_omni: true,
-        // Wishdom
-        wishdom_can_access_main: true,
-        wishdom_can_access_plushes: true,
-        wishdom_can_access_figurines: true,
-        wishdom_can_access_cards: true,
-        wishdom_can_access_stocks: true,
         // MasterMind
         mastermind_can_create: true,
         mastermind_can_edit: true,
         mastermind_can_delete: true,
         mastermind_can_access_brain: true,
         mastermind_can_access_heart: true,
-        // Taskforce
-        taskforce_can_create: true,
-        taskforce_can_edit: true,
-        taskforce_can_delete: true,
-        // Marketing Hub
-        marketing_can_access_plan: true,
-        marketing_can_access_operations: true,
       },
       isLoading: false,
       hasAccess: () => true,
@@ -111,12 +94,12 @@ export function useCurrentUserPermissions() {
     };
   }
 
-  const hasAccess = (tool: keyof Pick<UserPermissions, 'files_manager' | 'mastermind' | 'taskforce' | 'ai_agents' | 'wishdom' | 'marketing_hub'>) => {
+  const hasAccess = (tool: keyof Pick<UserPermissions, 'files_manager' | 'mastermind' | 'ai_agents'>) => {
     if (!permissions) return false;
     return permissions[tool] !== 'none';
   };
 
-  const getToolPermission = (tool: keyof Pick<UserPermissions, 'files_manager' | 'mastermind' | 'taskforce' | 'ai_agents' | 'wishdom' | 'marketing_hub'>) => {
+  const getToolPermission = (tool: keyof Pick<UserPermissions, 'files_manager' | 'mastermind' | 'ai_agents'>) => {
     if (!permissions) return 'none' as PermissionLevel;
     return permissions[tool];
   };
@@ -183,32 +166,5 @@ export type AgentAccessKey =
   | 'ai_can_access_atlas'
   | 'ai_can_access_omni';
 
-// Map URL paths to permission keys
-export type ToolPermissionKey = 'files_manager' | 'mastermind' | 'taskforce' | 'ai_agents' | 'wishdom' | 'marketing_hub';
-
-export function getPermissionKeyFromPath(path: string): ToolPermissionKey | null {
-  // Check for exact matches first, then prefix matches for sub-routes
-  const exactMap: Record<string, ToolPermissionKey> = {
-    '/files': 'files_manager',
-    '/mastermind': 'mastermind',
-    '/taskforce': 'taskforce',
-    '/ai-agents': 'ai_agents',
-    '/wishdom': 'wishdom',
-    
-    '/marketing': 'marketing_hub',
-  };
-  
-  // Check exact match
-  if (exactMap[path]) {
-    return exactMap[path];
-  }
-  
-  // Check prefix matches for sub-routes (e.g., /ai-agents/nexus -> ai_agents)
-  for (const [prefix, key] of Object.entries(exactMap)) {
-    if (path.startsWith(prefix + '/')) {
-      return key;
-    }
-  }
-  
-  return null;
-}
+// Tool-level permission keys (consumed by <ToolProtectedRoute />)
+export type ToolPermissionKey = 'files_manager' | 'mastermind' | 'ai_agents';

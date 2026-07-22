@@ -96,7 +96,6 @@ export function AppSidebar() {
                     icon={item.icon}
                     iconColor={item.iconColor}
                     collapsed={collapsed}
-                    badge={toolKey === 'taskforce' ? 'Soon' : undefined}
                   />
                 )
               ))}

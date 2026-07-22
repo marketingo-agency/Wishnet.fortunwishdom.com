@@ -276,7 +276,7 @@ function buildSystemPrompt(
 
   const platformKnowledge = `## PLATFORM KNOWLEDGE — FORTUN WISHNET
 
-Fortun Wishnet is a private business platform for AI-powered content creation, knowledge management, marketing, product catalog, and community management. Below is the complete platform architecture. Use this to answer any question about the platform, its tools, agents, or features.
+Fortun Wishnet is a private business platform for AI-powered content creation, knowledge management, and community management. Below is the complete platform architecture. Use this to answer any question about the platform, its tools, agents, or features.
 
 ### AI Agents Registry (live from database)
 ${agentRegistryLines}
@@ -290,10 +290,6 @@ MasterMind is the platform's knowledge and compliance engine with three pillars:
 Upload, organize, and manage files with sectors (folders), tags, file versioning, pinning, trash/restore, and storage quota tracking. Supports PDF inline preview, file inspector with metadata, and configurable allowed file types and size limits.
 
 ### Other Platform Modules
-- **Taskforce** — Task and project management (coming soon)
-- **Marketing Hub** — Marketing planning and operations (coming soon)
-- **Fortun Wishdom** — Product catalog with categories: Main, Plushes, Figurines, Cards, Stocks
-
 - **Dashboard** — Platform overview and quick access to all modules
 - **Settings** — Account settings, branding (logos, favicon, app title), LLM provider configuration (OpenAI, Gemini API keys, model selection), user management with role-based permissions (admin/agent roles, per-module permission levels: none/view/limited/full)
 - **Release Notes** — Platform updates, planned releases, and feedback

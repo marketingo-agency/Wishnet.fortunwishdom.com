@@ -7,14 +7,14 @@ export const mockReleaseUpdates: ReleaseUpdate[] = [
     date: '2026-01-22',
     category: 'feature',
     title: 'Fortun Wishnet Official Launch',
-    description: 'The first Wishnet portal has officially unlocked. Inside v1.0 you will find a full launch stack: Dashboard for clarity, Files Manager for order, AI Agents Hub with Nexus for OpenAI and Google Gemini connection testing, and a Prompt Library to build repeatable magic. Add Settings and User Management, then discover the coming soon pages for the Fortun MasterMind, Marketing Hub, Wishdom product catalog, Taskforce collaboration, and the Release Notes plus Roadmap to follow the expansion.',
+    description: 'The first Wishnet portal has officially unlocked. Inside v1.0 you will find a full launch stack: Dashboard for clarity, Files Manager for order, AI Agents Hub with Nexus for OpenAI and Google Gemini connection testing, and a Prompt Library to build repeatable magic. Add Settings and User Management, then discover the coming soon pages for the Fortun MasterMind, and the Release Notes plus Roadmap to follow the expansion.',
     changes: [
       'Complete platform foundation with secure authentication',
       'AI-powered Nexus Control Center with multi-provider support',
       'Six specialized AI agents ready to transform your workflow',
       'Comprehensive Files Manager with sectors and organization tools',
       'Full Settings suite with branding customization and user management',
-      'Modular navigation with MasterMind, Wishdom, and more',
+      'Modular navigation with MasterMind, AI Agents, and more',
       'Role-based permissions system for team collaboration',
       'Release Notes hub to keep you informed on every update'
     ],

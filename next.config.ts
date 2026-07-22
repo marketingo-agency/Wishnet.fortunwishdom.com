@@ -64,6 +64,11 @@ const nextConfig: NextConfig = {
   },
 
   // `/` → `/dashboard` (matches the old React Router <Navigate>)
+  // The Marketing Hub, Fortun Wishdom and Taskforce sections were removed (never built).
+  // Their paths redirect rather than 404 so stale bookmarks land somewhere useful and
+  // `app/not-found.tsx` does not fire a Sentry warning for each one.
+  // `permanent: false` (307) on purpose — these sections may be rebuilt one day, and a
+  // 308 would be cached by browsers indefinitely.
   async redirects() {
     return [
       {
@@ -71,6 +76,12 @@ const nextConfig: NextConfig = {
         destination: '/dashboard',
         permanent: false,
       },
+      { source: '/marketing', destination: '/dashboard', permanent: false },
+      { source: '/marketing/:path*', destination: '/dashboard', permanent: false },
+      { source: '/wishdom', destination: '/dashboard', permanent: false },
+      { source: '/wishdom/:path*', destination: '/dashboard', permanent: false },
+      { source: '/taskforce', destination: '/dashboard', permanent: false },
+      { source: '/taskforce/:path*', destination: '/dashboard', permanent: false },
     ];
   },
 

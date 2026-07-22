@@ -13,20 +13,11 @@ export const mockPlannedReleases: PlannedRelease[] = [
   {
     id: 'p2',
     title: 'Creative & Marketing Powerhouse',
-    description: 'Unleash your marketing potential with the Pixel visual design agent and Pulse social engagement agent. Combined with the full Marketing Plan system, you will have everything needed to craft and execute winning campaigns.',
+    description: 'Unleash your marketing potential with the Pixel visual design agent and Pulse social engagement agent, everything needed to craft and execute winning campaigns.',
     targetDate: 'May 2026',
     quarter: 'Q2 2026',
     status: 'coming-soon',
-    features: ['Pixel Design Agent', 'Pulse Social Agent', 'Marketing Plan System']
-  },
-  {
-    id: 'p3',
-    title: 'Team Collaboration Suite',
-    description: 'Streamline your workflow with the Taskforce module, bringing powerful team collaboration and task management to Fortun Wishnet.',
-    targetDate: 'June 2026',
-    quarter: 'Q2 2026',
-    status: 'coming-soon',
-    features: ['Taskforce Collaboration', 'Team Workflows', 'Task Management']
+    features: ['Pixel Design Agent', 'Pulse Social Agent']
   },
   {
     id: 'p4',
@@ -36,15 +27,6 @@ export const mockPlannedReleases: PlannedRelease[] = [
     quarter: 'Q3 2026',
     status: 'planned',
     features: ['Whisper Podcast Agent', 'AI Script Generation', 'AI Voice Audio']
-  },
-  {
-    id: 'p5',
-    title: 'Fortun Wishdom Product Universe',
-    description: 'Your complete product catalog management system arrives. The Wishdom module brings full inventory control for your entire product lineup, from Plushes and Figurines to Cards collections and comprehensive Stock management tools.',
-    targetDate: 'August 2026',
-    quarter: 'Q3 2026',
-    status: 'planned',
-    features: ['The Wishdom Hub', 'Plushes Catalog', 'Figurines Catalog', 'Cards Collection', 'Stock Inventory']
   },
   {
     id: 'p6',

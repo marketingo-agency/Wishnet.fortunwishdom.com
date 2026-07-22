@@ -4,9 +4,9 @@
 
 ## 1. Executive Summary
 
-Fortun Wishnet is an **internal admin/operations platform** for the Fortun team, built on **Next.js 16 App Router** with a **Supabase** backend. It hosts file management, a RAG-powered knowledge base (Brain), a rules engine (Heart), a content encyclopedia (Wishpedia), a product inventory system (Wishdom), and multiple AI agents (Osha, Pixel, Promptor, Nexus, plus route stubs for Echo, Pulse). The app ships with:
+Fortun Wishnet is an **internal admin/operations platform** for the Fortun team, built on **Next.js 16 App Router** with a **Supabase** backend. It hosts file management, a RAG-powered knowledge base (Brain), a rules engine (Heart), a content encyclopedia (Wishpedia), and multiple AI agents (Osha, Pixel, Promptor, Nexus, plus route stubs for Echo, Pulse). The app ships with:
 
-- **32 routes** under `src/app/` across `(protected)` and `(public)` route groups
+- **23 routes** under `src/app/` across `(protected)` and `(public)` route groups
 - **14 Supabase Edge Functions** providing all backend logic (no `src/app/api/`)
 - **34 Postgres tables** with RLS enforced on every table, **54 migrations**
 - **pgvector 1536-dim hybrid RAG** (vector + BM25) for Brain + Heart retrieval
@@ -127,8 +127,6 @@ No `src/app/api/` routes. All backend logic runs in **14 Supabase Edge Functions
 | /ai-agents/promptor | PromptorAgent | Promptor prompt engine |
 | /ai-agents/pulse | ComingSoon | Pulse agent (stub) |
 | /files | FilesManager | File management |
-| /marketing/operations | ComingSoon | Marketing ops (stub) |
-| /marketing/plan | ComingSoon | Marketing plan (stub) |
 | /mastermind | MasterMind | MasterMind hub |
 | /mastermind/brain | BrainKnowledge | Brain knowledge base |
 | /mastermind/brain/[sectionType] | BrainSection | Agent-specific brain section |
@@ -139,13 +137,6 @@ No `src/app/api/` routes. All backend logic runs in **14 Supabase Edge Functions
 | /profile | Profile | User profile management |
 | /release-notes | ReleaseNotes | Release notes feed |
 | /settings | Settings | Settings (8 tabs: Account, Branding, Users, LLM, MasterMind, Files, Prompts, Pulse) |
-| /taskforce | ComingSoon | Taskforce (stub) |
-| /wishdom | Wishdom | Wishdom product hub |
-| /wishdom/cards | Wishdom | Cards inventory |
-| /wishdom/figurines | Wishdom | Figurines inventory |
-| /wishdom/nfc-tags | Wishdom | NFC tags inventory |
-| /wishdom/plushes | Wishdom | Plushes inventory |
-| /wishdom/stock | Wishdom | Stock overview |
 
 ### Public Routes (2)
 | Route | Screen |
@@ -256,7 +247,6 @@ Per-capability active provider stored in `llm_settings`: `active_text_provider`,
 - Platform-specific visual generation (Facebook, Instagram, TikTok, Cross Platform)
 - **Pixel-local theme toggle:** `data-pixel-theme` attribute scopes CSS variables independently of global app theme. Sun/Moon toggle in PixelTopBar, persisted to localStorage.
 - **WishReference sidebar:** Replaces old Templates + References sections. Searchable Wishpedia entry picker, multi-select, EntryImageLoader pattern loads angle images, thumbnail chip grid, native HTML5 drag-drop, 5-image cap + 3MB guard. Selected images sent as base64 attachments to pixel-chat.
-- **Wishdom nav button:** Package icon in TopBar navigates to /wishdom.
 - Promptor optimize-draft button (shared with Osha)
 - Blueprint/template system (accessible via Settings Sheet)
 

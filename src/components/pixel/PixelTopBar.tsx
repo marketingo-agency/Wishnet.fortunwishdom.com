@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Palette, BrainCircuit, Database, Settings2, Facebook, Instagram, Music, Globe, Maximize2, Minimize2, MoreVertical, Sun, Moon, Package } from 'lucide-react';
+import { Palette, BrainCircuit, Database, Settings2, Facebook, Instagram, Music, Globe, Maximize2, Minimize2, MoreVertical, Sun, Moon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useRouter } from 'next/navigation';
@@ -113,17 +113,6 @@ export function PixelTopBar({ mode, onModeChange, onOpenSettings, isConnected, i
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
-                  onClick={() => router.push('/wishdom')}
-                  className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-amber-400 hover:bg-amber-500/10 transition-all"
-                >
-                  <Package className="h-4 w-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs bg-muted border-border text-foreground">Wishdom</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
                   onClick={onOpenSettings}
                   className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-pink-400 hover:bg-pink-500/10 transition-all"
                 >
@@ -183,9 +172,6 @@ export function PixelTopBar({ mode, onModeChange, onOpenSettings, isConnected, i
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push('/mastermind/vector-store')} className="gap-2 text-xs">
                 <Database className="h-3.5 w-3.5 text-emerald-400" /> Vector Store
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push('/wishdom')} className="gap-2 text-xs">
-                <Package className="h-3.5 w-3.5 text-amber-400" /> Wishdom
               </DropdownMenuItem>
               {onTogglePixelTheme && (
                 <DropdownMenuItem onClick={onTogglePixelTheme} className="gap-2 text-xs">

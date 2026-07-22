@@ -44,8 +44,6 @@ import {
   FolderOpen,
   Brain,
   Bot,
-  Sparkles,
-  ListTodo,
   Calendar
 } from 'lucide-react';
 import { EditUserSheet } from './EditUserSheet';
@@ -77,18 +75,12 @@ function UserPermissionsSummary({ userId, role }: { userId: string; role: AppRol
     files_manager: FolderOpen,
     mastermind: Brain,
     ai_agents: Bot,
-    wishdom: Sparkles,
-    
-    taskforce: ListTodo,
   };
   
   const toolLabels: Record<string, string> = {
     files_manager: 'Files',
     mastermind: 'MasterMind',
     ai_agents: 'AI Agents',
-    wishdom: 'Wishdom',
-    
-    taskforce: 'Tasks',
   };
   
   const activeTools = Object.entries(toolIcons).filter(([key]) => {

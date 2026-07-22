@@ -39,11 +39,8 @@ import type { ToolKey } from '@/config/permissions';
 const SECTION_STYLES: Record<string, { gradient: string; glowBg: string; badgeBg: string; badgeText: string }> = {
   mastermind:   { gradient: 'from-purple-500 to-violet-600',   glowBg: 'bg-purple-500/15',   badgeBg: 'bg-purple-100 dark:bg-purple-900/40',   badgeText: 'text-purple-700 dark:text-purple-300' },
   ai_agents:    { gradient: 'from-cyan-500 to-blue-600',       glowBg: 'bg-cyan-500/15',     badgeBg: 'bg-cyan-100 dark:bg-cyan-900/40',       badgeText: 'text-cyan-700 dark:text-cyan-300' },
-  marketing:    { gradient: 'from-rose-500 to-pink-600',       glowBg: 'bg-rose-500/15',     badgeBg: 'bg-rose-100 dark:bg-rose-900/40',       badgeText: 'text-rose-700 dark:text-rose-300' },
-  wishdom:      { gradient: 'from-fuchsia-500 to-purple-600',  glowBg: 'bg-fuchsia-500/15',  badgeBg: 'bg-fuchsia-100 dark:bg-fuchsia-900/40', badgeText: 'text-fuchsia-700 dark:text-fuchsia-300' },
-  
+
   // Tool nav items
-  taskforce:    { gradient: 'from-orange-500 to-amber-600',    glowBg: 'bg-orange-500/15',   badgeBg: 'bg-orange-100 dark:bg-orange-900/40',   badgeText: 'text-orange-700 dark:text-orange-300' },
   files_manager:{ gradient: 'from-amber-500 to-yellow-600',    glowBg: 'bg-amber-500/15',    badgeBg: 'bg-amber-100 dark:bg-amber-900/40',     badgeText: 'text-amber-700 dark:text-amber-300' },
 };
 
@@ -218,7 +215,7 @@ export default function Dashboard() {
       icon: t.item.icon,
       defaultUrl: t.item.url,
       items: [],
-      isComingSoon: isToolComingSoon(t.toolKey),
+      isComingSoon: false,
       toolKey: t.toolKey,
     })),
   ];
@@ -426,26 +423,16 @@ export default function Dashboard() {
    ────────────────────────────────────────────── */
 import {
   MASTERMIND_ROUTES,
-  MARKETING_ROUTES,
-  WISHDOM_ROUTES,
-  OTHER_ROUTES,
   AI_AGENT_ROUTES,
 } from '@/routes/routeConfig';
 
 const ROUTE_MAP: Record<string, typeof MASTERMIND_ROUTES> = {
   mastermind: MASTERMIND_ROUTES,
   ai_agents: AI_AGENT_ROUTES,
-  marketing: MARKETING_ROUTES,
-  wishdom: WISHDOM_ROUTES,
 };
 
 function isFullyComingSoon(section: NavSection): boolean {
   const routes = ROUTE_MAP[section.id];
   if (!routes) return false;
   return routes.every(r => r.isComingSoon === true);
-}
-
-function isToolComingSoon(toolKey: ToolKey): boolean {
-  const route = OTHER_ROUTES.find(r => r.toolKey === toolKey);
-  return route?.isComingSoon === true;
 }

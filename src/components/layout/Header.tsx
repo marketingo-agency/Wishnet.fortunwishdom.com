@@ -48,18 +48,6 @@ const routeLabels: Record<string, string> = {
   '/mastermind/heart': 'Heart Rules',
   '/mastermind/wishpedia': 'Wishpedia',
   '/mastermind/vector-store': 'Vector Store',
-  // Marketing Hub
-  '/marketing': 'Marketing Hub',
-  '/marketing/plan': 'Marketing Plan',
-  '/marketing/operations': 'Operations',
-  // Wishdom
-  '/wishdom': 'Wishdom',
-  '/wishdom/plushes': 'Plushes',
-  '/wishdom/figurines': 'Figurines',
-  '/wishdom/cards': 'Cards',
-  '/wishdom/stocks': 'Stocks',
-  // Taskforce
-  '/taskforce': 'Taskforce',
 };
 
 function formatSlugToName(slug: string): string {

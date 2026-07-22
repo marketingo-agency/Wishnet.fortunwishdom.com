@@ -14,7 +14,6 @@ interface SimpleNavItemProps {
   icon: LucideIcon;
   iconColor: string;
   collapsed: boolean;
-  badge?: string;
 }
 
 export function SimpleNavItem({
@@ -23,7 +22,6 @@ export function SimpleNavItem({
   icon: Icon,
   iconColor,
   collapsed,
-  badge,
 }: SimpleNavItemProps) {
   return (
     <SidebarMenuItem>
@@ -40,14 +38,7 @@ export function SimpleNavItem({
         >
           <Icon className={cn("h-5 w-5 flex-shrink-0", iconColor)} strokeWidth={1.5} />
           {!collapsed && (
-            <>
-              <span className="flex-1 truncate text-base font-medium">{title}</span>
-              {badge && (
-                <span className="ml-auto text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                  {badge}
-                </span>
-              )}
-            </>
+            <span className="flex-1 truncate text-base font-medium">{title}</span>
           )}
         </NavLink>
       </SidebarMenuButton>

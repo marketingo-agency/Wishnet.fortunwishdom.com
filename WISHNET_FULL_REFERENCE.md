@@ -118,9 +118,8 @@ Top-level (repo root):
 | `src/app/` | App Router. `(public)/` (login, reset-password) and `(protected)/` route groups; root `layout.tsx`, `page.tsx`, `not-found.tsx`; `sentry-example-page/` |
 | `src/app/(protected)/ai-agents/` | Agent routes: `nexus`, `osha`, `pixel`, `promptor`, `pulse`, `whisper`, `atlas` + index |
 | `src/app/(protected)/mastermind/` | `brain/` (+ `[sectionType]`), `heart/`, `wishpedia/` (+ `[slug]`), `vector-store/` + index |
-| `src/app/(protected)/wishdom/` | `cards`, `figurines`, `nfc-tags`, `plushes`, `stock` + index (coming-soon area) |
 | `src/app/(protected)/marketing/` | `plan`, `operations` (coming-soon area) |
-| `src/app/(protected)/` other | `dashboard`, `files`, `profile`, `release-notes`, `settings`, `taskforce` |
+| `src/app/(protected)/` other | `dashboard`, `files`, `profile`, `release-notes`, `settings` |
 | `src/components/` | Feature component folders (agents, brain, brand, files, heart, layout, navigation, nexus, osha, pixel, profile, promptor, release-notes, settings, wishpedia) + top-level guards/providers |
 | `src/components/ui/` | shadcn/ui primitives (~55 files) |
 | `src/screens/` | 21 screen components (the real page bodies, mostly client components) |
@@ -200,19 +199,10 @@ Protected route table:
 | `/settings` | `src/app/(protected)/settings/page.tsx` | `src/screens/Settings` | Yes (page has `"use client"`) | Protected | `useLLMSettings`, `useBranding`, `useUserPermissions`, tab-specific sub-hooks |
 | `/profile` | `src/app/(protected)/profile/page.tsx` | `src/screens/Profile` | Yes (screen) | Protected | `useAuth`, `useUploadAvatar` |
 | `/release-notes` | `src/app/(protected)/release-notes/page.tsx` | `src/screens/ReleaseNotes` | Yes (screen) | Protected | Static mock data (`mockReleaseUpdates`, `mockPlannedReleases`) |
-| `/taskforce` | `src/app/(protected)/taskforce/page.tsx` | `src/screens/ComingSoonRoute` | No | Protected (no tool gate) | None - placeholder |
-| `/marketing/plan` | `src/app/(protected)/marketing/plan/page.tsx` | `src/screens/ComingSoonRoute` | No | Protected (no tool gate) | None - placeholder |
-| `/marketing/operations` | `src/app/(protected)/marketing/operations/page.tsx` | `src/screens/ComingSoonRoute` | No | Protected (no tool gate) | None - placeholder |
-| `/wishdom` | `src/app/(protected)/wishdom/page.tsx` | `src/screens/ComingSoonRoute` | No | Protected (no tool gate) | None - placeholder |
-| `/wishdom/plushes` | `src/app/(protected)/wishdom/plushes/page.tsx` | `src/screens/ComingSoonRoute` | No | Protected (no tool gate) | None - placeholder |
-| `/wishdom/figurines` | `src/app/(protected)/wishdom/figurines/page.tsx` | `src/screens/ComingSoonRoute` | No | Protected (no tool gate) | None - placeholder |
-| `/wishdom/cards` | `src/app/(protected)/wishdom/cards/page.tsx` | `src/screens/ComingSoonRoute` | No | Protected (no tool gate) | None - placeholder |
-| `/wishdom/nfc-tags` | `src/app/(protected)/wishdom/nfc-tags/page.tsx` | `src/screens/ComingSoonRoute` | No | Protected (no tool gate) | None - placeholder |
-| `/wishdom/stock` | `src/app/(protected)/wishdom/stock/page.tsx` | `src/screens/ComingSoonRoute` | No | Protected (no tool gate) | None - placeholder |
 
 #### `ToolKey` Values (from `src/routes/routeConfig.ts` and `src/config/permissions`)
 
-Used by `ToolProtectedRoute`: `ai_agents`, `mastermind`, `files_manager`, `marketing_hub`, `wishdom`, `taskforce`.
+Used by `ToolProtectedRoute`: `ai_agents`, `mastermind`, `files_manager`.
 
 ---
 
@@ -336,7 +326,7 @@ Contains 49 files: the standard shadcn/ui component set generated from Radix UI 
 
 | File | Purpose | Props | Notable Hooks/State |
 |---|---|---|---|
-| `PixelTopBar.tsx` | Mode selector (Facebook/Instagram/TikTok), expand toggle, theme toggle (light/dark), Wishdom nav button, mobile overflow menu. | `{ mode, onModeChange, isExpanded, onToggleExpand, pixelTheme, onToggleTheme }` | `useRouter` |
+| `PixelTopBar.tsx` | Mode selector (Facebook/Instagram/TikTok), expand toggle, theme toggle (light/dark), mobile overflow menu. | `{ mode, onModeChange, isExpanded, onToggleExpand, pixelTheme, onToggleTheme }` | `useRouter` |
 | `PixelStudio.tsx` | Chat-style prompt input + output card area for Pixel. Handles file attachments, Wishpedia image refs, emoji picker, optimize-draft button, and sends to `pixel-chat` edge function. | `{ settings, messages, wishpediaImageRefs, onAddWishpediaImages, onRemoveWishpediaImage, ... }` | `useSendPixelMessage`, `useDeletePixelMessage`, `useOptimizeDraft` |
 | `PixelControlPanel.tsx` | Left control panel: output type selector (image/video), post size chips, and `WishReferencePanel`. | `{ mode, postType, setPostType, postSize, setPostSize, ..., wishpediaImageRefs, ... }` | None (controlled) |
 | `PixelContextPanel.tsx` | Context/reference panel showing selected Wishpedia image thumbnails. | `{ refs, onRemove }` | None |
@@ -1113,7 +1103,7 @@ Notable exceptions:
 - RLS: Pattern C. The `has_role`/`is_admin` functions read this table.
 
 `user_permissions` - per-user feature and tool gating (one row per user, `user_permissions_user_id_key` UNIQUE).
-- Columns: `id`, `user_id`, area-level `permission_level` columns (`files_manager`, `mastermind`, `taskforce`, `ai_agents`, `wishdom`, `wishnetrium`, `marketing_hub`), plus many boolean flags. AI tool gates: `ai_can_access_nexus`, `ai_can_access_promptor`, `ai_can_access_osha`, `ai_can_access_whisper`, `ai_can_access_pulse`, `ai_can_access_muse`, `ai_can_access_pixel`, `ai_can_access_atlas` (all DEFAULT true). Wishdom gates: `wishdom_can_access_{main,plushes,figurines,cards,stocks}`. Wishnetrium gates: `wishnetrium_can_access_{wishfeed,wishper,wishprint}`. Mastermind gates: `mastermind_can_{create,edit,delete}`, `mastermind_can_access_{brain,heart}`. Taskforce gates: `taskforce_can_{create,edit,delete}`. Marketing gates: `marketing_can_access_{plan,operations}`. Files flags: `files_can_see_admin_files`, `files_can_delete`, `files_can_upload`. Global flags: `can_access_branding`, `can_access_user_management`.
+- Columns: `id`, `user_id`, area-level `permission_level` columns (`files_manager`, `mastermind`, `ai_agents`, `wishnetrium`), plus many boolean flags. AI tool gates: `ai_can_access_nexus`, `ai_can_access_promptor`, `ai_can_access_osha`, `ai_can_access_whisper`, `ai_can_access_pulse`, `ai_can_access_muse`, `ai_can_access_pixel`, `ai_can_access_atlas` (all DEFAULT true). Wishdom gates: `wishdom_can_access_{main,plushes,figurines,cards,stocks}`. Wishnetrium gates: `wishnetrium_can_access_{wishfeed,wishper,wishprint}`. Mastermind gates: `mastermind_can_{create,edit,delete}`, `mastermind_can_access_{brain,heart}`. Taskforce gates: `taskforce_can_{create,edit,delete}`. Marketing gates: `marketing_can_access_{plan,operations}`. Files flags: `files_can_see_admin_files`, `files_can_delete`, `files_can_upload`. Global flags: `can_access_branding`, `can_access_user_management`.
 - Trigger: `update_user_permissions_updated_at`.
 - RLS: Pattern C.
 - Note: column `ai_can_access_whisper` was renamed from `ai_can_access_echo` (migration `rename_ai_can_access_echo_to_whisper`, documented in `CLAUDE.md`).
@@ -2529,11 +2519,8 @@ The `AuthContext` uses `getUser()` (server round-trip) rather than `getSession()
 | `files_manager` | Files Manager |
 | `mastermind` | MasterMind |
 | `ai_agents` | AI Agents |
-| `wishdom` | Wishdom |
-| `taskforce` | Taskforce |
-| `marketing_hub` | Marketing Hub |
 
-**Granular boolean permissions** (columns in `user_permissions` table): ~30 columns covering per-agent access (`ai_can_access_osha`, `ai_can_access_pixel`, `ai_can_access_whisper`, `ai_can_access_atlas`, etc.), per-section MasterMind access, per-section Wishdom access, file operations, and Taskforce CRUD.
+**Granular boolean permissions** (columns in `user_permissions` table): ~30 columns covering per-agent access (`ai_can_access_osha`, `ai_can_access_pixel`, `ai_can_access_whisper`, `ai_can_access_atlas`, etc.), per-section MasterMind access, and file operations.
 
 Defined in full in `src/types/user.ts` as `UserPermissions` interface.
 
@@ -2649,7 +2636,7 @@ All edge functions require `Authorization: Bearer {access_token}` plus `apikey: 
 | `useSaveToBrain.ts` | `useSaveToBrain()` | Saves chat content to `brain_documents` |
 | `useSystemPrompts.ts` | `useSystemPrompts()` | Reads system prompt config |
 | `useUploadAvatar.ts` | `useUploadAvatar()` | Uploads to `profile-pictures` public bucket |
-| `useUserPermissions.ts` | `useUserPermissions(userId?)`, `useCurrentUserPermissions()`, `useUpdateUserPermissions()`, `getPermissionKeyFromPath(path)` | Permission CRUD and path-to-key mapping |
+| `useUserPermissions.ts` | `useUserPermissions(userId?)`, `useCurrentUserPermissions()`, `useUpdateUserPermissions()` | Permission CRUD |
 | `useUsers.ts` | `useUsers()`, `useUpdateUser()`, `useDeleteUser()` | Admin user management via `manage-users` edge fn |
 | `useVectorStoreManagement.ts` | `useVectorStore()`, `useDeleteVectorEntry()`, etc. | Admin view/manage `knowledge_embeddings` |
 | `useWishpediaCategories.ts` | `useWishpediaCategories()`, `useCreateWishpediaCategory()`, `useUpdateWishpediaCategory()`, `useDeleteWishpediaCategory()` | Category CRUD |
