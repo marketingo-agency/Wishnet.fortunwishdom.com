@@ -136,11 +136,11 @@ export function VSFinalizeVideo({
         <PartyPopper className="h-6 w-6 text-emerald-500" />
         <p className="text-sm font-semibold">Your film is in the Content Library.</p>
         <p className="max-w-md text-xs text-muted-foreground">
-          Video posts publish manually from Pulse (the automatic connectors are image-only for now).
+          Plan and publish it from the Content hub's Publishing Desk.
           {srtPath ? ' The caption SRT rides along with the entry.' : ''}
         </p>
         <Button asChild size="sm" className="h-8 cursor-pointer bg-gradient-to-r from-violet-500 to-purple-600 text-xs text-white transition-all duration-300 hover:opacity-90">
-          <Link href="/ai-agents/pulse?tab=library">Open the Pulse Library</Link>
+          <Link href="/ai-agents/omni?track=content&mode=content_library">Open the Content Library</Link>
         </Button>
       </div>
     );

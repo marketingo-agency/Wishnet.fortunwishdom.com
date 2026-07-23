@@ -192,8 +192,6 @@ function buildSystemPrompt(
   settings: OshaSettings,
   agentStatuses?: { agent_id: string; is_active: boolean; model: string; provider: string }[],
   agentConfigs?: {
-    promptor?: Record<string, unknown> | null;
-    pixel?: Record<string, unknown> | null;
     osha?: Record<string, unknown> | null;
   },
   // AGENT-007: DB-sourced mode instructions override these defaults
@@ -235,15 +233,10 @@ function buildSystemPrompt(
     : `## BRAND KNOWLEDGE\nNo specific Brain context retrieved for this query. If the user asks about Fortun-specific facts you don't have, say so honestly and suggest they add the information to the Brain knowledge base.\n\n`;
 
   // ── Build dynamic agent registry ──────────────────────────────────────────
+  // The platform now has exactly two agents: Osha and Omni.
   const agentMeta: Record<string, { name: string; role: string; capabilities: string }> = {
-    nexus: { name: 'Nexus', role: 'LLM Control Center', capabilities: 'Test LLM provider connections (OpenAI, Gemini), configure agent settings (model, provider, temperature, max tokens, system prompt), manage quick prompts, view provider status.' },
-    promptor: { name: 'Promptor', role: 'Prompt Engineer AI', capabilities: 'Create and optimize prompts for text, image, social media copy, social media images, and video. Outputs structured briefs with full/short prompts, QA checklists, negatives, variants, and compliance notes. Uses Heart rules and Brain knowledge for brand-aware prompt engineering.' },
-    osha: { name: 'Osha (you)', role: 'AI Assistant, Ideation & Research Agent', capabilities: '10 modes (Guide, Operator, Creative, Analyst, Spark, Expand, Combine, Filter, Workshop, Deep Research). File analysis (PDF, DOCX, XLSX, images via Gemini). Image generation (OpenAI/Gemini). Web search (permission-based). Website URL analysis. Save responses to Brain. Mermaid diagram rendering. Up to 10,000-message history.' },
-    pixel: { name: 'Pixel', role: 'Visual Creator AI', capabilities: 'AI image and video generation for social media, presentations, and marketing. Blueprint system for reusable visual styles (palette, composition, typography, style rules). Brand-aware visuals using Heart rules and Brain knowledge. Multiple modes: Quick Create, Campaign Pack, Brand Suite, Editorial.' },
-    whisper: { name: 'Whisper', role: 'Podcast Generator AI', capabilities: 'Generates podcast scripts with AI and produces studio-quality audio narration using the ElevenLabs API. (Coming Soon — not yet active)' },
-    pulse: { name: 'Pulse', role: 'Community Manager AI', capabilities: 'Manages social media interactions, replies to comments/messages, schedules posts across platforms. (Coming Soon — not yet active)' },
-    atlas: { name: 'ATLAS', role: 'Kickstarter Ops Control Agent', capabilities: 'Structures, calculates, verifies and monitors Kickstarter operations across SKU data, factory quotes, QC, freight, 3PL, pledge manager, backer delivery and financial modeling. Identifies risks, missing data, cost impact, and recommended next actions for human review — never makes final decisions. (Coming Soon — not yet active)' },
-    omni: { name: 'Omni', role: 'Multimodal Creation AI', capabilities: 'Premium multimodal creation studio: brainstorming, Studio (the full images pipeline: brief, multi-model generation across the fal.ai catalog, distribution formats, captions), transform and upscale, social repurposing into per-network formats, and saving finalized sets to the Pulse Content Library. Audio and video tracks coming soon.' },
+    osha: { name: 'Osha (you)', role: 'AI Assistant, Ideation & Research Agent', capabilities: 'Guide / Operator / Workshop modes plus Deep Research. File analysis (PDF, DOCX, XLSX, images via Gemini). Image generation. Web search (permission-based). Website URL analysis. Save responses to Brain. Mermaid diagram rendering. Long chat history.' },
+    omni: { name: 'Omni', role: 'Multimodal Creation AI', capabilities: 'Premium multimodal creation studio: brainstorming; Images (full pipeline: brief, multi-model generation across the fal.ai catalog, distribution formats, captions, transform/upscale, repurposing); Videos and Audios tracks; and the Content hub with a Publishing Desk that auto-publishes approved posts through Metricool. Omni hosts its own optimization, captioning, and publishing capabilities.' },
   };
 
   // Helper to format config fields
@@ -259,15 +252,13 @@ function buildSystemPrompt(
   };
 
   const agentConfigKeys: Record<string, string[]> = {
-    promptor: ['default_language', 'default_output_type', 'default_verbosity', 'heart_strictness', 'include_short_prompt', 'include_negatives', 'include_qa_checklist', 'image_aspect_ratio', 'video_duration_default', 'social_platform_default', 'retrieval_depth'],
-    pixel: ['default_mode', 'default_language', 'image_provider', 'image_model', 'default_aspect_ratio', 'default_resolution', 'image_generation_enabled', 'video_generation_enabled', 'heart_strictness', 'retrieval_depth'],
     osha: ['default_mode', 'default_language', 'retrieval_depth', 'image_generation_enabled', 'image_provider', 'image_model', 'hallucination_control', 'heart_strictness', 'max_file_size_mb', 'max_pages_processed'],
   };
 
   let agentRegistryLines = '';
   for (const [agentId, meta] of Object.entries(agentMeta)) {
     const dbRow = agentStatuses?.find(a => a.agent_id === agentId);
-    const status = dbRow ? (dbRow.is_active ? '✅ Active' : '❌ Inactive') : (agentId === 'whisper' || agentId === 'pulse' || agentId === 'atlas' ? '🔜 Coming Soon' : '⚪ Not configured');
+    const status = dbRow ? (dbRow.is_active ? '✅ Active' : '❌ Inactive') : '⚪ Not configured';
     const modelInfo = dbRow ? ` | Model: ${dbRow.model} (${dbRow.provider})` : '';
     const configData = agentConfigs?.[agentId as keyof typeof agentConfigs];
     const configLine = formatConfig(configData, agentConfigKeys[agentId] || []);
@@ -1972,22 +1963,16 @@ IMPORTANT: The cleanedContent must contain the full cleaned text. The suggestedF
 
   const retrievalMs = Date.now() - retrievalStart;
 
-  // ── Step 2.5: Fetch agent statuses + per-agent configs for platform knowledge
+  // ── Step 2.5: Fetch agent statuses + Osha's config for platform knowledge
   let agentStatuses: { agent_id: string; is_active: boolean; model: string; provider: string }[] = [];
-  let agentConfigs: { promptor?: Record<string, unknown> | null; pixel?: Record<string, unknown> | null; osha?: Record<string, unknown> | null } = {};
+  let agentConfigs: { osha?: Record<string, unknown> | null } = {};
   try {
-    const [agentRes, promptorRes, pixelRes, oshaConfigRes] = await Promise.all([
+    const [agentRes, oshaConfigRes] = await Promise.all([
       supabaseAdmin.from('agent_settings').select('agent_id, is_active, model, provider'),
-      supabaseAdmin.from('promptor_settings').select('*').eq('user_id', userId).maybeSingle(),
-      supabaseAdmin.from('pixel_settings').select('*').eq('user_id', userId).maybeSingle(),
       supabaseAdmin.from('osha_settings').select('*').eq('user_id', userId).maybeSingle(),
     ]);
     agentStatuses = agentRes.data || [];
-    agentConfigs = {
-      promptor: promptorRes.data as Record<string, unknown> | null,
-      pixel: pixelRes.data as Record<string, unknown> | null,
-      osha: oshaConfigRes.data as Record<string, unknown> | null,
-    };
+    agentConfigs = { osha: oshaConfigRes.data as Record<string, unknown> | null };
   } catch (e) {
     console.error('Agent settings fetch error:', e);
   }

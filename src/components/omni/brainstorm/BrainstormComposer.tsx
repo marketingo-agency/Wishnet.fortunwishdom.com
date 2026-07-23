@@ -2,7 +2,7 @@
 
 /**
  * Chat composer: message input with image attachments (3 max, 3MB each),
- * one-click Promptor optimization, and send. Enter sends; Shift+Enter
+ * one-click AI optimization, and send. Enter sends; Shift+Enter
  * adds a line.
  */
 
@@ -11,7 +11,7 @@ import { Loader2, Paperclip, SendHorizonal, Wand2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { useOptimizeDraft } from '@/hooks/promptor';
+import { useOptimizeDraft } from '@/hooks/omni';
 import { readAttachment, type PendingAttachment } from '@/hooks/omni';
 
 interface BrainstormComposerProps {
@@ -123,7 +123,7 @@ export function BrainstormComposer({ disabled, onSend }: BrainstormComposerProps
           size="icon"
           onClick={() => void handleOptimize()}
           disabled={!text.trim() || disabled || isOptimizingLocal}
-          aria-label="Optimize with Promptor"
+          aria-label="Optimize"
           className="h-9 w-9 shrink-0 cursor-pointer text-muted-foreground transition-colors duration-200 hover:text-violet-400"
         >
           {isOptimizingLocal ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}

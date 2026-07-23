@@ -32,15 +32,7 @@ const routeLabels: Record<string, string> = {
   '/release-notes': 'Release Notes',
   '/profile': 'My Profile',
   // AI Agents
-  '/ai-agents': 'AI Agents',
-  '/ai-agents/nexus': 'Nexus',
-  '/ai-agents/promptor': 'Promptor',
   '/ai-agents/osha': 'Osha',
-  '/ai-agents/whisper': 'Whisper',
-  '/ai-agents/pulse': 'Pulse',
-  '/ai-agents/pixel': 'Pixel',
-  '/ai-agents/muse': 'Muse',
-  '/ai-agents/atlas': 'ATLAS',
   '/ai-agents/omni': 'Omni',
   // MasterMind
   '/mastermind': 'MasterMind',

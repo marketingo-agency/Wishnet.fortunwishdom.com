@@ -9,7 +9,6 @@ import {
   Bot,
   Settings,
   Newspaper,
-  Settings2,
   FolderOpen,
   Brain,
 } from 'lucide-react';
@@ -81,13 +80,9 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: Bot,
     iconColor: 'text-cyan-500',
     toolKey: 'ai_agents',
-    defaultUrl: '/ai-agents',
-    items: [
-      { title: 'All AI Agents', url: '/ai-agents', icon: Bot, iconColor: 'text-cyan-500', end: true },
-      // Nexus is nav-only (not in AI_AGENT_ROUTES which are agent-specific pages)
-      { title: 'Nexus', url: '/ai-agents/nexus', icon: Settings2, iconColor: 'text-lime-500' },
-      ...AI_AGENT_ROUTES.map(r => routeToNav(r)),
-    ],
+    // The listing page is gone: the menu goes straight to Osha and Omni.
+    defaultUrl: '/ai-agents/osha',
+    items: AI_AGENT_ROUTES.map(r => routeToNav(r)),
   },
 ];
 

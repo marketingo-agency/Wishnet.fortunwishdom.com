@@ -37,7 +37,6 @@ const PROVIDER_LABEL: Record<ProviderKeyProvider, string> = {
   gemini: 'Google Gemini API Key',
   fal: 'fal.ai API Key',
   claude: 'Anthropic Claude API Key',
-  pulse: 'upload-post.com API Key',
 };
 
 const PROVIDER_PLACEHOLDER: Record<ProviderKeyProvider, string> = {
@@ -45,7 +44,6 @@ const PROVIDER_PLACEHOLDER: Record<ProviderKeyProvider, string> = {
   gemini: 'AI...',
   fal: 'fal-key...',
   claude: 'sk-ant-...',
-  pulse: 'Your API key',
 };
 
 function statusBadgeProps(keySource: KeySource): { label: string; className: string } {

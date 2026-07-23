@@ -19,7 +19,7 @@ import { ArrowRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { OMNI_NETWORKS, type OmniNetworkId } from '../omniNetworkPresets';
-import { useLibraryConnections } from '@/components/pulse/library/useContentLibrary';
+import { useLibraryConnections } from '@/hooks/content-library/useContentLibrary';
 import { getFalPrice } from '@/config/falPricing';
 import { DEFAULT_FAL_EDIT_MODEL } from '@/config/llmModels';
 import { formatUsd } from '@/config/falPricing';

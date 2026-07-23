@@ -21,7 +21,6 @@ export interface ProviderKeyStatus {
   gemini: KeySource;
   fal: KeySource;
   claude: KeySource;
-  pulse: KeySource;
 }
 
 export const PROVIDER_KEY_STATUS_QUERY_KEY = ['provider-key-status'] as const;
@@ -41,7 +40,7 @@ export function useProviderKeyStatus() {
     queryFn: async (): Promise<ProviderKeyStatus> => {
       // CODE-03: degrade to a safe default on any failure (thrown fetch or !ok)
       // rather than bubbling to an error boundary on load.
-      const fallback: ProviderKeyStatus = { openai: 'none', gemini: 'none', fal: 'none', claude: 'none', pulse: 'none' };
+      const fallback: ProviderKeyStatus = { openai: 'none', gemini: 'none', fal: 'none', claude: 'none' };
       try {
         const headers = await getAuthHeaders();
         const response = await fetch(SETTINGS_KEYS_ENDPOINT, {

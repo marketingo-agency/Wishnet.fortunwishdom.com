@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { useLibraryConnections } from '@/components/pulse/library/useContentLibrary';
+import { useLibraryConnections } from '@/hooks/content-library/useContentLibrary';
 import { cn } from '@/lib/utils';
 import { getNetwork, getPreset, type OmniNetworkId } from '../omniNetworkPresets';
 import { getAssetSignedUrl, useFinalizeRun, type OmniRepurposedRef } from '@/hooks/omni';

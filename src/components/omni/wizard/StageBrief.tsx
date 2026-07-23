@@ -3,10 +3,10 @@
 /**
  * Stage 1 "Brief" (Plan 1 Phase 6): ONE screen for the one decision "what to
  * make" — merges the old objective + lock-prompt steps (UX-01: a single
- * Promptor call instead of two paid detours).
+ * optimization call instead of two paid detours).
  *
  * - Objective textarea + "Inspire me" (knowledge-mined ideas fill the field).
- * - "Engineer prompt" runs Promptor ONCE; the result is editable in place and
+ * - "Engineer prompt" runs the optimizer ONCE; the result is editable in place and
  *   "Re-optimize" feeds the EDITED text back (UX-06), never the stale input.
  * - Continue works with or without engineering: un-engineered briefs continue
  *   as provenance 'raw' (the edge injects the Heart digest server-side).
@@ -19,7 +19,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Loader2, RefreshCw, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { useOptimizeDraft } from '@/hooks/promptor';
+import { useOptimizeDraft } from '@/hooks/omni';
 import type { OmniImagesState, OmniWishReferenceRef } from '@/hooks/omni';
 import { InspireMe } from './InspireMe';
 import { OmniWishReferencePicker } from './OmniWishReferencePicker';
@@ -108,7 +108,7 @@ export function StageBrief({ runId, initialObjective, initialOptimized, initialR
       objective: objective.trim(),
       optimized_prompt: prompt.trim(),
       locked_prompt: finalPrompt,
-      // Promptor-engineered prompts are Heart-grounded upstream; raw ones get
+      // AI-engineered prompts are Heart-grounded upstream; raw ones get
       // the server-side digest injection at variant-submit.
       prompt_provenance: prompt.trim() ? 'promptor' : 'raw',
       reference_image_refs: references,
@@ -121,7 +121,7 @@ export function StageBrief({ runId, initialObjective, initialOptimized, initialR
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         Describe the visual you want, or the objective behind it. Engineer it into a structured
-        prompt with Promptor, edit it in place, or continue with your own words.
+        prompt, edit it in place, or continue with your own words.
       </p>
 
       <div className="space-y-1.5">
@@ -154,14 +154,14 @@ export function StageBrief({ runId, initialObjective, initialOptimized, initialR
             className="h-7 cursor-pointer gap-1.5 text-xs text-violet-600 transition-colors duration-200 hover:text-violet-500 [[data-omni-theme=dark]_&]:text-violet-400 [[data-omni-theme=dark]_&]:hover:text-violet-300"
           >
             {isOptimizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : prompt.trim() ? <RefreshCw className="h-3.5 w-3.5" /> : <Wand2 className="h-3.5 w-3.5" />}
-            {prompt.trim() ? 'Re-optimize' : 'Engineer with Promptor'}
+            {prompt.trim() ? 'Re-optimize' : 'Engineer prompt'}
           </Button>
         </div>
         {isOptimizing && !prompt ? (
           <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3" aria-label="Engineering the prompt">
             <div className="h-3.5 w-full animate-pulse rounded bg-muted" />
             <div className="h-3.5 w-5/6 animate-pulse rounded bg-muted" />
-            <p className="text-xs text-muted-foreground">Promptor is engineering your prompt with Heart rules and Brain context...</p>
+            <p className="text-xs text-muted-foreground">Engineering your prompt with Heart rules and Brain context...</p>
           </div>
         ) : (
           <Textarea

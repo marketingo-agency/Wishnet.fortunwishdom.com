@@ -15,7 +15,7 @@ import {
   type AttachmentContext,
 } from '@/hooks/useOsha';
 import { useOshaDeepResearch, useOshaDeepResearchClarify } from '@/hooks/useOshaPower';
-import { useOptimizeDraft } from '@/hooks/promptor';
+import { useOptimizeDraft } from '@/hooks/omni';
 import { toast } from 'sonner';
 import {
   POWER_MODE_VALUES,

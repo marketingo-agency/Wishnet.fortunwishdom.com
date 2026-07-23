@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef } from 'react';
-import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -14,7 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Settings2, ArrowRight, CheckCircle2, AlertCircle, Circle, X } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Circle, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   useLLMSettings,
@@ -376,37 +375,8 @@ export function LLMProvidersSettings() {
         />
       </div>
 
-      {/* Utility row — Test with Nexus + Active Provider Selection */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        {/* Nexus Link Card */}
-        <Link href="/ai-agents/nexus" className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-2">
-          <Card className="group h-full cursor-pointer transition-all duration-300 hover:shadow-lg hover:border-lime-300 bg-gradient-to-br from-lime-50 via-white to-green-50 dark:from-lime-950/40 dark:via-background dark:to-emerald-950/30 overflow-hidden relative">
-            {/* Decorative glow effect */}
-            <div className="absolute -top-10 -right-10 w-32 h-32 bg-lime-500/20 rounded-full blur-3xl group-hover:bg-lime-500/30 transition-all" />
-
-            <CardHeader className="relative">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-lime-500 to-green-600 text-white shadow-lg">
-                  <Settings2 className="h-6 w-6" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">Test with Nexus</CardTitle>
-                  <CardDescription>LLM Control Center</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="relative">
-              <p className="text-sm text-muted-foreground mb-4">
-                Test your LLM provider connections live, chat with AI models, generate images, and configure all AI agent settings in one place.
-              </p>
-              <div className="flex items-center text-lime-600 dark:text-lime-400 font-medium text-sm group-hover:translate-x-1 transition-transform">
-                Open Nexus <ArrowRight className="ml-2 h-4 w-4" />
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-
+      {/* Utility row — Active Provider Selection */}
+      <div className="grid grid-cols-1 gap-4 sm:gap-6">
         {/* Active Provider Selection */}
         <Card>
           <CardHeader>

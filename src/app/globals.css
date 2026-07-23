@@ -249,53 +249,6 @@
   animation: wpShimmer 1.8s ease-in-out infinite;
 }
 
-/* ── Pixel page-local theme scoping ──
-   data-pixel-theme overrides CSS variables ONLY within the Pixel container.
-   This lets Pixel toggle light/dark independently of the global app theme. */
-[data-pixel-theme='light'] {
-  --background: 210 20% 98%;
-  --foreground: 210 25% 15%;
-  --card: 0 0% 100%;
-  --card-foreground: 210 25% 15%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 210 25% 15%;
-  --primary: 197 78% 37%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 197 100% 97%;
-  --secondary-foreground: 197 78% 35%;
-  --muted: 210 25% 96%;
-  --muted-foreground: 210 15% 45%;
-  --accent: 197 100% 92%;
-  --accent-foreground: 197 78% 30%;
-  --destructive: 9 100% 60%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 210 25% 92%;
-  --input: 210 25% 92%;
-  --ring: 197 78% 45%;
-}
-
-[data-pixel-theme='dark'] {
-  --background: 220 25% 6%;
-  --foreground: 210 20% 95%;
-  --card: 220 25% 8%;
-  --card-foreground: 210 20% 95%;
-  --popover: 220 25% 8%;
-  --popover-foreground: 210 20% 95%;
-  --primary: 197 78% 55%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 197 40% 15%;
-  --secondary-foreground: 197 78% 80%;
-  --muted: 220 25% 12%;
-  --muted-foreground: 210 15% 55%;
-  --accent: 197 40% 18%;
-  --accent-foreground: 197 78% 85%;
-  --destructive: 9 100% 55%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 220 25% 14%;
-  --input: 220 25% 14%;
-  --ring: 197 78% 55%;
-}
-
 /* ── Omni page-local theme scoping ──
    data-omni-theme overrides CSS variables ONLY within the Omni container.
    This lets Omni toggle light/dark independently of the global app theme,

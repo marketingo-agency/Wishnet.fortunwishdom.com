@@ -82,6 +82,18 @@ const nextConfig: NextConfig = {
       { source: '/wishdom/:path*', destination: '/dashboard', permanent: false },
       { source: '/taskforce', destination: '/dashboard', permanent: false },
       { source: '/taskforce/:path*', destination: '/dashboard', permanent: false },
+      // The Nexus, Promptor, Pixel, Pulse, Whisper and ATLAS agents and the
+      // "All AI Agents" listing were removed; only Osha and Omni remain. Stale
+      // links land on Osha instead of firing a not-found Sentry warning.
+      // 307 (permanent: false) so a future rebuild is never blocked by a cached 308.
+      { source: '/ai-agents', destination: '/ai-agents/osha', permanent: false },
+      { source: '/ai-agents/nexus', destination: '/ai-agents/osha', permanent: false },
+      { source: '/ai-agents/promptor', destination: '/ai-agents/osha', permanent: false },
+      { source: '/ai-agents/pixel', destination: '/ai-agents/osha', permanent: false },
+      { source: '/ai-agents/pulse', destination: '/ai-agents/osha', permanent: false },
+      { source: '/ai-agents/whisper', destination: '/ai-agents/osha', permanent: false },
+      { source: '/ai-agents/atlas', destination: '/ai-agents/osha', permanent: false },
+      { source: '/ai-agents/muse', destination: '/ai-agents/osha', permanent: false },
     ];
   },
 

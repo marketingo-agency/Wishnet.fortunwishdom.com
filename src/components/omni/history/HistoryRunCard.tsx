@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
-import { formatDate } from '@/components/settings/pulsePlatforms';
+import { formatDate } from '@/lib/formatDate';
 import { formatUsd } from '@/config/falPricing';
 import { useUpdateOmniRun, type OmniImagesState, type OmniRun } from '@/hooks/omni';
 import { validateJumpTarget } from '../stepRegistry';

@@ -1,9 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Bot, MessageSquare, Settings2, Lock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { MessageSquare, Settings2, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { OshaHeader } from '@/components/osha/OshaHeader';
 import { OshaChat } from '@/components/osha/OshaChat';
@@ -19,7 +17,6 @@ const TABS: { value: TabValue; label: string; icon: React.ReactNode }[] = [
 ];
 
 export default function OshaAgent() {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabValue>('chat');
   const { data: settings = DEFAULT_OSHA_SETTINGS, isLoading: loadingSettings } = useOshaSettings();
   const { data: agentSettings, isLoading: loadingAgentSettings } = useAgentSettings('osha');
@@ -89,16 +86,9 @@ export default function OshaAgent() {
           <div className="text-center">
             <h3 className="font-semibold text-lg mb-1">Osha is Inactive</h3>
             <p className="text-sm text-muted-foreground max-w-xs">
-              Osha has been deactivated. Enable it in the Nexus Control Center.
+              Osha has been deactivated. An administrator can re-enable it in the agent settings.
             </p>
           </div>
-          <Button
-            onClick={() => router.push('/ai-agents/nexus?tab=agents')}
-            className="bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600"
-          >
-            <Bot className="h-4 w-4 mr-2" />
-            Go to Nexus
-          </Button>
         </div>
       )}
     </div>

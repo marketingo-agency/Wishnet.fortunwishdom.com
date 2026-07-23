@@ -33,9 +33,6 @@ import {
 
 const AGENTS = [
   { id: 'osha', label: 'Osha' },
-  { id: 'pixel', label: 'Pixel' },
-  { id: 'promptor', label: 'Promptor' },
-  { id: 'nexus', label: 'Nexus' },
 ];
 
 export function SystemPromptsPanel() {

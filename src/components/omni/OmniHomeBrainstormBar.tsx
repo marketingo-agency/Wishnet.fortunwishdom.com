@@ -80,7 +80,7 @@ export function OmniHomeBrainstormBar() {
               variant="ghost"
               size="icon"
               onClick={comingSoon}
-              aria-label="Optimize with Promptor (coming soon)"
+              aria-label="Optimize (coming soon)"
               className="h-9 w-9 shrink-0 cursor-pointer text-muted-foreground transition-colors duration-200 hover:text-violet-400"
             >
               <Wand2 className="h-4 w-4" />

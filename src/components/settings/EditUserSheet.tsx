@@ -30,12 +30,6 @@ import {
   UploadCloud,
   Plus,
   Edit,
-  Settings2,
-  Wand2,
-  Mic,
-  Share2,
-  Palette,
-  Boxes,
   Orbit,
 } from 'lucide-react';
 
@@ -87,13 +81,7 @@ const toolConfigs = [
     color: 'text-cyan-500',
     hasAdvanced: true,
     advancedOptions: [
-      { key: 'ai_can_access_nexus', label: 'Nexus (Control Center)', icon: Settings2 },
-      { key: 'ai_can_access_promptor', label: 'Promptor (Prompts)', icon: Wand2 },
       { key: 'ai_can_access_osha', label: 'Osha (Assistant)', icon: Bot },
-      { key: 'ai_can_access_whisper', label: 'Whisper (Podcast)', icon: Mic },
-      { key: 'ai_can_access_pulse', label: 'Pulse (Social)', icon: Share2 },
-      { key: 'ai_can_access_pixel', label: 'Pixel (Visuals)', icon: Palette },
-      { key: 'ai_can_access_atlas', label: 'ATLAS (Operations)', icon: Boxes },
       { key: 'ai_can_access_omni', label: 'Omni (Creation)', icon: Orbit },
     ]
   },
@@ -125,13 +113,7 @@ export function EditUserSheet({ open, onOpenChange, user, onSave }: EditUserShee
     files_can_delete: true,
     files_can_upload: true,
     // AI Agents
-    ai_can_access_nexus: true,
-    ai_can_access_promptor: true,
     ai_can_access_osha: true,
-    ai_can_access_whisper: true,
-    ai_can_access_pulse: true,
-    ai_can_access_pixel: true,
-    ai_can_access_atlas: true,
     ai_can_access_omni: true,
     // MasterMind
     mastermind_can_create: true,
@@ -162,13 +144,7 @@ export function EditUserSheet({ open, onOpenChange, user, onSave }: EditUserShee
         files_can_delete: userPermissions.files_can_delete,
         files_can_upload: userPermissions.files_can_upload,
         // AI Agents
-        ai_can_access_nexus: userPermissions.ai_can_access_nexus,
-        ai_can_access_promptor: userPermissions.ai_can_access_promptor,
         ai_can_access_osha: userPermissions.ai_can_access_osha,
-        ai_can_access_whisper: userPermissions.ai_can_access_whisper,
-        ai_can_access_pulse: userPermissions.ai_can_access_pulse,
-        ai_can_access_pixel: userPermissions.ai_can_access_pixel,
-        ai_can_access_atlas: userPermissions.ai_can_access_atlas,
         ai_can_access_omni: userPermissions.ai_can_access_omni,
         // MasterMind
         mastermind_can_create: userPermissions.mastermind_can_create,

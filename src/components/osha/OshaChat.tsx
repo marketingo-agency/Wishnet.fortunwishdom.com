@@ -333,8 +333,8 @@ export function OshaChat({ messages, settings, isLoadingMessages, onMessagesChan
               <button
                 onClick={ctrl.handleOptimizeDraft}
                 disabled={!ctrl.input.trim() || ctrl.isOptimizing}
-                title="Optimize with Promptor"
-                aria-label="Optimize with Promptor"
+                title="Optimize this draft"
+                aria-label="Optimize this draft"
                 className="h-9 w-9 rounded-full flex items-center justify-center shrink-0 self-end mb-0.5 transition-all text-muted-foreground hover:text-violet-400 hover:bg-violet-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {ctrl.isOptimizing ? (

@@ -2,7 +2,7 @@
 
 /**
  * Brainstorming (Mode 6): a RAG-grounded creative chat with provider and
- * model pickers, image attachments, and Promptor optimization. The session
+ * model pickers, image attachments, and AI optimization. The session
  * is an omni_runs row (mode 'brainstorming'); locking the idea distills the
  * conversation into a brief and hands the SAME run to the Omni Images wizard
  * at step 1 with the objective prefilled.

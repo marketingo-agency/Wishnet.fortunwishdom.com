@@ -24,6 +24,7 @@ import { analyzeImage } from './analysis.ts';
 import { mineSurpriseIdeas } from './surprise.ts';
 import { chatBrainstorm, lockIdea, type BrainstormAttachment, type BrainstormMessageInput } from './brainstorm.ts';
 import { buildHeartDigest, fetchHeartRules, retrieveKnowledge } from './context.ts';
+import { optimizeDraft } from './optimize.ts';
 import { generateCaptions } from './captions.ts';
 
 // 60/min: the generation workspace polls in-flight variants every ~3s.
@@ -1122,6 +1123,48 @@ Deno.serve(async (req: Request) => {
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Idea generation failed';
         console.error('Omni: surprise-ideas error:', message);
+        return jsonResponse({ error: message }, 502);
+      }
+    }
+
+    // -- optimize-draft (the "magic wand": rewrite a draft, Heart+Brain-grounded) -
+    if (action === 'optimize-draft') {
+      const draft = typeof body.raw_request === 'string' ? body.raw_request.slice(0, 8000).trim() : '';
+      if (!draft) return jsonResponse({ error: 'raw_request is required' }, 400);
+
+      const { data: llm } = await supabaseAdmin
+        .from('llm_settings')
+        .select('openai_api_key, gemini_api_key, openai_text_model, gemini_text_model, active_text_provider')
+        .single();
+      const openaiKey = ((llm?.openai_api_key as string | null) || Deno.env.get('OPENAI_API_KEY') || '').trim();
+      const geminiKey = ((llm?.gemini_api_key as string | null) || Deno.env.get('GEMINI_API_KEY') || '').trim();
+      if (!openaiKey && !geminiKey) {
+        return jsonResponse({ error: 'An OpenAI or Gemini API key is required to optimize. Configure one in Settings > LLM Providers.' }, 503);
+      }
+      const configuredRaw = (llm?.active_text_provider as string | null) ?? null;
+      const provider = configuredRaw === 'gemini' && geminiKey ? 'gemini'
+        : configuredRaw === 'openai' && openaiKey ? 'openai'
+        : openaiKey ? 'openai' : 'gemini';
+      const model = provider === 'gemini'
+        ? ((llm?.gemini_text_model as string | null) || 'gemini-2.5-flash')
+        : ((llm?.openai_text_model as string | null) || 'gpt-4o');
+
+      let heartRules;
+      try {
+        heartRules = await fetchHeartRules(supabaseAdmin);
+      } catch (e) {
+        return jsonResponse({ error: e instanceof Error ? e.message : 'Heart rules unavailable' }, 503);
+      }
+      const knowledge = openaiKey ? await retrieveKnowledge(supabaseAdmin, openaiKey, draft) : [];
+
+      try {
+        const rewrite = await optimizeDraft({
+          provider, model, keys: { openaiKey, geminiKey }, heartRules, knowledge, draft,
+        });
+        return jsonResponse({ rewrite });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Optimize failed';
+        console.error('Omni: optimize-draft error:', message);
         return jsonResponse({ error: message }, 502);
       }
     }

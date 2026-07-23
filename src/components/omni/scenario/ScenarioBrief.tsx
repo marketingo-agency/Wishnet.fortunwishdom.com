@@ -2,7 +2,7 @@
 
 /**
  * Scenario Studio stage 1: the brief. Topic/idea text with a bottom-right
- * Promptor wand that rewrites it cinematically (mirrors omni-images stage 1),
+ * optimization wand that rewrites it cinematically (mirrors omni-images stage 1),
  * InspireMe (knowledge-mined ideas), reference images (Wishpedia canon; these
  * anchor the storyboard keyframes), an optional pasted source, and a target
  * scene count (up to 20). No source URL. The generate call produces the
@@ -21,7 +21,7 @@ import { InspireMe } from '../wizard/InspireMe';
 import { OmniWishReferencePicker } from '../wizard/OmniWishReferencePicker';
 import { ScenarioReferenceUploader } from './ScenarioReferenceUploader';
 import { useGenerateScenario, type ScenarioUploadedRef } from '@/hooks/omni/useScenario';
-import { useOptimizeDraft } from '@/hooks/promptor';
+import { useOptimizeDraft } from '@/hooks/omni';
 import { stripKnowledgeMarkers } from '@/lib/omni/stripKnowledgeMarkers';
 import type { OmniVideoScenario, OmniWishReferenceRef } from '@/hooks/omni';
 
@@ -84,7 +84,7 @@ export function ScenarioBrief({ initialBrief, initialReferences, uploaded, onUpl
           <Label htmlFor="scenario-brief">What is this video about?</Label>
           <InspireMe onPick={(objective) => setBrief(stripKnowledgeMarkers(objective))} disabled={busy} />
         </div>
-        {/* Bottom-right Promptor wand optimizes the brief in place (omni-images stage-1 pattern). */}
+        {/* Bottom-right optimization wand optimizes the brief in place (omni-images stage-1 pattern). */}
         <div className="relative">
           <Textarea
             id="scenario-brief"
@@ -100,8 +100,8 @@ export function ScenarioBrief({ initialBrief, initialReferences, uploaded, onUpl
             size="icon"
             onClick={() => void handleOptimize()}
             disabled={!brief.trim() || busy}
-            aria-label="Optimize the brief with Promptor"
-            title="Optimize cinematically with Promptor"
+            aria-label="Optimize the brief"
+            title="Optimize cinematically"
             className="absolute bottom-2 right-2 h-8 w-8 cursor-pointer bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-sm transition-all duration-300 hover:opacity-90"
           >
             {isOptimizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}

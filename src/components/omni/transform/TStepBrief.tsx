@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Transform step 3: describe the transformation (Promptor optimization on
+ * Transform step 3: describe the transformation (AI optimization on
  * the input). Can be left empty for pure upscaling runs.
  */
 
@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { ArrowRight, Loader2, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { useOptimizeDraft } from '@/hooks/promptor';
+import { useOptimizeDraft } from '@/hooks/omni';
 
 interface TStepBriefProps {
   initialValue: string;
@@ -53,8 +53,8 @@ export function TStepBrief({ initialValue, onNext }: TStepBriefProps) {
           size="icon"
           onClick={handleOptimize}
           disabled={!value.trim() || isOptimizing}
-          aria-label="Optimize with Promptor"
-          title="Optimize with Promptor"
+          aria-label="Optimize"
+          title="Optimize"
           className="absolute bottom-2 right-2 h-9 w-9 cursor-pointer text-violet-400 transition-colors duration-200 hover:text-violet-300"
         >
           {isOptimizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}

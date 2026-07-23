@@ -8,7 +8,6 @@ export { useCopyToClipboard, useScrollToBottom, useAutoResizeTextarea, useEnterT
 
 // Controller hooks
 export { useOshaChatController } from './useOshaChatController';
-export { useNexusConsoleController } from './useNexusConsoleController';
 
 // Auth
 export { useAuth } from '@/contexts/AuthContext';

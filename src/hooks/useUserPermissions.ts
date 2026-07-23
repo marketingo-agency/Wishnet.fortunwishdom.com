@@ -72,14 +72,7 @@ export function useCurrentUserPermissions() {
         files_can_delete: true,
         files_can_upload: true,
         // AI Agents
-        ai_can_access_nexus: true,
-        ai_can_access_promptor: true,
         ai_can_access_osha: true,
-        ai_can_access_whisper: true,
-        ai_can_access_pulse: true,
-        ai_can_access_muse: true,
-        ai_can_access_pixel: true,
-        ai_can_access_atlas: true,
         ai_can_access_omni: true,
         // MasterMind
         mastermind_can_create: true,
@@ -156,14 +149,7 @@ export function useUpdateUserPermissions() {
 
 // Per-agent boolean access flags (PERM-01: enforced at the route level)
 export type AgentAccessKey =
-  | 'ai_can_access_nexus'
-  | 'ai_can_access_promptor'
   | 'ai_can_access_osha'
-  | 'ai_can_access_pixel'
-  | 'ai_can_access_pulse'
-  | 'ai_can_access_whisper'
-  | 'ai_can_access_muse'
-  | 'ai_can_access_atlas'
   | 'ai_can_access_omni';
 
 // Tool-level permission keys (consumed by <ToolProtectedRoute />)

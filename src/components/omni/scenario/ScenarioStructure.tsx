@@ -2,7 +2,7 @@
 
 /**
  * Scenario Studio stage 2: the structure editor. Each scene shows its time
- * window (from X to Y seconds), ONE visual-prompt box with a Promptor wand to
+ * window (from X to Y seconds), ONE visual-prompt box with a optimization wand to
  * optimize it, and an editable length. Scenes reorder, remove, and add; the
  * whole scenario can be regenerated from the brief.
  */
@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useGenerateScenario } from '@/hooks/omni/useScenario';
-import { useOptimizeDraft } from '@/hooks/promptor';
+import { useOptimizeDraft } from '@/hooks/omni';
 import { stripKnowledgeMarkers } from '@/lib/omni/stripKnowledgeMarkers';
 import type { OmniScenarioScene, OmniVideoScenario } from '@/hooks/omni';
 
@@ -144,7 +144,7 @@ export function ScenarioStructure({ brief, scenario, onChange, onNext }: Scenari
               </div>
             </div>
 
-            {/* ONE prompt box, with a bottom-right Promptor wand. */}
+            {/* ONE prompt box, with a bottom-right optimization wand. */}
             <div className="relative mt-2">
               <Textarea
                 value={scene.visual_prompt}
@@ -160,8 +160,8 @@ export function ScenarioStructure({ brief, scenario, onChange, onNext }: Scenari
                 size="icon"
                 onClick={() => void optimizeScene(scene.idx, scene.visual_prompt)}
                 disabled={!scene.visual_prompt.trim() || optimizingIdx !== null}
-                aria-label={`Optimize scene ${scene.idx} prompt with Promptor`}
-                title="Optimize cinematically with Promptor"
+                aria-label={`Optimize scene ${scene.idx} prompt`}
+                title="Optimize cinematically"
                 className="absolute bottom-2 right-2 h-7 w-7 cursor-pointer bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-sm transition-all duration-300 hover:opacity-90"
               >
                 {optimizingIdx === scene.idx ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}

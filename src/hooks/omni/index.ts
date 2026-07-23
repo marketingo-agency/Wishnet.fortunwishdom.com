@@ -9,3 +9,4 @@ export * from './useGenerationRunner';
 export * from './useTransform';
 export * from './useSurpriseIdeas';
 export * from './useBrainstorm';
+export * from './useOptimizeDraft';

@@ -8,15 +8,9 @@ import {
   Brain,
   BrainCircuit,
   Heart,
-  Wand2,
   Bot,
-  Mic,
-  Share2,
-
-  Palette,
   Book,
   Database,
-  Boxes,
   Orbit,
 } from 'lucide-react';
 import type { ToolKey } from '@/config/permissions';
@@ -34,15 +28,6 @@ export interface RouteConfig {
 // AI Agent routes
 export const AI_AGENT_ROUTES: RouteConfig[] = [
   {
-    path: '/ai-agents/promptor',
-    title: 'Promptor',
-    description: 'Your prompt engineering assistant that optimizes messages and generates refined prompts from directives.',
-    icon: Wand2,
-    iconColor: 'text-violet-500',
-    toolKey: 'ai_agents',
-    isComingSoon: false,
-  },
-  {
     path: '/ai-agents/osha',
     title: 'Osha',
     description: 'Platform assistant, creative brainstorming partner, deep researcher, and knowledge manager.',
@@ -52,49 +37,13 @@ export const AI_AGENT_ROUTES: RouteConfig[] = [
     isComingSoon: false,
   },
   {
-    path: '/ai-agents/pixel',
-    title: 'Pixel',
-    description: 'Creates AI-generated images and videos for social media posts, presentations, and more.',
-    icon: Palette,
-    iconColor: 'text-pink-500',
-    toolKey: 'ai_agents',
-    isComingSoon: false,
-  },
-  {
-    path: '/ai-agents/pulse',
-    title: 'Pulse',
-    description: 'Plan, generate, schedule, and publish posts across platforms, then manage comments and DMs with AI replies — your social operations hub.',
-    icon: Share2,
-    iconColor: 'text-pink-500',
-    toolKey: 'ai_agents',
-    isComingSoon: false,
-  },
-  {
-    path: '/ai-agents/whisper',
-    title: 'Whisper',
-    description: 'Turns a topic or your Brain/Wishpedia sources into a fully scripted, multi-voice podcast episode with ElevenLabs audio.',
-    icon: Mic,
-    iconColor: 'text-blue-500',
-    toolKey: 'ai_agents',
-    isComingSoon: false,
-  },
-  {
     path: '/ai-agents/omni',
     title: 'Omni',
-    description: 'Premium multimodal creation studio: brainstorming, multi-model image generation, transform and upscale, and social repurposing into the Pulse Content Library.',
+    description: 'Premium multimodal creation studio: brainstorming, multi-model image generation, video and audio tracks, and a Content hub that auto-publishes through Metricool.',
     icon: Orbit,
     iconColor: 'text-cyan-500',
     toolKey: 'ai_agents',
     isComingSoon: false,
-  },
-  {
-    path: '/ai-agents/atlas',
-    title: 'ATLAS',
-    description: 'Structures, calculates, verifies and monitors Kickstarter operations across SKU data, factory quotes, QC, freight, 3PL, pledge manager, backer delivery and financial modeling — flagging risks, missing data, and recommended next actions for human review.',
-    icon: Boxes,
-    iconColor: 'text-teal-500',
-    toolKey: 'ai_agents',
-    isComingSoon: true,
   },
 ];
 

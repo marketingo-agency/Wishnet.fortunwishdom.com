@@ -47,14 +47,7 @@ export interface UserPermissions {
   mastermind_can_delete: boolean | null;
   
   // AI Agents granular permissions
-  ai_can_access_nexus: boolean | null;
-  ai_can_access_promptor: boolean | null;
   ai_can_access_osha: boolean | null;
-  ai_can_access_whisper: boolean | null;
-  ai_can_access_pulse: boolean | null;
-  ai_can_access_muse: boolean | null;
-  ai_can_access_pixel: boolean | null;
-  ai_can_access_atlas: boolean | null;
   ai_can_access_omni: boolean | null;
 
   created_at: string | null;

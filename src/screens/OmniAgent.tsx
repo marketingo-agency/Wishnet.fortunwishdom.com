@@ -9,11 +9,9 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Lock, Orbit } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Lock } from 'lucide-react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useAgentSettings } from '@/hooks/useAgentSettings';
@@ -72,7 +70,6 @@ type ContentMode = 'hub' | 'publishing_desk' | 'connections' | 'content_library'
 const BUILT_CONTENT_SURFACES: ContentMode[] = ['publishing_desk', 'connections', 'content_library'];
 
 export default function OmniAgent() {
-  const router = useRouter();
 
   const [omniTheme, setOmniTheme] = useState<OmniTheme>(() => {
     if (typeof window !== 'undefined') {
@@ -502,15 +499,8 @@ export default function OmniAgent() {
               </div>
               <h2 className="text-lg font-semibold">Omni is Inactive</h2>
               <p className="mt-1.5 text-sm text-muted-foreground">
-                Omni has been deactivated. Enable it in the Nexus Control Center.
+                Omni has been deactivated. An administrator can re-enable it in the agent settings.
               </p>
-              <Button
-                onClick={() => router.push('/ai-agents/nexus?tab=agents')}
-                className="mt-6 cursor-pointer gap-2 bg-gradient-to-r from-cyan-500 to-violet-600 text-white transition-all duration-300 hover:opacity-90"
-              >
-                <Orbit className="h-4 w-4" />
-                Go to Nexus
-              </Button>
             </div>
           </div>
         )}

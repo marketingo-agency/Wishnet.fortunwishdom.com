@@ -14,7 +14,7 @@ import { getAuthHeaders } from '@/lib/apiHelpers';
 import { PROVIDER_KEY_STATUS_QUERY_KEY } from './useProviderKeyStatus';
 import type { KeySource } from './useProviderKeyStatus';
 
-export type ProviderKeyProvider = 'openai' | 'gemini' | 'fal' | 'claude' | 'pulse';
+export type ProviderKeyProvider = 'openai' | 'gemini' | 'fal' | 'claude';
 
 export interface UpdateProviderKeyPayload {
   provider: ProviderKeyProvider;
