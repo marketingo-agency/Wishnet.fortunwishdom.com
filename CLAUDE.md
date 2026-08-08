@@ -115,7 +115,7 @@ Sam's concept: migrate Wishnet into ONE Omni-centered screen shaped like ChatGPT
 
 **NOT the official template.** The real migration (Option A shell swap: Omni at `/`, rail = live run history, avatar menu; plus the open Osha-fate and Dashboard-fate decisions) is a separate future plan, pending Sam's visual verdict on this page. The previously parked Content Desk task is preserved verbatim at [plans/PARKED_CONTENT_DESK_VISION_PLAN.md](plans/PARKED_CONTENT_DESK_VISION_PLAN.md). Undo of this prototype = delete src/app/(preview)/ + src/components/preview/ + src/screens/OneScreenPreview.tsx, then purge .next + tsconfig.tsbuildinfo.
 
-**REQUIRES HUMAN (Sam):** visual pass at http://localhost:8000/preview/one-screen (login required) - both themes, rail collapse, a chat thread (Q3 giveaway brainstorm has the full scripted demo), a run card, the avatar menu, 375px drawer.
+**SHIPPED:** Sam approved the local preview, then commit b3c4371 was pushed to main -> GitHub Actions "Deploy to VPS" green (3m21s) + CI green -> LIVE at https://wishnet.fortunwishdom.com/preview/one-screen (probed: unauthenticated -> 307 /login, gate intact on prod). Sam's visual checklist: both themes, rail collapse, the "Q3 giveaway brainstorm" scripted thread, a run card, the avatar menu, the 375px drawer.
 
 ### Removal - Six AI agents erased, only Osha + Omni remain (2026-07-23)
 Sam: erase Nexus, Promptor, Pixel, Pulse, Whisper, ATLAS + the "All AI Agents" listing; keep ONLY Osha + Omni (menu shows just those two); Omni + Osha must stay 100% functional and depend on NO removed agent. Recommendations approved (keep the optimize wand by porting it, keep ai-chat as infra, sweep the muse ghost, redirect stale links -> /ai-agents/osha). 9-phase plan, safety-first ordering.
