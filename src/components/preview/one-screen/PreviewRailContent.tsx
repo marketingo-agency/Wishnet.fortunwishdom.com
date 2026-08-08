@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import {
   GROUP_LABELS,
   MOCK_RUNS,
-  TRACK_META,
+  metaForRun,
   type PreviewGroup,
   type PreviewRun,
 } from './previewMockData';
@@ -26,7 +26,7 @@ interface RailContentProps {
 }
 
 const RailRow = ({ run, active, onSelect }: { run: PreviewRun; active: boolean; onSelect: (run: PreviewRun) => void }) => {
-  const meta = TRACK_META[run.track];
+  const meta = metaForRun(run);
   const Icon = meta.icon;
   return (
     <div className="group relative">

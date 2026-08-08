@@ -86,7 +86,10 @@ export default function OneScreenPreview() {
   const viewKey = view.type === 'run' ? `run-${view.runId}` : view.type === 'adhoc' ? `adhoc-${view.prompt}` : 'home';
 
   return (
-    <div data-preview-theme={theme} className="h-screen w-full overflow-hidden">
+    // The preview rides Omni's data-omni-theme CSS-variable remap so semantic
+    // classes resolve to Omni's exact palette (its own localStorage key keeps
+    // the preview's choice independent of the real Omni page).
+    <div data-omni-theme={theme} className="h-screen w-full overflow-hidden">
       <div className={cn('flex h-full w-full transition-colors duration-300 motion-reduce:transition-none safe-bottom safe-x', PT.page)}>
         <PreviewRail
           collapsed={railCollapsed}

@@ -10,7 +10,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { PanelLeftClose, PanelLeftOpen, Plus, X } from 'lucide-react';
 import { FortunLogo } from '@/components/brand/FortunLogo';
 import { cn } from '@/lib/utils';
-import { MOCK_RUNS, TRACK_META, type PreviewRun } from './previewMockData';
+import { MOCK_RUNS, metaForRun, type PreviewRun } from './previewMockData';
 import { RailContent } from './PreviewRailContent';
 import { PT } from './previewTokens';
 
@@ -93,9 +93,10 @@ export const PreviewRail = ({
             >
               <Plus className="h-4 w-4" />
             </button>
-            <div className={cn('my-2 h-px w-8 shrink-0', 'bg-white/[0.08] [[data-preview-theme=light]_&]:bg-zinc-200')} />
+            <div className="my-2 h-px w-8 shrink-0 bg-border" />
             {MOCK_RUNS.slice(0, 7).map((run) => {
-              const Icon = TRACK_META[run.track].icon;
+              const meta = metaForRun(run);
+              const Icon = meta.icon;
               return (
                 <button
                   key={run.id}
@@ -110,7 +111,7 @@ export const PreviewRail = ({
                     activeId === run.id ? PT.rowActive : PT.row,
                   )}
                 >
-                  <Icon className={cn('h-4 w-4', TRACK_META[run.track].iconClass)} />
+                  <Icon className={cn('h-4 w-4', meta.iconClass)} />
                 </button>
               );
             })}
@@ -139,7 +140,7 @@ export const PreviewRail = ({
               animate={{ x: 0 }}
               exit={{ x: reduceMotion ? 0 : -300 }}
               transition={{ duration: reduceMotion ? 0 : 0.2, ease: 'easeOut' }}
-              className={cn('absolute inset-y-0 left-0 flex w-[280px] max-w-[85vw] flex-col border-r shadow-2xl', PT.rail, PT.page)}
+              className={cn('absolute inset-y-0 left-0 flex w-[280px] max-w-[85vw] flex-col border-r text-foreground shadow-2xl', PT.rail)}
             >
               <div className={cn('flex h-14 shrink-0 items-center justify-between border-b px-3', PT.border)}>
                 <FortunLogo variant="full" className="h-8 w-auto" />

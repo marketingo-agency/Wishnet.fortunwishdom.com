@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * Home state of the One-Screen Preview: ChatGPT-style greeting, hero
- * composer, track chips, and suggestion cards. The greeting uses the REAL
- * logged-in user's first name (Sam's hybrid ruling); everything else is mock.
+ * Home state of the One-Screen Preview: Omni-voiced greeting, hero composer,
+ * the four Omni track chips (no brainstorm — the chat itself replaces it),
+ * and suggestion cards styled like Omni's entry tiles. The greeting uses the
+ * REAL logged-in user's first name (Sam's hybrid ruling); the rest is mock.
  */
 import { useState } from 'react';
 import { ArrowUpRight } from 'lucide-react';
@@ -19,15 +20,7 @@ interface PreviewHomeProps {
   onSend: (text: string) => void;
 }
 
-function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 5) return 'Up late';
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
-}
-
-const TRACK_ORDER: PreviewTrack[] = ['images', 'videos', 'audios', 'content', 'brainstorm'];
+const TRACK_ORDER: PreviewTrack[] = ['images', 'videos', 'audios', 'content'];
 
 export const PreviewHome = ({ firstName, draft, onDraftChange, onSend }: PreviewHomeProps) => {
   const [selectedTrack, setSelectedTrack] = useState<PreviewTrack | null>(null);
@@ -36,14 +29,15 @@ export const PreviewHome = ({ firstName, draft, onDraftChange, onSend }: Preview
     <div className="flex h-full min-h-0 flex-col overflow-y-auto">
       <div className="m-auto flex w-full max-w-2xl flex-col items-center gap-6 px-4 py-8 sm:px-6">
         <div className="text-center">
-          <h2 className="[font-family:var(--font-poppins)] text-2xl font-bold sm:text-3xl">
-            {getGreeting()},{' '}
+          <h2 className="[font-family:var(--font-poppins)] text-2xl font-bold tracking-tight sm:text-3xl">
+            What shall we{' '}
             <span className="bg-gradient-to-r from-cyan-400 to-violet-500 bg-clip-text text-transparent">
-              {firstName}
+              create
             </span>
+            , {firstName}?
           </h2>
-          <p className={cn('mt-2 text-sm', PT.muted)}>
-            One screen. Every creation. What are we making today?
+          <p className={cn('mx-auto mt-2 max-w-md text-sm', PT.muted)}>
+            Ask in the chat, or jump straight into a studio track.
           </p>
         </div>
 
@@ -63,28 +57,33 @@ export const PreviewHome = ({ firstName, draft, onDraftChange, onSend }: Preview
                 aria-pressed={selected}
                 onClick={() => setSelectedTrack(selected ? null : track)}
                 className={cn(
-                  'flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-200 motion-reduce:transition-none',
+                  'flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-200 motion-reduce:transition-none',
                   PT.focusRing,
                   selected
-                    ? 'border-cyan-400/50 bg-gradient-to-r from-cyan-500/20 to-violet-500/20 text-cyan-300 [[data-preview-theme=light]_&]:text-cyan-700'
-                    : cn('border-white/[0.08] [[data-preview-theme=light]_&]:border-zinc-200', PT.row),
+                    ? 'border-cyan-500/40 bg-secondary text-secondary-foreground shadow-sm shadow-cyan-500/10'
+                    : cn('border-border bg-card', PT.row),
                 )}
               >
-                <Icon className={cn('h-3.5 w-3.5', meta.iconClass)} aria-hidden="true" />
+                <span
+                  aria-hidden="true"
+                  className={cn('flex h-5 w-5 items-center justify-center rounded-md bg-gradient-to-br text-white shadow-sm', meta.gradient)}
+                >
+                  <Icon className="h-3 w-3" />
+                </span>
                 {meta.label}
               </button>
             );
           })}
         </div>
 
-        <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2">
+        <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
           {SUGGESTIONS.map((suggestion) => (
             <button
               key={suggestion}
               type="button"
               onClick={() => onDraftChange(suggestion)}
               className={cn(
-                'group flex cursor-pointer items-start justify-between gap-2 rounded-2xl p-3.5 text-left text-sm transition-all duration-200 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0',
+                'group flex cursor-pointer items-start justify-between gap-2 rounded-2xl p-4 text-left text-sm transition-all duration-300 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0',
                 PT.panel,
                 PT.panelHover,
                 PT.focusRing,
@@ -92,7 +91,7 @@ export const PreviewHome = ({ firstName, draft, onDraftChange, onSend }: Preview
             >
               <span className={cn('leading-snug', PT.muted)}>{suggestion}</span>
               <ArrowUpRight
-                className={cn('mt-0.5 h-4 w-4 shrink-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none', PT.faint)}
+                className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:text-cyan-400 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none"
                 aria-hidden="true"
               />
             </button>

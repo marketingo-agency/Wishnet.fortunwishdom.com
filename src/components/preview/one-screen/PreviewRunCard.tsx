@@ -8,37 +8,39 @@
 import Link from 'next/link';
 import { Check, History, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { RUN_THUMB_GRADIENTS, TRACK_META, type PreviewRun } from './previewMockData';
+import { RUN_THUMB_GRADIENTS, metaForRun, type PreviewRun } from './previewMockData';
 import { PT } from './previewTokens';
 
+// Omni's badge convention: bordered tint, light text-700 base, dark via the
+// [[data-omni-theme=dark]_&]: variant (see OmniEntryTiles AVAILABILITY_BADGE).
 const STATUS_META: Record<PreviewRun['status'], { label: string; className: string }> = {
   completed: {
     label: 'Completed',
-    className: 'bg-emerald-500/15 text-emerald-300 [[data-preview-theme=light]_&]:bg-emerald-500/10 [[data-preview-theme=light]_&]:text-emerald-700',
+    className: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 [[data-omni-theme=dark]_&]:text-emerald-400',
   },
   in_progress: {
     label: 'In progress',
-    className: 'bg-cyan-500/15 text-cyan-300 [[data-preview-theme=light]_&]:bg-cyan-500/10 [[data-preview-theme=light]_&]:text-cyan-700',
+    className: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 [[data-omni-theme=dark]_&]:text-cyan-400',
   },
   draft: {
     label: 'Draft',
-    className: 'bg-zinc-500/20 text-zinc-300 [[data-preview-theme=light]_&]:bg-zinc-500/10 [[data-preview-theme=light]_&]:text-zinc-600',
+    className: 'border-border bg-muted/60 text-muted-foreground',
   },
 };
 
 export const PreviewRunCard = ({ run }: { run: PreviewRun }) => {
-  const meta = TRACK_META[run.track];
+  const meta = metaForRun(run);
   const status = STATUS_META[run.status];
   const steps = run.progress?.steps ?? [];
   const done = run.progress?.done ?? 0;
 
   return (
-    <section aria-label={`${run.title} run snapshot`} className={cn('rounded-3xl p-5 sm:p-6', PT.panel)}>
+    <section aria-label={`${run.title} run snapshot`} className={cn('rounded-2xl p-5 sm:p-6', PT.panel)}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-semibold', meta.badgeClass)}>
+        <span className={cn('rounded-full border px-2.5 py-0.5 text-[11px] font-medium', meta.badgeClass)}>
           {meta.label}
         </span>
-        <span className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-semibold', status.className)}>
+        <span className={cn('rounded-full border px-2.5 py-0.5 text-[11px] font-medium', status.className)}>
           {status.label}
         </span>
         <span className={cn('ml-auto text-xs', PT.faint)}>{run.time}</span>
@@ -57,8 +59,8 @@ export const PreviewRunCard = ({ run }: { run: PreviewRun }) => {
                 className={cn(
                   'flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-semibold',
                   isDone && 'border-transparent bg-gradient-to-br from-cyan-500 to-violet-600 text-white',
-                  isCurrent && 'border-cyan-400 text-cyan-300 [[data-preview-theme=light]_&]:text-cyan-700',
-                  !isDone && !isCurrent && cn('border-white/[0.15] [[data-preview-theme=light]_&]:border-zinc-300', PT.faint),
+                  isCurrent && 'border-cyan-500 text-cyan-700 [[data-omni-theme=dark]_&]:text-cyan-400',
+                  !isDone && !isCurrent && cn('border-border', PT.faint),
                 )}
               >
                 {isDone ? <Check className="h-3 w-3" /> : i + 1}

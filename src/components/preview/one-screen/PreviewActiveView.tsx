@@ -30,7 +30,7 @@ const FOLLOWUP_REPLY: PreviewMessage = {
 };
 
 const FALLBACK_THREAD: PreviewMessage[] = [
-  { role: 'omni', text: 'This entry opens its saved conversation here in the real build. The preview scripts a few of the threads; pick "Q3 giveaway brainstorm" for the full demo.' },
+  { role: 'omni', text: 'This entry opens its saved conversation here in the real build. The preview scripts a few of the threads; pick "Q3 giveaway ideas" for the full demo.' },
 ];
 
 const TypingDots = () => (

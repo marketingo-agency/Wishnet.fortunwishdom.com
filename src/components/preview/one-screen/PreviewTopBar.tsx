@@ -6,7 +6,7 @@
  * on the right. Menu links navigate to the REAL pages (Sam's ruling); Sign
  * out is deliberately disabled so a demo click cannot end the session.
  *
- * The dropdown renders in a portal (outside the data-preview-theme scope), so
+ * The dropdown renders in a portal (outside the data-omni-theme scope), so
  * its surface receives conditional classes from the live theme state.
  */
 import Link from 'next/link';
@@ -90,28 +90,34 @@ const TopAction = ({
 export const PreviewTopBar = ({ theme, onToggleTheme, title, onOpenMobileRail }: PreviewTopBarProps) => {
   const { profile } = useAuth();
 
+  // Portal surfaces cannot see data-omni-theme, so these carry Omni's exact
+  // palette values (globals.css [data-omni-theme] variables) as literals.
   const menuSurface =
     theme === 'dark'
-      ? 'w-64 border-white/10 bg-zinc-900 text-zinc-100'
-      : 'w-64 border-zinc-200 bg-white text-zinc-900';
+      ? 'w-64 border-[hsl(232,24%,14%)] bg-[hsl(232,26%,8%)] text-[hsl(215,20%,95%)]'
+      : 'w-64 border-[hsl(220,25%,91%)] bg-white text-[hsl(230,25%,12%)]';
   const menuItem =
     theme === 'dark'
-      ? 'cursor-pointer gap-2.5 focus:bg-white/10 focus:text-zinc-100'
-      : 'cursor-pointer gap-2.5 focus:bg-zinc-100 focus:text-zinc-900';
+      ? 'cursor-pointer gap-2.5 focus:bg-[hsl(232,24%,12%)] focus:text-[hsl(215,20%,95%)]'
+      : 'cursor-pointer gap-2.5 focus:bg-[hsl(220,25%,96%)] focus:text-[hsl(230,25%,12%)]';
 
   return (
-    <header className={cn('flex h-14 shrink-0 items-center justify-between gap-2 border-b px-3 sm:px-4', PT.topbar)}>
-      <div className="flex min-w-0 items-center gap-2">
+    <header className={cn('flex h-[52px] shrink-0 items-center justify-between gap-2 border-b px-3 sm:px-4', PT.topbar)}>
+      <div className="flex min-w-0 items-center gap-2.5">
         <span className="md:hidden">
           <TopAction label="Open menu" onClick={onOpenMobileRail}>
             <Menu className="h-4 w-4" />
           </TopAction>
         </span>
         <h1 className="truncate text-sm font-semibold tracking-wide">{title}</h1>
+        <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+        </span>
         <span
           className={cn(
             'hidden shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider sm:inline-block',
-            'border-cyan-400/40 text-cyan-300 [[data-preview-theme=light]_&]:border-cyan-600/40 [[data-preview-theme=light]_&]:text-cyan-700',
+            'border-cyan-500/40 bg-cyan-500/10 text-cyan-700 [[data-omni-theme=dark]_&]:text-cyan-400',
           )}
         >
           Preview
@@ -142,7 +148,7 @@ export const PreviewTopBar = ({ theme, onToggleTheme, title, onOpenMobileRail }:
               aria-label="Open account menu"
               className={cn('ml-1 cursor-pointer rounded-full transition-transform duration-200 hover:scale-105 motion-reduce:transition-none motion-reduce:hover:scale-100', PT.focusRing)}
             >
-              <Avatar className="h-9 w-9 border border-white/20 [[data-preview-theme=light]_&]:border-zinc-300">
+              <Avatar className="h-9 w-9 border border-border">
                 <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.full_name || 'User'} />
                 <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-violet-600 text-xs font-semibold text-white">
                   {getInitials(profile?.full_name)}
@@ -153,11 +159,11 @@ export const PreviewTopBar = ({ theme, onToggleTheme, title, onOpenMobileRail }:
           <DropdownMenuContent align="end" className={menuSurface}>
             <DropdownMenuLabel>
               <p className="text-sm font-semibold leading-tight">{profile?.full_name || 'User'}</p>
-              <p className={cn('mt-0.5 truncate text-xs font-normal', theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500')}>
+              <p className={cn('mt-0.5 truncate text-xs font-normal', theme === 'dark' ? 'text-[hsl(220,15%,58%)]' : 'text-[hsl(225,15%,45%)]')}>
                 {profile?.email}
               </p>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator className={theme === 'dark' ? 'bg-white/10' : 'bg-zinc-200'} />
+            <DropdownMenuSeparator className={theme === 'dark' ? 'bg-[hsl(232,24%,14%)]' : 'bg-[hsl(220,25%,91%)]'} />
             {MENU_LINKS.map(({ label, href, icon: Icon }) => (
               <DropdownMenuItem key={href} asChild className={menuItem}>
                 <Link href={href}>
@@ -166,7 +172,7 @@ export const PreviewTopBar = ({ theme, onToggleTheme, title, onOpenMobileRail }:
                 </Link>
               </DropdownMenuItem>
             ))}
-            <DropdownMenuSeparator className={theme === 'dark' ? 'bg-white/10' : 'bg-zinc-200'} />
+            <DropdownMenuSeparator className={theme === 'dark' ? 'bg-[hsl(232,24%,14%)]' : 'bg-[hsl(220,25%,91%)]'} />
             <DropdownMenuItem
               disabled
               title="Disabled in the preview"

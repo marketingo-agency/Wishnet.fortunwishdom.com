@@ -51,10 +51,10 @@ export const PreviewComposer = ({
   return (
     <div
       className={cn(
-        'w-full rounded-3xl border p-2 pl-3 backdrop-blur-sm transition-shadow duration-300 motion-reduce:transition-none',
-        'focus-within:shadow-xl focus-within:shadow-cyan-500/10 focus-within:ring-1 focus-within:ring-cyan-400/40',
+        'w-full rounded-3xl p-2 pl-3 backdrop-blur-sm transition-shadow duration-300 motion-reduce:transition-none',
+        'focus-within:border-cyan-500/40 focus-within:shadow-xl focus-within:shadow-cyan-500/10 focus-within:ring-1 focus-within:ring-ring/60',
         PT.panel,
-        docked ? 'shadow-lg' : 'shadow-xl shadow-black/20',
+        docked ? 'shadow-lg' : 'shadow-xl shadow-cyan-500/5',
       )}
     >
       <div className="flex items-end gap-1.5">
@@ -75,7 +75,7 @@ export const PreviewComposer = ({
           aria-label="Message Omni"
           className={cn(
             'min-h-[40px] w-full resize-none self-center border-0 bg-transparent px-1 py-2 text-sm leading-relaxed outline-none',
-            'text-zinc-100 placeholder:text-zinc-500 [[data-preview-theme=light]_&]:text-zinc-900 [[data-preview-theme=light]_&]:placeholder:text-zinc-400',
+            'text-foreground placeholder:text-muted-foreground',
           )}
         />
         <VisualAction label="Optimize prompt">
@@ -94,7 +94,7 @@ export const PreviewComposer = ({
             PT.focusRing,
             canSend
               ? cn('cursor-pointer', PT.accentBtn)
-              : 'cursor-not-allowed bg-white/[0.06] text-zinc-600 [[data-preview-theme=light]_&]:bg-zinc-900/[0.06] [[data-preview-theme=light]_&]:text-zinc-400',
+              : 'cursor-not-allowed bg-muted text-muted-foreground/60',
           )}
         >
           <Send className="h-4 w-4" />
